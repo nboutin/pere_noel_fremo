@@ -9,13 +9,13 @@ from email.MIMEText import MIMEText
 def main():
     print ("##### Le Pere Noel de la Fremo #####")
     
-    with open("data.yml", 'r') as stream:
+    with open("res/data.yml", 'r') as stream:
         data = yaml.safe_load(stream)
         
     for e in data:
         print(e)
         
-    with open("secure_data.yml",'r') as stream:
+    with open("res/secure_data.yml",'r') as stream:
         secure_data = yaml.safe_load(stream)
         
     print(secure_data)
@@ -29,7 +29,10 @@ def main():
     </p>
     <h3>Le Père Noël de la Frémo</h3>"""
     
-    send_email(secure_data, "Le Père Noël de la Frémo recrute", body , secure_data['receiver_test'])
+    for emails in secure_data['emails']:
+        print(emails['email'])
+        
+#     send_email(secure_data, "Le Père Noël de la Frémo recrute", body , secure_data['receiver_test'])
 
 def send_email(secure_data, subject, body, toaddr):
     # http://naelshiab.com/tutoriel-comment-envoyer-un-courriel-avec-python/
