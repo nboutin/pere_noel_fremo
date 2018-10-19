@@ -1,0 +1,26 @@
+---
+- 
+   id: nboutin
+   fullname: Nicolas Boutin
+   email: 
+   couple: atranchant
+   history: [amoget, ccarre, mdenis] # 2014, 2015, 2016, 2017  
+-
+   id: atranchant
+   fullname: Audrey Tranchant
+   email:
+   couple: nboutin
+   history: [sletellier, mroudet, scarre] # 2014, 2015, 2016, 2017
+-
+   id: ccarre
+   fullname: Claire Carré
+   email:
+   couple: scarre
+   history: [atranchant, amoget, lcivel]
+-
+   id: scarre
+   fullname: Sylvain Carré
+   email:
+   couple: ccarre
+   history: [aboinet, nboutin, fleduff]
+...
