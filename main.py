@@ -8,7 +8,8 @@ def main():
     with open("data.yml", 'r') as stream:
         data = yaml.safe_load(stream)
         
-    print (data)
+    for e in data:
+        print(e)
     
 
 if __name__ == "__main__":
