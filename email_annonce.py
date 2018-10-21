@@ -23,16 +23,18 @@ def main():
     body= """<h3>HOHOHO,</h3>
     <p>
     Noël approche à grand pas et j'ai besoin de volontaires pour m'aider dans la distribution de tous les cadeaux !<br>
-    Comme l'année précédente, j'ai besoin de personnels qualifiés. C'est pourquoi tu trouveras un petit jeu te permettant de me prouver ta bravoure !<br>
-    Réponds moi au plus vite avec la phrase secrète pour être inscrit sur la liste de noël. <br>
-    Le premier, la première à répondre aura la chance de commencer le bal des cadeaux ! <br>
+    Comme l'année précédente, j'ai besoin de personnels qualifiés. Pour mettre en avant tes qualités artistiques, envoie-moi
+    ton plus beau dessin sur le thème de Noël.<br>
+    Réponds-moi au plus vite avec ton oeuvre en pièce jointe pour être inscrit sur la liste du père noël. <br>
+    Le plus beau d'entre tous aura la chance d'ouvrir le bal des cadeaux ! <br>
     </p>
     <h3>Le Père Noël de la Frémo</h3>"""
     
     for emails in secure_data['emails']:
         print(emails['email'])
+        send_email(secure_data, "Le Père Noël de la Frémo recrute", body, emails['email'])
         
-#     send_email(secure_data, "Le Père Noël de la Frémo recrute", body , secure_data['receiver_test'])
+    print("Finish")
 
 def send_email(secure_data, subject, body, toaddr):
     # http://naelshiab.com/tutoriel-comment-envoyer-un-courriel-avec-python/
