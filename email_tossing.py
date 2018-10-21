@@ -69,6 +69,13 @@ def tossing(data):
     else:
         return True
     
+    
+def is_loop(data):
+    
+    in_loop= []
+    
+    
+    
 
 def send_email(secure_data, subject, body, toaddr):
     # http://naelshiab.com/tutoriel-comment-envoyer-un-courriel-avec-python/
