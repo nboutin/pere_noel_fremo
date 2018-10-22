@@ -1,34 +1,62 @@
 #!/usr/bin/env python
-# coding: utf-8
+# encoding=utf8
 
+from __future__ import print_function
 import yaml
-
 import smtplib
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
-
 from random import randint
 
 def main():
     print ("##### Le Pere Noel de la Fremo #####")
     
-    with open("res/data.yml", 'r') as stream:
+    with open("res/data_2018.yml", 'r') as stream:
         data = yaml.safe_load(stream)
         
-#     for e in data:
-#         print(e)
+    for e in data:
+        print(e)
         
     with open("res/secure_data.yml",'r') as stream:
         secure_data = yaml.safe_load(stream)
         
 #     print(secure_data)
 
-    tossing(data)
+    if(not tossing(data)):
+        exit()
+        
+    send_all_email(data, secure_data)
+        
+        
+def send_all_email(data, secure_data):
+    
+    subject=''
+    
+    for person in data:
+        secure_email = [x for x in secure_data['emails'] if x['id'] == person['id']]
+        toaddr=secure_email[0]['email']
+        to_id = person['history'][-1]
+        print(to_id)
+        to_fullname=""
+        body=u""""<h3>HOHOHO,</h3>
+            <p>
+            Bonjour petit lutin %s,<br>
+            <br>
+            Cette année pour conserver la magie de Noël, je souhaiterai que tu fasses un cadeau à %s.
+            Malheureusement, je n'ai même pas d'idée à te fournir pour t'aider mais en faisant appel à 
+            ton imagination, tu trouveras le cadeau idéal !<br>
+            Cette année le plus beau dessin à été réalisé par XXX, il/elle donnera en premier son cadeau.<br>
+            </p>
+            <h3>Le Père Noël de la Frémo</h3>""" % (person['fullname'], to_fullname)
+#         print(body)
+#         send_email(secure_data, subject, body, toaddr)
 
 
 def tossing(data):
     
-    TRY_MAX = 10000
+    print("Tossing...", end='')
+    
+    TRY_MAX = 100000
     cpt = 0
     users_done = []
     users_togift = []
@@ -61,20 +89,19 @@ def tossing(data):
         users_togift.append(user_togift)
         data[r1]['history'].append(user_togift)
         
-        print(user_current, "->", data[r1]['history'][-1])
+#         print(user_current, "->", data[r1]['history'][-1])
         
     if(cpt >= TRY_MAX):
         print ("Error: tossing")
         return False
     else:
+        print ("done")
         return True
     
-    
+
 def is_loop(data):
     
     in_loop= []
-    
-    
     
 
 def send_email(secure_data, subject, body, toaddr):
