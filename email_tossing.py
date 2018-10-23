@@ -14,14 +14,9 @@ def main():
     with open("res/data_2018.yml", 'r') as stream:
         data = yaml.safe_load(stream)
         
-    for e in data:
-        print(e)
-        
     with open("res/secure_data.yml",'r') as stream:
         secure_data = yaml.safe_load(stream)
         
-#     print(secure_data)
-
     if(not tossing(data)):
         exit()
         
@@ -34,10 +29,12 @@ def send_all_email(data, secure_data):
     
     for person in data:
         secure_email = [x for x in secure_data['emails'] if x['id'] == person['id']]
-        toaddr=secure_email[0]['email']
-        to_id = person['history'][-1]
-        print(to_id)
-        to_fullname=""
+        toaddr = secure_email[0]['email']
+        
+        to_gift_id = person['history'][-1]
+        person_togift = [x for x in data if x['id'] == to_gift_id]
+        to_fullname = person_togift[0]['fullname']
+        
         body=u""""<h3>HOHOHO,</h3>
             <p>
             Bonjour petit lutin %s,<br>
@@ -48,7 +45,9 @@ def send_all_email(data, secure_data):
             Cette année le plus beau dessin à été réalisé par XXX, il/elle donnera en premier son cadeau.<br>
             </p>
             <h3>Le Père Noël de la Frémo</h3>""" % (person['fullname'], to_fullname)
-#         print(body)
+
+        print(person['id'] , "->", to_fullname, '(', to_gift_id,')')
+
 #         send_email(secure_data, subject, body, toaddr)
 
 
@@ -92,7 +91,7 @@ def tossing(data):
 #         print(user_current, "->", data[r1]['history'][-1])
         
     if(cpt >= TRY_MAX):
-        print ("Error: tossing")
+        print ("error")
         return False
     else:
         print ("done")
