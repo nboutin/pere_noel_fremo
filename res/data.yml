@@ -4,143 +4,143 @@
    fullname: Nicolas Boutin
    email: 
    couple: atranchant
-   history: [amoget, ccarre, mdenis] # 2014, 2015, 2016, 2017  
+   history: [amoget, ccarre, mdenis, pplumegeau] # 2014, 2015, 2016, 2017, 2018
 -
    id: atranchant
    fullname: Audrey Tranchant
    email:
    couple: nboutin
-   history: [sletellier, mroudet, scarre] # 2014, 2015, 2016, 2017
+   history: [sletellier, mroudet, scarre, qdittiere] # 2014, 2015, 2016, 2017
 -
    id: ccarre
    fullname: Claire Carré
    email:
    couple: scarre
-   history: [atranchant, amoget, lcivel]
+   history: [atranchant, amoget, lcivel, mdenis]
 -
    id: scarre
    fullname: Sylvain Carré
    email:
    couple: ccarre
-   history: [aboinet, nboutin, fleduff]
+   history: [aboinet, nboutin, fleduff, jdenis]
 -
    id: qdittiere
    fullname: Quentin Dittiere
    email:
    couple: cboutillon
-   history: [ mdenis, cpiffeteau, cpelini]
+   history: [ mdenis, cpiffeteau, cpelini, ccarre]
 -
    id: cboutillon
    fullname: Coralie Boutillon
    email: 
    couple: qdittiere
-   history: [ nboutin, bamy, aboinet]
+   history: [ nboutin, bamy, aboinet, cpelini]
 -
    id: jdenis
    fullname: Jennifer Denis
    email: 
    couple: mdenis
-   history: [ qdittiere, scarre, sletellier]
+   history: [ qdittiere, scarre, sletellier, amoget]
 -
    id: mdenis
    fullname: Manu Denis
    email: 
    couple: jdenis
-   history: [ lcivel, cboutillon, schouteau]
+   history: [ lcivel, cboutillon, schouteau, aboinet]
 -
    id: mberthet
    fullname: Marion Berthet
    email: 
    couple: sletellier
-   history: [ mroullet, fxduret, cpiffeteau]
+   history: [ mroullet, fxduret, cpiffeteau, atranchant]
 -
    id: sletellier
    fullname: Simon Letellier
    email: 
    couple: mberthet
-   history: [ pplumegeau, schouteau, amoget]
+   history: [ pplumegeau, schouteau, amoget, tmoro]
 -
    id: fxduret
    fullname: FX Duret
    email: 
    couple: 
-   history: [ ccarre, atranchant, nboutin] 
+   history: [ ccarre, atranchant, nboutin, mroudet] 
 -
    id: aboinet
    fullname: Amandine Boinet
    email: 
    couple: tmoro
-   history: [ bamy, cmouret, qdittiere]
+   history: [ bamy, cmouret, qdittiere, nboutin]
 -
    id: amoget
    fullname: Adeline Moget
    email: 
    couple: cmoget
-   history: [ fleduff, pplumegeau, cboutillon]
+   history: [ fleduff, pplumegeau, cboutillon, schouteau]
 -
    id: cmoget
    fullname: Christophe Moget
    email: 
    couple: amoget
-   history: [ schouteau, mdenis, pplumegeau]
+   history: [ schouteau, mdenis, pplumegeau, lcivel]
 -
    id: mroudet
    fullname: Mathieu Roudet
    email: 
    couple: cpelini
-   history: [ mberthet, aboinet, cmoget]
+   history: [ mberthet, aboinet, cmoget, scarre]
 -
    id: cpelini
    fullname: Claire Pelini
    email: 
    couple: mroudet
-   history: [ fxduret]
+   history: [ fxduret, cmouret]
 -
    id: pplumegeau
    fullname: Pierre Plumegeau
    email: 
    couple: cpiffeteau
-   history: [ fxduret, fleduff, jdenis]
+   history: [ fxduret, fleduff, jdenis, sletellier]
 -
    id: cpiffeteau
    fullname: Celina Piffeteau
    email: 
    couple: pplumegeau
-   history: [ cmoget, mberthet]
+   history: [ cmoget, mberthet, fxduret]
 -
    id: fleduff
    fullname: Franck Leduff
    email: 
    couple: schouteau
-   history: [ cmoget, jdenis, cmouret]
+   history: [ cmoget, jdenis, cmouret, bamy]
 -
    id: schouteau
-   fullname: Sophie Chouteau
+   fullname: Sophie Leduff
    email: 
    couple: fleduff
-   history: [ cboutillon, qdittiere, bamy]
+   history: [ cboutillon, qdittiere, bamy, cmoget]
 -
    id: lcivel
    fullname: Lucile Civel
    email: 
    couple: bamy
-   history: [ mroudet, mberthet, atranchant]
+   history: [ mroudet, mberthet, atranchant, cboutillon]
 -
    id: bamy
    fullname: Benjamin Amy 
    email: 
    couple: lcivel
-   history: [ scarre, sletellier, mroudet]
+   history: [ scarre, sletellier, mroudet, cpiffeteau]
 -
    id: cmouret
    fullname: Clémence Mouret
    email: 
    couple: 
-   history: [lcivel, ccarre] 
+   history: [ lcivel, ccarre, mberthet]
 -
    id: tmoro
    fullname: Tony Moro 
    email: 
    couple: aboinet
-   history: [ ]
+   history: [ fleduff]
 ...
