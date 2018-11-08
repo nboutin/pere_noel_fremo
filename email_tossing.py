@@ -25,7 +25,7 @@ def main():
         
 def send_all_email(data, secure_data):
     
-    subject=''
+    subject='Le Père Noël de la Frémo a besoin de ton aide'
     
     for person in data:
         secure_email = [x for x in secure_data['emails'] if x['id'] == person['id']]
@@ -42,13 +42,15 @@ def send_all_email(data, secure_data):
             Cette année pour conserver la magie de Noël, je souhaiterai que tu fasses un cadeau à %s.
             Malheureusement, je n'ai même pas d'idée à te fournir pour t'aider mais en faisant appel à 
             ton imagination, tu trouveras le cadeau idéal !<br>
-            Cette année le plus beau dessin à été réalisé par XXX, il/elle donnera en premier son cadeau.<br>
+            <br>
+            Cette année j'ai recu un plein de jolie dessin. D'ailleurs, j'en attends toujours un dernier...
+            Une exposition va être mise en place afin de voter pour le plus beau, 
+            le gagnant recevra en premier son cadeau.<br>
             </p>
             <h3>Le Père Noël de la Frémo</h3>""" % (person['fullname'], to_fullname)
 
-        print(person['id'] , "->", to_fullname, '(', to_gift_id,')')
-
-#         send_email(secure_data, subject, body, toaddr)
+#         print(person['id'] , "->", to_fullname, '(', to_gift_id,')')
+        send_email(secure_data, subject, body.encode('utf8'), toaddr)
 
 
 def tossing(data):
@@ -68,7 +70,7 @@ def tossing(data):
         user_current = data[r1]['id']
         user_togift = data[r2]['id']
         
-        if(r1 == r2): # same peson
+        if(r1 == r2): # same person
             continue
         
         if(user_current in users_done): # already done
@@ -105,7 +107,7 @@ def is_loop(data):
 
 def send_email(secure_data, subject, body, toaddr):
     # http://naelshiab.com/tutoriel-comment-envoyer-un-courriel-avec-python/
-    print ("sending email...")
+    print(toaddr, "-> sending email...",end='')
     fromaddr = secure_data['sender_email']
     msg = MIMEMultipart()
     msg['From'] = fromaddr
