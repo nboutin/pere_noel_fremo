@@ -1,0 +1,134 @@
+---
+- 
+   id: nboutin
+   fullname: Nicolas Boutin
+   email: 
+   couple: atranchant
+   history: [amoget, ccarre, mdenis, pplumegeau, sletellier] # 2014, 2015, 2016, 2017, 2018
+-
+   id: atranchant
+   fullname: Audrey Tranchant
+   email:
+   couple: nboutin
+   history: [sletellier, mroudet, scarre, qdittiere, cpiffeteau] # 2014, 2015, 2016, 2017
+-
+   id: ccarre
+   fullname: Claire Carré
+   email:
+   couple: scarre
+   history: [atranchant, amoget, lcivel, mdenis, jdenis]
+-
+   id: scarre
+   fullname: Sylvain Carré
+   email:
+   couple: ccarre
+   history: [aboinet, nboutin, fleduff, jdenis, cboutillon]
+-
+   id: qdittiere
+   fullname: Quentin Dittiere
+   email:
+   couple: cboutillon
+   history: [ mdenis, cpiffeteau, cpelini, ccarre, mberthet]
+-
+   id: cboutillon
+   fullname: Coralie Boutillon
+   email: 
+   couple: qdittiere
+   history: [ nboutin, bamy, aboinet, cpelini, cmoget]
+-
+   id: jdenis
+   fullname: Jennifer Denis
+   email: 
+   couple: mdenis
+   history: [ qdittiere, scarre, sletellier, amoget, fxduret]
+-
+   id: mdenis
+   fullname: Manu Denis
+   email: 
+   couple: jdenis
+   history: [ lcivel, cboutillon, schouteau, aboinet, cpelini]
+-
+   id: mberthet
+   fullname: Marion Berthet
+   email: 
+   couple: sletellier
+   history: [ mroullet, fxduret, cpiffeteau, atranchant, mroudet]
+-
+   id: sletellier
+   fullname: Simon Letellier
+   email: 
+   couple: mberthet
+   history: [ pplumegeau, schouteau, amoget, tmoro, mdenis]
+-
+   id: fxduret
+   fullname: FX Duret
+   email: 
+   couple: 
+   history: [ ccarre, atranchant, nboutin, mroudet, scarre] 
+-
+   id: aboinet
+   fullname: Amandine Boinet
+   email: 
+   couple: tmoro
+   history: [ bamy, cmouret, qdittiere, nboutin, ccarre]
+-
+   id: tmoro
+   fullname: Tony Moro
+   email: 
+   couple: aboinet
+   history: [fxduret]
+-
+   id: amoget
+   fullname: Adeline Moget
+   email: 
+   couple: cmoget
+   history: [ fleduff, pplumegeau, cboutillon, schouteau, bamy]
+-
+   id: cmoget
+   fullname: Christophe Moget
+   email: 
+   couple: amoget
+   history: [ schouteau, mdenis, pplumegeau, lcivel, atranchant]
+-
+   id: mroudet
+   fullname: Mathieu Roudet
+   email: 
+   couple: cpelini
+   history: [ mberthet, aboinet, cmoget, scarre, cmouret]
+-
+   id: cpelini
+   fullname: Claire Pelini
+   email: 
+   couple: mroudet
+   history: [ fxduret, cmouret, qdittiere]
+-
+   id: pplumegeau
+   fullname: Pierre Plumegeau
+   email: 
+   couple: cpiffeteau
+   history: [ fxduret, fleduff, jdenis, sletellier, nboutin]
+-
+   id: cpiffeteau
+   fullname: Celina Piffeteau
+   email: 
+   couple: pplumegeau
+   history: [ cmoget, mberthet, fxduret, lcivel]
+-
+   id: lcivel
+   fullname: Lucile Civel
+   email: 
+   couple: bamy
+   history: [ mroudet, mberthet, atranchant, cboutillon, pplumegeau]
+-
+   id: bamy
+   fullname: Benjamin Amy 
+   email: 
+   couple: lcivel
+   history: [ scarre, sletellier, mroudet, cpiffeteau, amoget]
+-
+   id: cmouret
+   fullname: Clémence Mouret
+   email: 
+   couple: 
+   history: [ lcivel, ccarre, mberthet, aboinet]
+...
