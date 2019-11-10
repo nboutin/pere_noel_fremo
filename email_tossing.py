@@ -1,56 +1,48 @@
 #!/usr/bin/env python
 # encoding=utf8
 
-from __future__ import print_function
+import sys
 import yaml
-import smtplib
-from email.MIMEMultipart import MIMEMultipart
-from email.MIMEText import MIMEText
 from random import randint
+import helper
+
+__SECURE_DATA = "res/secure_data.yml"
+__DATA = "res/data_2019.yml"
+__BODY = "res/tossing_2019.txt"
 
 def main():
     print ("##### Le Pere Noel de la Fremo #####")
     
-    with open("res/data_2018.yml", 'r') as stream:
+    with open(__DATA, 'r') as stream:
         data = yaml.safe_load(stream)
         
-    with open("res/secure_data.yml",'r') as stream:
+    with open(__SECURE_DATA,'r') as stream:
         secure_data = yaml.safe_load(stream)
         
     if(not tossing(data)):
-        exit()
+        sys.exit()
         
     send_all_email(data, secure_data)
         
         
 def send_all_email(data, secure_data):
     
-    subject='Le Père Noël de la Frémo a besoin de ton aide'
+    subject='Le Père Noël de la Frémo: Tirage au sort'
     
     for person in data:
         secure_email = [x for x in secure_data['emails'] if x['id'] == person['id']]
         toaddr = secure_email[0]['email']
+#         toaddr = secure_data['receiver_test']
         
         to_gift_id = person['history'][-1]
         person_togift = [x for x in data if x['id'] == to_gift_id]
         to_fullname = person_togift[0]['fullname']
         
-        body=u""""<h3>HOHOHO,</h3>
-            <p>
-            Bonjour petit lutin %s,<br>
-            <br>
-            Cette année pour conserver la magie de Noël, je souhaiterai que tu fasses un cadeau à %s.
-            Malheureusement, je n'ai même pas d'idée à te fournir pour t'aider mais en faisant appel à 
-            ton imagination, tu trouveras le cadeau idéal !<br>
-            <br>
-            Cette année j'ai recu un plein de jolie dessin. D'ailleurs, j'en attends toujours un dernier...
-            Une exposition va être mise en place afin de voter pour le plus beau, 
-            le gagnant recevra en premier son cadeau.<br>
-            </p>
-            <h3>Le Père Noël de la Frémo</h3>""" % (person['fullname'], to_fullname)
-
+        with open(__BODY, 'r') as file:
+            body = file.read().format(person['fullname'], to_fullname)
+        
 #         print(person['id'] , "->", to_fullname, '(', to_gift_id,')')
-        send_email(secure_data, subject, body.encode('utf8'), toaddr)
+        helper.send_email(secure_data, subject, body, toaddr)
 
 
 def tossing(data):
@@ -104,26 +96,6 @@ def is_loop(data):
     
     in_loop= []
     
-
-def send_email(secure_data, subject, body, toaddr):
-    # http://naelshiab.com/tutoriel-comment-envoyer-un-courriel-avec-python/
-    print(toaddr, "-> sending email...",end='')
-    fromaddr = secure_data['sender_email']
-    msg = MIMEMultipart()
-    msg['From'] = fromaddr
-    msg['To'] = toaddr
-    msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'html'))
-     
-    server = smtplib.SMTP('smtp.gmail.com', 587)
-    server.starttls()
-    server.login(fromaddr, secure_data['sender_pwd'])
-    text = msg.as_string()
-    server.sendmail(fromaddr, toaddr, text)
-    server.quit()
-
-    print("done")
-
 
 if __name__ == "__main__":
     main()
