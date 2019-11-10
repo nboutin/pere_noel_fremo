@@ -2,9 +2,7 @@
 # coding: utf-8
 
 import yaml
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import helper
 
 
 def main():
@@ -23,30 +21,9 @@ def main():
         body = file.read()
         
     for emails in secure_data['emails']:
-        send_email(secure_data, email_objet, body, emails['email'])
+        helper.send_email(secure_data, email_objet, body, emails['email'])
     
     print("Finish")
-
-
-def send_email(secure_data, subject, body, toaddr):
-    # http://naelshiab.com/tutoriel-comment-envoyer-un-courriel-avec-python/
-    print ("sending email... to " + toaddr)
-    
-    fromaddr = secure_data['sender_email']
-    msg = MIMEMultipart()
-    msg['From'] = fromaddr
-    msg['To'] = toaddr
-    msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'html'))
-     
-    server = smtplib.SMTP('smtp.gmail.com', 587)
-    server.starttls()
-    server.login(fromaddr, secure_data['sender_pwd'])
-    text = msg.as_string()
-    server.sendmail(fromaddr, toaddr, text)
-    server.quit()
-
-    print("done")
 
 
 if __name__ == "__main__":
