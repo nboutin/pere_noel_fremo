@@ -114,6 +114,18 @@
    couple: pplumegeau
    history: [ cmoget, mberthet, fxduret, lcivel]
 -
+   id: fleduff
+   fullname: Franck Leduff
+   email: 
+   couple: schouteau
+   history: [ cmoget, jdenis, cmouret, bamy]
+-
+   id: schouteau
+   fullname: Sophie Leduff
+   email: 
+   couple: fleduff
+   history: [ cboutillon, qdittiere, bamy, cmoget]
+-
    id: lcivel
    fullname: Lucile Civel
    email: 

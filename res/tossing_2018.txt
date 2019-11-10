@@ -1,0 +1,13 @@
+<h3>HOHOHO,</h3>
+<p>
+Bonjour petit lutin %s,<br>
+<br>
+Cette année pour conserver la magie de Noël, je souhaiterai que tu fasses un cadeau à %s.
+Malheureusement, je n'ai même pas d'idée à te fournir pour t'aider mais en faisant appel à 
+ton imagination, tu trouveras le cadeau idéal !<br>
+<br>
+Cette année j'ai recu un plein de jolie dessin. D'ailleurs, j'en attends toujours un dernier...
+Une exposition va être mise en place afin de voter pour le plus beau, 
+le gagnant recevra en premier son cadeau.<br>
+</p>
+<h3>Le Père Noël de la Frémo</h3>

@@ -28,27 +28,17 @@ def send_all_email(data, secure_data):
     for person in data:
         secure_email = [x for x in secure_data['emails'] if x['id'] == person['id']]
         toaddr = secure_email[0]['email']
+#         toaddr = secure_data['receiver_test']
         
         to_gift_id = person['history'][-1]
         person_togift = [x for x in data if x['id'] == to_gift_id]
         to_fullname = person_togift[0]['fullname']
         
-        body=u""""<h3>HOHOHO,</h3>
-            <p>
-            Bonjour petit lutin %s,<br>
-            <br>
-            Cette année pour conserver la magie de Noël, je souhaiterai que tu fasses un cadeau à %s.
-            Malheureusement, je n'ai même pas d'idée à te fournir pour t'aider mais en faisant appel à 
-            ton imagination, tu trouveras le cadeau idéal !<br>
-            <br>
-            Cette année j'ai recu un plein de jolie dessin. D'ailleurs, j'en attends toujours un dernier...
-            Une exposition va être mise en place afin de voter pour le plus beau, 
-            le gagnant recevra en premier son cadeau.<br>
-            </p>
-            <h3>Le Père Noël de la Frémo</h3>""" % (person['fullname'], to_fullname)
-
-        print(person['id'] , "->", to_fullname, '(', to_gift_id,')')
-#         helper.send_email(secure_data, subject, body.encode('utf8'), toaddr)
+        with open('res/tossing_2019.txt', 'r') as file:
+            body = file.read().format(person['fullname'], to_fullname)
+        
+#         print(person['id'] , "->", to_fullname, '(', to_gift_id,')')
+        helper.send_email(secure_data, subject, body, toaddr)
 
 
 def tossing(data):

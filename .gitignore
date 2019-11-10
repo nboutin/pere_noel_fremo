@@ -1,2 +1,3 @@
-*.pl
 secure_data.yml
+
+__pycache__
