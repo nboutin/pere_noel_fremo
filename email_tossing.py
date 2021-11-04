@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # encoding=utf8
 
-import sys
 import yaml
 from random import randint
 import helper
@@ -21,8 +20,10 @@ def main():
     with open(__DATA, 'r') as stream:
         data = yaml.safe_load(stream)
 
-    if(not tossing(data)):
-        sys.exit()
+    retry_count = 10
+    while(not tossing(data) and retry_count > 0):
+        logger.warning("Tossing ({}) did not found solution, restarting..".format(retry_count))
+        retry_count -= 1
 
     quit()
 
@@ -57,12 +58,12 @@ def tossing(data):
     logger.info("Tossing...")
 
     TRY_MAX = 100000
-    cpt = 0
+    retry_count = 0
     users_done = []
     users_gifted = []
 
-    while(len(users_done) < len(data) and cpt < TRY_MAX):
-        cpt += 1
+    while(len(users_done) < len(data) and retry_count < TRY_MAX):
+        retry_count += 1
         r1 = randint(0, len(data)) - 1
         r2 = randint(0, len(data)) - 1
 
@@ -78,7 +79,7 @@ def tossing(data):
         if(user_togift in users_gifted):  # already chosen
             continue
 
-        if(data[r1]['couple'] == user_togift):  # in couple
+        if(user_togift in data[r1]['exclude']):  # excluded
             continue
 
         if(user_togift in data[r1]['history']):  # chosen last years
@@ -91,11 +92,11 @@ def tossing(data):
 
         logger.debug("{} -> {}".format(user_current, data[r1]['history'][-1]))
 
-    if(cpt >= TRY_MAX):
+    if(retry_count >= TRY_MAX):
         logger.error("Error: too much tossing")
         return False
     else:
-        logger.info("done")
+        logger.info("Success ({})".format(retry_count))
         return True
 
 
