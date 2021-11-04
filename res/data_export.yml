@@ -9,6 +9,7 @@ aboinet:
   - qdittiere
   - nboutin
   - amoget
+  - jdenis
 amoget:
   email: null
   exclude:
@@ -20,6 +21,7 @@ amoget:
   - cboutillon
   - schouteau
   - lcivel
+  - bamy
 atranchant:
   email: null
   exclude:
@@ -31,6 +33,7 @@ atranchant:
   - scarre
   - qdittiere
   - cboutillon
+  - fxduret
 bamy:
   email: null
   exclude:
@@ -42,6 +45,7 @@ bamy:
   - mroudet
   - cpiffeteau
   - mberthet
+  - atranchant
 cboutillon:
   email: null
   exclude:
@@ -53,6 +57,7 @@ cboutillon:
   - aboinet
   - cpelini
   - fleduff
+  - mberthet
 ccarre:
   email: null
   exclude:
@@ -64,6 +69,7 @@ ccarre:
   - lcivel
   - mdenis
   - cmouret
+  - aboinet
 cmoget:
   email: null
   exclude:
@@ -75,6 +81,7 @@ cmoget:
   - pplumegeau
   - lcivel
   - ccarre
+  - cmouret
 cmouret:
   email: null
   exclude: []
@@ -84,6 +91,7 @@ cmouret:
   - ccarre
   - mberthet
   - mroudet
+  - schouteau
 cpelini:
   email: null
   exclude:
@@ -93,6 +101,7 @@ cpelini:
   - fxduret
   - cmouret
   - sletellier
+  - ccarre
 cpiffeteau:
   email: null
   exclude:
@@ -103,6 +112,7 @@ cpiffeteau:
   - mberthet
   - fxduret
   - schouteau
+  - cpelini
 fleduff:
   email: null
   exclude:
@@ -114,6 +124,7 @@ fleduff:
   - cmouret
   - bamy
   - mdenis
+  - sletellier
 fxduret:
   email: null
   exclude:
@@ -125,6 +136,7 @@ fxduret:
   - nboutin
   - mroudet
   - tmoro
+  - mdenis
 jdenis:
   email: null
   exclude:
@@ -136,6 +148,7 @@ jdenis:
   - sletellier
   - amoget
   - nboutin
+  - pplumegeau
 lcivel:
   email: null
   exclude:
@@ -147,6 +160,7 @@ lcivel:
   - atranchant
   - cboutillon
   - scarre
+  - amoget
 mberthet:
   email: null
   exclude:
@@ -158,6 +172,7 @@ mberthet:
   - cpiffeteau
   - atranchant
   - pplumegeau
+  - cboutillon
 mdenis:
   email: null
   exclude:
@@ -169,6 +184,7 @@ mdenis:
   - schouteau
   - aboinet
   - qdittiere
+  - nboutin
 mroudet:
   email: null
   exclude:
@@ -180,6 +196,7 @@ mroudet:
   - cmoget
   - scarre
   - cpiffeteau
+  - lcivel
 nboutin:
   email: null
   exclude:
@@ -191,6 +208,7 @@ nboutin:
   - mdenis
   - pplumegeau
   - bamy
+  - qdittiere
 pplumegeau:
   email: null
   exclude:
@@ -202,6 +220,7 @@ pplumegeau:
   - jdenis
   - sletellier
   - cpelini
+  - cmoget
 qdittiere:
   email: null
   exclude:
@@ -213,6 +232,7 @@ qdittiere:
   - cpelini
   - ccarre
   - jdenis
+  - fleduff
 scarre:
   email: null
   exclude:
@@ -224,6 +244,7 @@ scarre:
   - fleduff
   - jdenis
   - fxduret
+  - cpiffeteau
 schouteau:
   email: null
   exclude:
@@ -235,6 +256,7 @@ schouteau:
   - bamy
   - cmoget
   - atranchant
+  - scarre
 sletellier:
   email: null
   exclude:
@@ -246,6 +268,7 @@ sletellier:
   - amoget
   - tmoro
   - aboinet
+  - mroudet
 tmoro:
   email: null
   exclude:
@@ -254,3 +277,4 @@ tmoro:
   history:
   - fleduff
   - cmoget
+  - tmoro

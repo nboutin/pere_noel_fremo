@@ -25,31 +25,36 @@ def main():
         logger.warning("Tossing ({}) did not found solution, restarting..".format(retry_count))
         retry_count -= 1
 
-    quit()
+    # with open(__SECURE_DATA, 'r') as stream:
+        # secure_data = yaml.safe_load(stream)
+        #
+    # send_all_email(data, secure_data)
 
-    with open(__SECURE_DATA, 'r') as stream:
-        secure_data = yaml.safe_load(stream)
-
-    send_all_email(data, secure_data)
+    # export new data
+    with open('res/data_export.yml', 'w') as file:
+        yaml.dump(data, file, allow_unicode=True)
 
 
 def send_all_email(data, secure_data):
 
     subject = 'Le Père Noël de la Frémo: Tirage au sort'
 
-    for person in data:
-        secure_email = [x for x in secure_data['emails'] if x['id'] == person['id']]
-        toaddr = secure_email[0]['email']
+    for id_, id_param in data.items():
+        # secure_email = [x for x in secure_data['emails'] if x['id_'] == person['id_']]
+        # toaddr = secure_email[0]['email']
+        toaddr = secure_data['emails'][id_]['email']
 #         toaddr = secure_data['receiver_test']
 
-        to_gift_id = person['history'][-1]
-        person_togift = [x for x in data if x['id'] == to_gift_id]
-        to_fullname = person_togift[0]['fullname']
+        to_gift_id = id_param['history'][-1]
+        # person_togift = [x for x in data if x['id_'] == to_gift_id]
+        # to_fullname = person_togift[0]['fullname']
+        to_fullname = data[to_gift_id]['fullname']
 
         with open(__BODY, 'r') as file:
-            body = file.read().format(person['fullname'], to_fullname)
+            body = file.read().format(id_param['fullname'], to_fullname)
 
-        logger.debug(person['id'], "->", to_fullname, '(', to_gift_id, ')')
+        # logger.debug(id_, "->", to_fullname, '(', to_gift_id, ')')
+        logger.debug("{} -> {} ({})".format(id_, to_fullname, to_gift_id))
         helper.send_email(secure_data['sender_email'], secure_data['sender_pwd'], subject, body, toaddr)
 
 
@@ -67,8 +72,8 @@ def tossing(data):
         r1 = randint(0, len(data)) - 1
         r2 = randint(0, len(data)) - 1
 
-        user_current = data[r1]['id']
-        user_togift = data[r2]['id']
+        user_current = list(data)[r1]
+        user_togift = list(data)[r2]
 
         if(r1 == r2):  # same person
             continue
@@ -79,18 +84,18 @@ def tossing(data):
         if(user_togift in users_gifted):  # already chosen
             continue
 
-        if(user_togift in data[r1]['exclude']):  # excluded
+        if(user_togift in data[user_current]['exclude']):  # excluded
             continue
 
-        if(user_togift in data[r1]['history']):  # chosen last years
+        if(user_togift in data[user_current]['history']):  # chosen last years
             continue
 
         # All Good
         users_done.append(user_current)
         users_gifted.append(user_togift)
-        data[r1]['history'].append(user_togift)
+        data[user_current]['history'].append(user_togift)
 
-        logger.debug("{} -> {}".format(user_current, data[r1]['history'][-1]))
+        logger.debug("{} -> {}".format(user_current, data[user_current]['history'][-1]))
 
     if(retry_count >= TRY_MAX):
         logger.error("Error: too much tossing")
