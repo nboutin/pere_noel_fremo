@@ -5,26 +5,29 @@ import sys
 import yaml
 from random import randint
 import helper
-import logging
+import logging.handlers
 
 logger = logging.getLogger(__name__)
 
 __SECURE_DATA = "res/secure_data.yml"
-__DATA = "res/data_2019.yml"
+__DATA = "res/data_2021.yml"
 __BODY = "res/tossing_2019.txt"
 
 
 def main():
+    _configure_logger('email_tossing.log')
     logger.info("##### Le Pere Noel de la Fremo #####")
 
     with open(__DATA, 'r') as stream:
         data = yaml.safe_load(stream)
 
-    with open(__SECURE_DATA, 'r') as stream:
-        secure_data = yaml.safe_load(stream)
-
     if(not tossing(data)):
         sys.exit()
+
+    quit()
+
+    with open(__SECURE_DATA, 'r') as stream:
+        secure_data = yaml.safe_load(stream)
 
     send_all_email(data, secure_data)
 
@@ -51,12 +54,12 @@ def send_all_email(data, secure_data):
 
 def tossing(data):
 
-    logger.info("Tossing...", end='')
+    logger.info("Tossing...")
 
     TRY_MAX = 100000
     cpt = 0
     users_done = []
-    users_togift = []
+    users_gifted = []
 
     while(len(users_done) < len(data) and cpt < TRY_MAX):
         cpt += 1
@@ -72,7 +75,7 @@ def tossing(data):
         if(user_current in users_done):  # already done
             continue
 
-        if(user_togift in users_togift):  # already chosen
+        if(user_togift in users_gifted):  # already chosen
             continue
 
         if(data[r1]['couple'] == user_togift):  # in couple
@@ -83,13 +86,13 @@ def tossing(data):
 
         # All Good
         users_done.append(user_current)
-        users_togift.append(user_togift)
+        users_gifted.append(user_togift)
         data[r1]['history'].append(user_togift)
 
-        logger.debug(user_current, "->", data[r1]['history'][-1])
+        logger.debug("{} -> {}".format(user_current, data[r1]['history'][-1]))
 
     if(cpt >= TRY_MAX):
-        logger.error("Error: too much try reached")
+        logger.error("Error: too much tossing")
         return False
     else:
         logger.info("done")
@@ -99,6 +102,31 @@ def tossing(data):
 def is_loop(data):
 
     in_loop = []
+
+
+def _configure_logger(filename):
+    """
+    write to console, simple message with log level info
+    write to file, formatted message with log level debug
+    """
+    logger = logging.getLogger('')
+    logger.setLevel(logging.DEBUG)
+
+    # Console
+    consoleHandler = logging.StreamHandler()
+    consoleHandler.setLevel(logging.INFO)
+    consoleFormatter = logging.Formatter('%(message)s')
+    consoleHandler.setFormatter(consoleFormatter)
+    logger.addHandler(consoleHandler)
+
+    # File
+    fileHandler = logging.handlers.RotatingFileHandler(filename, maxBytes=1024 * 1024, backupCount=1)
+    fileHandler.setLevel(logging.DEBUG)
+    fileFormatter = logging.Formatter(
+        fmt='[%(asctime)s][%(name)s][%(levelname)-5s]%(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S')
+    fileHandler.setFormatter(fileFormatter)
+    logger.addHandler(fileHandler)
 
 
 if __name__ == "__main__":

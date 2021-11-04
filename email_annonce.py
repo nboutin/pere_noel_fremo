@@ -3,7 +3,7 @@
 
 import yaml
 import helper
-import logging
+import logging.handlers
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ def main():
     logger.info("Finish")
 
 
-def _configure_logger(self, filename):
+def _configure_logger(filename):
     """
     write to console, simple message with log level info
     write to file, formatted message with log level debug
