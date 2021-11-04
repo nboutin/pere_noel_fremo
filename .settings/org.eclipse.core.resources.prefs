@@ -1,3 +1,4 @@
 eclipse.preferences.version=1
 encoding/email_annonce.py=utf-8
 encoding/email_tossing.py=utf8
+encoding/helper.py=utf-8
