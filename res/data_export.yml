@@ -2,6 +2,8 @@ aboinet:
   email: null
   exclude:
   - tmoro
+  - sbentabet
+  - fxduret
   fullname: Amandine Boinet
   history:
   - bamy
@@ -26,6 +28,7 @@ atranchant:
   email: null
   exclude:
   - nboutin
+  - cmouret
   fullname: Audrey Tranchant
   history:
   - sletellier
@@ -33,7 +36,7 @@ atranchant:
   - scarre
   - qdittiere
   - cboutillon
-  - fxduret
+  - sbentabet
 bamy:
   email: null
   exclude:
@@ -45,7 +48,7 @@ bamy:
   - mroudet
   - cpiffeteau
   - mberthet
-  - atranchant
+  - aboinet
 cboutillon:
   email: null
   exclude:
@@ -57,7 +60,7 @@ cboutillon:
   - aboinet
   - cpelini
   - fleduff
-  - mberthet
+  - fxduret
 ccarre:
   email: null
   exclude:
@@ -69,11 +72,11 @@ ccarre:
   - lcivel
   - mdenis
   - cmouret
-  - aboinet
+  - pplumegeau
 cmoget:
   email: null
   exclude:
-  - amoget
+  - amogetaboinet
   fullname: Christophe Moget
   history:
   - schouteau
@@ -81,17 +84,19 @@ cmoget:
   - pplumegeau
   - lcivel
   - ccarre
-  - cmouret
+  - amoget
 cmouret:
   email: null
-  exclude: []
+  exclude:
+  - atranchant
+  - nboutin
   fullname: Clémence Mouret
   history:
   - lcivel
   - ccarre
   - mberthet
   - mroudet
-  - schouteau
+  - tmoro
 cpelini:
   email: null
   exclude:
@@ -101,7 +106,7 @@ cpelini:
   - fxduret
   - cmouret
   - sletellier
-  - ccarre
+  - atranchant
 cpiffeteau:
   email: null
   exclude:
@@ -109,26 +114,16 @@ cpiffeteau:
   fullname: Celina Piffeteau
   history:
   - cmoget
-  - mberthet
+  - mberthetaboinet
   - fxduret
   - schouteau
-  - cpelini
-fleduff:
-  email: null
-  exclude:
-  - schouteau
-  fullname: Franck Leduff
-  history:
-  - cmoget
-  - jdenis
-  - cmouret
-  - bamy
-  - mdenis
-  - sletellier
+  - qdittiere
 fxduret:
   email: null
   exclude:
+  - sbentabet
   - tmoro
+  - aboinet
   fullname: FX Duret
   history:
   - ccarre
@@ -136,7 +131,7 @@ fxduret:
   - nboutin
   - mroudet
   - tmoro
-  - mdenis
+  - sletellier
 jdenis:
   email: null
   exclude:
@@ -144,11 +139,11 @@ jdenis:
   fullname: Jennifer Denis
   history:
   - qdittiere
-  - scarre
+  - scarreaboinet
   - sletellier
   - amoget
   - nboutin
-  - pplumegeau
+  - ccarre
 lcivel:
   email: null
   exclude:
@@ -160,7 +155,7 @@ lcivel:
   - atranchant
   - cboutillon
   - scarre
-  - amoget
+  - cpiffeteau
 mberthet:
   email: null
   exclude:
@@ -172,7 +167,7 @@ mberthet:
   - cpiffeteau
   - atranchant
   - pplumegeau
-  - cboutillon
+  - nboutin
 mdenis:
   email: null
   exclude:
@@ -184,7 +179,7 @@ mdenis:
   - schouteau
   - aboinet
   - qdittiere
-  - nboutin
+  - mroudet
 mroudet:
   email: null
   exclude:
@@ -196,11 +191,12 @@ mroudet:
   - cmoget
   - scarre
   - cpiffeteau
-  - lcivel
+  - cboutillon
 nboutin:
   email: null
   exclude:
   - atranchant
+  - cmouret
   fullname: Nicolas Boutin
   history:
   - amoget
@@ -208,7 +204,7 @@ nboutin:
   - mdenis
   - pplumegeau
   - bamy
-  - qdittiere
+  - cmoget
 pplumegeau:
   email: null
   exclude:
@@ -220,11 +216,11 @@ pplumegeau:
   - jdenis
   - sletellier
   - cpelini
-  - cmoget
+  - lcivel
 qdittiere:
   email: null
   exclude:
-  - cboutillon
+  - cboutillonaboinet
   fullname: Quentin Dittiere
   history:
   - mdenis
@@ -232,7 +228,16 @@ qdittiere:
   - cpelini
   - ccarre
   - jdenis
-  - fleduff
+  - scarre
+sbentabet:
+  email: null
+  exclude:
+  - fxduret
+  - tmoro
+  - aboinet
+  fullname: Samia Bentabet
+  history:
+  - cpelini
 scarre:
   email: null
   exclude:
@@ -240,23 +245,11 @@ scarre:
   fullname: Sylvain Carré
   history:
   - aboinet
-  - nboutin
+  - nboutinaboinetaboinet
   - fleduff
   - jdenis
   - fxduret
-  - cpiffeteau
-schouteau:
-  email: null
-  exclude:
-  - fleduff
-  fullname: Sophie Leduff
-  history:
-  - cboutillon
-  - qdittiere
-  - bamy
-  - cmoget
-  - atranchant
-  - scarre
+  - mberthet
 sletellier:
   email: null
   exclude:
@@ -268,13 +261,15 @@ sletellier:
   - amoget
   - tmoro
   - aboinet
-  - mroudet
+  - mdenis
 tmoro:
   email: null
   exclude:
   - aboinet
+  - fxduret
+  - sbentabet
   fullname: Tony Moro
   history:
   - fleduff
   - cmoget
-  - tmoro
+  - cmouret

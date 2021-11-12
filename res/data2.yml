@@ -250,6 +250,7 @@ tmoro:
   email: null
   exclude:
   - aboinet
+  - fxduret
   fullname: Tony Moro
   history:
   - fleduff

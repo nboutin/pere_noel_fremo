@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 __SECURE_DATA = "res/secure_data.yml"
 __DATA = "res/data_2021.yml"
-__BODY = "res/tossing_2019.txt"
+__BODY = "res/tossing_2021.txt"
 
 
 def main():
@@ -25,14 +25,16 @@ def main():
         logger.warning("Tossing ({}) did not found solution, restarting..".format(retry_count))
         retry_count -= 1
 
-    # with open(__SECURE_DATA, 'r') as stream:
-        # secure_data = yaml.safe_load(stream)
-        #
-    # send_all_email(data, secure_data)
+    with open(__SECURE_DATA, 'r') as stream:
+        secure_data = yaml.safe_load(stream)
+        
+    send_all_email(data, secure_data)
 
     # export new data
     with open('res/data_export.yml', 'w') as file:
         yaml.dump(data, file, allow_unicode=True)
+        
+    logger.info("Tossing is done")
 
 
 def send_all_email(data, secure_data):
@@ -40,20 +42,17 @@ def send_all_email(data, secure_data):
     subject = 'Le Père Noël de la Frémo: Tirage au sort'
 
     for id_, id_param in data.items():
-        # secure_email = [x for x in secure_data['emails'] if x['id_'] == person['id_']]
-        # toaddr = secure_email[0]['email']
-        toaddr = secure_data['emails'][id_]['email']
-#         toaddr = secure_data['receiver_test']
+        toaddr = secure_data['personnes'][id_]['email']
+        # DEBUG
+        # toaddr = secure_data['receiver_test']
+        # DEBUG
 
         to_gift_id = id_param['history'][-1]
-        # person_togift = [x for x in data if x['id_'] == to_gift_id]
-        # to_fullname = person_togift[0]['fullname']
         to_fullname = data[to_gift_id]['fullname']
 
         with open(__BODY, 'r') as file:
             body = file.read().format(id_param['fullname'], to_fullname)
 
-        # logger.debug(id_, "->", to_fullname, '(', to_gift_id, ')')
         logger.debug("{} -> {} ({})".format(id_, to_fullname, to_gift_id))
         helper.send_email(secure_data['sender_email'], secure_data['sender_pwd'], subject, body, toaddr)
 

@@ -2,6 +2,8 @@ aboinet:
   email: null
   exclude:
   - tmoro
+  - sbentabet
+  - fxduret
   fullname: Amandine Boinet
   history:
   - bamy
@@ -24,6 +26,7 @@ atranchant:
   email: null
   exclude:
   - nboutin
+  - cmouret
   fullname: Audrey Tranchant
   history:
   - sletellier
@@ -67,7 +70,7 @@ ccarre:
 cmoget:
   email: null
   exclude:
-  - amoget
+  - amogetaboinet
   fullname: Christophe Moget
   history:
   - schouteau
@@ -77,7 +80,9 @@ cmoget:
   - ccarre
 cmouret:
   email: null
-  exclude: []
+  exclude:
+  - atranchant
+  - nboutin
   fullname: Clémence Mouret
   history:
   - lcivel
@@ -100,24 +105,15 @@ cpiffeteau:
   fullname: Celina Piffeteau
   history:
   - cmoget
-  - mberthet
+  - mberthetaboinet
   - fxduret
   - schouteau
-fleduff:
-  email: null
-  exclude:
-  - schouteau
-  fullname: Franck Leduff
-  history:
-  - cmoget
-  - jdenis
-  - cmouret
-  - bamy
-  - mdenis
 fxduret:
   email: null
   exclude:
+  - sbentabet
   - tmoro
+  - aboinet
   fullname: FX Duret
   history:
   - ccarre
@@ -125,6 +121,14 @@ fxduret:
   - nboutin
   - mroudet
   - tmoro
+sbentabet:
+  email: null
+  exclude:
+  - fxduret
+  - tmoro
+  - aboinet
+  fullname: Samia Bentabet
+  history: []
 jdenis:
   email: null
   exclude:
@@ -132,7 +136,7 @@ jdenis:
   fullname: Jennifer Denis
   history:
   - qdittiere
-  - scarre
+  - scarreaboinet
   - sletellier
   - amoget
   - nboutin
@@ -184,6 +188,7 @@ nboutin:
   email: null
   exclude:
   - atranchant
+  - cmouret
   fullname: Nicolas Boutin
   history:
   - amoget
@@ -205,7 +210,7 @@ pplumegeau:
 qdittiere:
   email: null
   exclude:
-  - cboutillon
+  - cboutillonaboinet
   fullname: Quentin Dittiere
   history:
   - mdenis
@@ -220,21 +225,10 @@ scarre:
   fullname: Sylvain Carré
   history:
   - aboinet
-  - nboutin
+  - nboutinaboinetaboinet
   - fleduff
   - jdenis
   - fxduret
-schouteau:
-  email: null
-  exclude:
-  - fleduff
-  fullname: Sophie Leduff
-  history:
-  - cboutillon
-  - qdittiere
-  - bamy
-  - cmoget
-  - atranchant
 sletellier:
   email: null
   exclude:
@@ -250,6 +244,8 @@ tmoro:
   email: null
   exclude:
   - aboinet
+  - fxduret
+  - sbentabet
   fullname: Tony Moro
   history:
   - fleduff

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def send_email(sender_email, sender_pwd, subject, body, toaddr):
     # http://naelshiab.com/tutoriel-comment-envoyer-un-courriel-avec-python/
-    logger.info("sending email... to " + toaddr + " ", end='')
+    logger.info("sending email... to {}".format(toaddr))
 
     fromaddr = sender_email
     msg = MIMEMultipart()
