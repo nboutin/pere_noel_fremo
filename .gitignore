@@ -1,3 +1,6 @@
+# Files
 secure_data.yml
+*.log
 
+# Folder
 __pycache__

@@ -1,0 +1,275 @@
+aboinet:
+  email: null
+  exclude:
+  - tmoro
+  - sbentabet
+  - fxduret
+  fullname: Amandine Boinet
+  history:
+  - bamy
+  - cmouret
+  - qdittiere
+  - nboutin
+  - amoget
+  - jdenis
+amoget:
+  email: null
+  exclude:
+  - cmoget
+  fullname: Adeline Moget
+  history:
+  - fleduff
+  - pplumegeau
+  - cboutillon
+  - schouteau
+  - lcivel
+  - bamy
+atranchant:
+  email: null
+  exclude:
+  - nboutin
+  - cmouret
+  fullname: Audrey Tranchant
+  history:
+  - sletellier
+  - mroudet
+  - scarre
+  - qdittiere
+  - cboutillon
+  - sbentabet
+bamy:
+  email: null
+  exclude:
+  - lcivel
+  fullname: Benjamin Amy
+  history:
+  - scarre
+  - sletellier
+  - mroudet
+  - cpiffeteau
+  - mberthet
+  - aboinet
+cboutillon:
+  email: null
+  exclude:
+  - qdittiere
+  fullname: Coralie Boutillon
+  history:
+  - nboutin
+  - bamy
+  - aboinet
+  - cpelini
+  - fleduff
+  - fxduret
+ccarre:
+  email: null
+  exclude:
+  - scarre
+  fullname: Claire Carré
+  history:
+  - atranchant
+  - amoget
+  - lcivel
+  - mdenis
+  - cmouret
+  - pplumegeau
+cmoget:
+  email: null
+  exclude:
+  - amogetaboinet
+  fullname: Christophe Moget
+  history:
+  - schouteau
+  - mdenis
+  - pplumegeau
+  - lcivel
+  - ccarre
+  - amoget
+cmouret:
+  email: null
+  exclude:
+  - atranchant
+  - nboutin
+  fullname: Clémence Mouret
+  history:
+  - lcivel
+  - ccarre
+  - mberthet
+  - mroudet
+  - tmoro
+cpelini:
+  email: null
+  exclude:
+  - mroudet
+  fullname: Claire Pelini
+  history:
+  - fxduret
+  - cmouret
+  - sletellier
+  - atranchant
+cpiffeteau:
+  email: null
+  exclude:
+  - pplumegeau
+  fullname: Celina Piffeteau
+  history:
+  - cmoget
+  - mberthetaboinet
+  - fxduret
+  - schouteau
+  - qdittiere
+fxduret:
+  email: null
+  exclude:
+  - sbentabet
+  - tmoro
+  - aboinet
+  fullname: FX Duret
+  history:
+  - ccarre
+  - atranchant
+  - nboutin
+  - mroudet
+  - tmoro
+  - sletellier
+jdenis:
+  email: null
+  exclude:
+  - mdenis
+  fullname: Jennifer Denis
+  history:
+  - qdittiere
+  - scarreaboinet
+  - sletellier
+  - amoget
+  - nboutin
+  - ccarre
+lcivel:
+  email: null
+  exclude:
+  - bamy
+  fullname: Lucile Civel
+  history:
+  - mroudet
+  - mberthet
+  - atranchant
+  - cboutillon
+  - scarre
+  - cpiffeteau
+mberthet:
+  email: null
+  exclude:
+  - sletellier
+  fullname: Marion Berthet
+  history:
+  - mroullet
+  - fxduret
+  - cpiffeteau
+  - atranchant
+  - pplumegeau
+  - nboutin
+mdenis:
+  email: null
+  exclude:
+  - jdenis
+  fullname: Manu Denis
+  history:
+  - lcivel
+  - cboutillon
+  - schouteau
+  - aboinet
+  - qdittiere
+  - mroudet
+mroudet:
+  email: null
+  exclude:
+  - cpelini
+  fullname: Mathieu Roudet
+  history:
+  - mberthet
+  - aboinet
+  - cmoget
+  - scarre
+  - cpiffeteau
+  - cboutillon
+nboutin:
+  email: null
+  exclude:
+  - atranchant
+  - cmouret
+  fullname: Nicolas Boutin
+  history:
+  - amoget
+  - ccarre
+  - mdenis
+  - pplumegeau
+  - bamy
+  - cmoget
+pplumegeau:
+  email: null
+  exclude:
+  - cpiffeteau
+  fullname: Pierre Plumegeau
+  history:
+  - fxduret
+  - fleduff
+  - jdenis
+  - sletellier
+  - cpelini
+  - lcivel
+qdittiere:
+  email: null
+  exclude:
+  - cboutillonaboinet
+  fullname: Quentin Dittiere
+  history:
+  - mdenis
+  - cpiffeteau
+  - cpelini
+  - ccarre
+  - jdenis
+  - scarre
+sbentabet:
+  email: null
+  exclude:
+  - fxduret
+  - tmoro
+  - aboinet
+  fullname: Samia Bentabet
+  history:
+  - cpelini
+scarre:
+  email: null
+  exclude:
+  - ccarre
+  fullname: Sylvain Carré
+  history:
+  - aboinet
+  - nboutinaboinetaboinet
+  - fleduff
+  - jdenis
+  - fxduret
+  - mberthet
+sletellier:
+  email: null
+  exclude:
+  - mberthet
+  fullname: Simon Letellier
+  history:
+  - pplumegeau
+  - schouteau
+  - amoget
+  - tmoro
+  - aboinet
+  - mdenis
+tmoro:
+  email: null
+  exclude:
+  - aboinet
+  - fxduret
+  - sbentabet
+  fullname: Tony Moro
+  history:
+  - fleduff
+  - cmoget
+  - cmouret

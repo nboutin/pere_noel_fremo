@@ -1,0 +1,146 @@
+---
+- 
+   id: nboutin
+   fullname: Nicolas Boutin
+   email: 
+   exclude: [atranchant]
+   history: [amoget, ccarre, mdenis, pplumegeau, bamy] # 2014, 2015, 2016, 2017, 2018
+-
+   id: atranchant
+   fullname: Audrey Tranchant
+   email:
+   exclude: [nboutin]
+   history: [sletellier, mroudet, scarre, qdittiere, cboutillon] # 2014, 2015, 2016, 2017
+-
+   id: ccarre
+   fullname: Claire Carré
+   email:
+   exclude: [scarre]
+   history: [atranchant, amoget, lcivel, mdenis, cmouret]
+-
+   id: scarre
+   fullname: Sylvain Carré
+   email:
+   exclude: [ccarre]
+   history: [aboinet, nboutin, fleduff, jdenis, fxduret]
+-
+   id: qdittiere
+   fullname: Quentin Dittiere
+   email:
+   exclude: [cboutillon]
+   history: [ mdenis, cpiffeteau, cpelini, ccarre, jdenis]
+-
+   id: cboutillon
+   fullname: Coralie Boutillon
+   email: 
+   exclude: [qdittiere]
+   history: [ nboutin, bamy, aboinet, cpelini, fleduff]
+-
+   id: jdenis
+   fullname: Jennifer Denis
+   email: 
+   exclude: [mdenis]
+   history: [ qdittiere, scarre, sletellier, amoget, nboutin]
+-
+   id: mdenis
+   fullname: Manu Denis
+   email: 
+   exclude: [jdenis]
+   history: [ lcivel, cboutillon, schouteau, aboinet, qdittiere]
+-
+   id: mberthet
+   fullname: Marion Berthet
+   email: 
+   exclude: [sletellier]
+   history: [ mroullet, fxduret, cpiffeteau, atranchant, pplumegeau]
+-
+   id: sletellier
+   fullname: Simon Letellier
+   email: 
+   exclude: [mberthet]
+   history: [ pplumegeau, schouteau, amoget, tmoro, aboinet]
+-
+   id: fxduret
+   fullname: FX Duret
+   email: 
+   exclude: [tmoro]
+   history: [ ccarre, atranchant, nboutin, mroudet, tmoro]
+-
+   id: aboinet
+   fullname: Amandine Boinet
+   email: 
+   exclude: [tmoro]
+   history: [ bamy, cmouret, qdittiere, nboutin, amoget]
+-
+   id: amoget
+   fullname: Adeline Moget
+   email: 
+   exclude: [ cmoget]
+   history: [ fleduff, pplumegeau, cboutillon, schouteau, lcivel]
+-
+   id: cmoget
+   fullname: Christophe Moget
+   email: 
+   exclude: [amoget]
+   history: [ schouteau, mdenis, pplumegeau, lcivel, ccarre]
+-
+   id: mroudet
+   fullname: Mathieu Roudet
+   email: 
+   exclude: [cpelini]
+   history: [ mberthet, aboinet, cmoget, scarre, cpiffeteau]
+-
+   id: cpelini
+   fullname: Claire Pelini
+   email: 
+   exclude: [mroudet]
+   history: [ fxduret, cmouret, sletellier]
+-
+   id: pplumegeau
+   fullname: Pierre Plumegeau
+   email: 
+   exclude: [cpiffeteau]
+   history: [ fxduret, fleduff, jdenis, sletellier, cpelini]
+-
+   id: cpiffeteau
+   fullname: Celina Piffeteau
+   email: 
+   exclude: [pplumegeau]
+   history: [ cmoget, mberthet, fxduret, schouteau]
+-
+   id: fleduff
+   fullname: Franck Leduff
+   email: 
+   exclude: [schouteau]
+   history: [ cmoget, jdenis, cmouret, bamy, mdenis]
+-
+   id: schouteau
+   fullname: Sophie Leduff
+   email: 
+   exclude: [fleduff]
+   history: [ cboutillon, qdittiere, bamy, cmoget, atranchant]
+-
+   id: lcivel
+   fullname: Lucile Civel
+   email: 
+   exclude: [bamy]
+   history: [ mroudet, mberthet, atranchant, cboutillon, scarre]
+-
+   id: bamy
+   fullname: Benjamin Amy 
+   email: 
+   exclude: [lcivel]
+   history: [ scarre, sletellier, mroudet, cpiffeteau, mberthet]
+-
+   id: cmouret
+   fullname: Clémence Mouret
+   email: 
+   exclude: []
+   history: [ lcivel, ccarre, mberthet, mroudet]
+-
+   id: tmoro
+   fullname: Tony Moro 
+   email: 
+   exclude: [aboinet]
+   history: [ fleduff, cmoget]
+...
