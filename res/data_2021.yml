@@ -70,7 +70,7 @@ ccarre:
 cmoget:
   email: null
   exclude:
-  - amogetaboinet
+  - amoget
   fullname: Christophe Moget
   history:
   - schouteau
