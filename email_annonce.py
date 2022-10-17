@@ -8,8 +8,8 @@ import logging.handlers
 logger = logging.getLogger(__name__)
 
 __SECURE_DATA_FILEPATH = "res/secure_data.yml"
-__EMAIL_TEXT_FILE_PATH = 'res/annonce_2021.txt'
-__EMAIL_OBJECT = "[Annonce Emploi] Pole Nord Compagnie recherche Lutins polyvalents"
+__EMAIL_TEXT_FILE_PATH = 'res/annonce_2022.txt'
+__EMAIL_OBJECT = "TEST!! [Annonce Emploi] Pole Nord Compagnie recherche Lutins créatifs"
 
 
 def main():
@@ -20,14 +20,20 @@ def main():
         secure_data = yaml.safe_load(stream)
 
     # debug
-    #secure_data['personnes'] = {'nboutin' : {'email':'boutwork@gmail.com'}}
+    # secure_data = dict()
+    # secure_data['personnes'] = {'nboutin': {'email': 'boutwork@gmail.com'}}
     # debug
 
     with open(__EMAIL_TEXT_FILE_PATH, 'r') as file:
         body = file.read()
 
-    for id_, id_param in secure_data['personnes'].items():
-        helper.send_email(secure_data['sender_email'], secure_data['sender_pwd'], __EMAIL_OBJECT, body, id_param['email'])
+    for id_, id_param in secure_data['personnes_test'].items():
+        helper.send_email(
+            secure_data['sender_email'],
+            secure_data['sender_pwd'],
+            __EMAIL_OBJECT,
+            body,
+            id_param['email'])
 
     logger.info("Finish")
 
