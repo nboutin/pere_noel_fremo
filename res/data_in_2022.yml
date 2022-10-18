@@ -65,7 +65,7 @@ ccarre:
   email: null
   exclude:
   - scarre
-  fullname: Claire CarrÃ©
+  fullname: Claire Carré
   history:
   - atranchant
   - amoget
@@ -90,11 +90,12 @@ cmouret:
   exclude:
   - atranchant
   - nboutin
-  fullname: ClÃ©mence Mouret
+  fullname: Clémence Mouret
   history:
   - lcivel
   - ccarre
   - mberthet
+  - aboinet
   - mroudet
   - amoget
 cpelini:
@@ -111,12 +112,23 @@ cpiffeteau:
   email: null
   exclude:
   - pplumegeau
-  fullname: Celina Piffeteau
+  fullname: Célina Piffeteau
   history:
   - cmoget
-  - mberthetaboinet
+  - mberthet
   - fxduret
   - schouteau
+  - mdenis
+fleduff:
+  email: null
+  exclude:
+  - schouteau
+  fullname: Franck Leduff
+  history:
+  - cmoget
+  - jdenis
+  - cmouret
+  - bamy
   - mdenis
 fxduret:
   email: null
@@ -139,7 +151,7 @@ jdenis:
   fullname: Jennifer Denis
   history:
   - qdittiere
-  - scarreaboinet
+  - scarrea
   - sletellier
   - amoget
   - nboutin
@@ -220,7 +232,7 @@ pplumegeau:
 qdittiere:
   email: null
   exclude:
-  - cboutillonaboinet
+  - cboutillon
   fullname: Quentin Dittiere
   history:
   - mdenis
@@ -242,14 +254,25 @@ scarre:
   email: null
   exclude:
   - ccarre
-  fullname: Sylvain CarrÃ©
+  fullname: Sylvain Carré
   history:
   - aboinet
-  - nboutinaboinetaboinet
+  - nboutin
   - fleduff
   - jdenis
   - fxduret
   - cpiffeteau
+schouteau:
+  email: null
+  exclude:
+  - fleduff
+  fullname: Sophie Leduff
+  history:
+  - cboutillon
+  - qdittiere
+  - bamy
+  - cmoget
+  - atranchant
 sletellier:
   email: null
   exclude:
