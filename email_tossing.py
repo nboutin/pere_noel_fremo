@@ -9,8 +9,9 @@ import logging.handlers
 logger = logging.getLogger(__name__)
 
 __SECURE_DATA = "res/secure_data.yml"
-__DATA = "res/data_in_2022.yml"
+__DATA_IN = "res/data_in_2022.yml"
 __BODY = "res/tossing_2022.txt"
+__DATA_OUT = "res/data_out_2022.yml"
 
 to_skip = ['fleduff', 'schouteau']
 
@@ -19,7 +20,7 @@ def main():
     _configure_logger('email_tossing.log')
     logger.info("##### Le Pere Noel de la Fremo #####")
 
-    with open(__DATA, 'r') as stream:
+    with open(__DATA_IN, 'r') as stream:
         data = yaml.safe_load(stream)
 
     retry_count = 10
@@ -30,32 +31,36 @@ def main():
     with open(__SECURE_DATA, 'r') as stream:
         secure_data = yaml.safe_load(stream)
 
-    # send_all_email(data, secure_data)
+    send_all_email(data, secure_data, to_skip)
 
     # export new data
-    with open('res/data_export.yml', 'w') as file:
+    with open(__DATA_OUT, 'w') as file:
         yaml.dump(data, file, allow_unicode=True)
 
     logger.info("Tossing is done")
 
 
-def send_all_email(data, secure_data):
+def send_all_email(data, secure_data, to_skip):
 
     subject = 'Le Père Noël de la Frémo: Tirage au sort'
 
     for id_, id_param in data.items():
         toaddr = secure_data['personnes'][id_]['email']
         # DEBUG
-        # toaddr = secure_data['receiver_test']
+        toaddr = secure_data['receiver_test']
         # DEBUG
 
+        if id_ in to_skip:
+            continue
+
+        gift_from_fullname = id_param['fullname']
         to_gift_id = id_param['history'][-1]
-        to_fullname = data[to_gift_id]['fullname']
+        to_gift_fullname = data[to_gift_id]['fullname']
 
         with open(__BODY, 'r') as file:
-            body = file.read().format(id_param['fullname'], to_fullname)
+            body = file.read().format(gift_from_fullname, to_gift_fullname)
 
-        logger.debug("{} -> {} ({})".format(id_, to_fullname, to_gift_id))
+        logger.debug("{} -> {} ({})".format(id_, to_gift_fullname, to_gift_id))
         helper.gmail_send_email(secure_data['sender_email'], subject, body, toaddr)
 
 

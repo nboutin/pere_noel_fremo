@@ -1,14 +1,12 @@
-<h3>HOHOHO,</h3>
-<p>
-Bonjour petit lutin {},<br>
-<br>
-NoÃ«l approche Ã  grand pas et il est temps de connaitre l'enfant que tu dois couvrir de cadeaux.
-Cette annÃ©e pour conserver la magie de NoÃ«l, je souhaiterai que tu fasses un cadeau Ã  {}.
-Tu l'offriras le Samedi 11 DÃ©cembre Ã  Cantenay-Epinard.
-Je n'ai pas d'idÃ©e Ã  te fournir mais grÃ¢ce Ã  tes talents de lutin, tu trouveras le cadeau idÃ©al !<br>
-<br>
-Pour cette annÃ©e, je relance le concours du plus beau selfie de NoÃ«l! Oui c'est du recyclage mais c'est dans l'air du temps.
-Dans la tradition du PÃ¨re NoÃ«l de la Fremo, Ã  la suite d'un vote, le vainqueur ouvrira son cadeau en premier !
-<br>
-</p>
-<h3>Le PÃ¨re NoÃ«l de la FrÃ©mo</h3>
+HO HO HO,
+
+Bonjour petit lutin {},
+
+Noël approche à grand pas et il est temps de connaitre l'enfant que tu devras couvrir de cadeaux.
+Cette année pour conserver la magie de Noël, je souhaiterai que tu offres un cadeau à {}.
+Tu l'offriras le samedi 10 décembre à Cantenay-Epinard.
+Je n'ai pas d'idée à te fournir mais grâce à tes talents de lutin, tu trouveras le cadeau idéal !
+
+Dans la tradition du Père Noël de la Frémo, à la suite d'un vote, l'auteur du plus beau poème ouvrira son cadeau en premier !
+
+Le Père Noël de la Frémo
