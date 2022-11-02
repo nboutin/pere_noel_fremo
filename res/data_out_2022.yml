@@ -11,6 +11,8 @@ aboinet:
   - qdittiere
   - nboutin
   - amoget
+  - mberthet
+  - pplumegeau
 amoget:
   email: null
   exclude:
@@ -22,6 +24,8 @@ amoget:
   - cboutillon
   - schouteau
   - lcivel
+  - sletellier
+  - scarre
 atranchant:
   email: null
   exclude:
@@ -34,6 +38,8 @@ atranchant:
   - scarre
   - qdittiere
   - cboutillon
+  - jdenis
+  - tmoro
 bamy:
   email: null
   exclude:
@@ -45,6 +51,8 @@ bamy:
   - mroudet
   - cpiffeteau
   - mberthet
+  - atranchant
+  - qdittiere
 cboutillon:
   email: null
   exclude:
@@ -56,21 +64,25 @@ cboutillon:
   - aboinet
   - cpelini
   - fleduff
+  - mroudet
+  - ccarre
 ccarre:
   email: null
   exclude:
   - scarre
-  fullname: Claire CarrÃ©
+  fullname: Claire Carré
   history:
   - atranchant
   - amoget
   - lcivel
   - mdenis
   - cmouret
+  - sbentabet
+  - bamy
 cmoget:
   email: null
   exclude:
-  - amogetaboinet
+  - amoget
   fullname: Christophe Moget
   history:
   - schouteau
@@ -78,17 +90,22 @@ cmoget:
   - pplumegeau
   - lcivel
   - ccarre
+  - cmouret
+  - mberthet
 cmouret:
   email: null
   exclude:
   - atranchant
   - nboutin
-  fullname: ClÃ©mence Mouret
+  fullname: Clémence Mouret
   history:
   - lcivel
   - ccarre
   - mberthet
+  - aboinet
   - mroudet
+  - amoget
+  - mdenis
 cpelini:
   email: null
   exclude:
@@ -98,16 +115,31 @@ cpelini:
   - fxduret
   - cmouret
   - sletellier
+  - pplumegeau
+  - cboutillon
 cpiffeteau:
   email: null
   exclude:
   - pplumegeau
-  fullname: Celina Piffeteau
+  fullname: Célina Piffeteau
   history:
   - cmoget
-  - mberthetaboinet
+  - mberthet
   - fxduret
   - schouteau
+  - mdenis
+  - nboutin
+fleduff:
+  email: null
+  exclude:
+  - schouteau
+  fullname: Franck Leduff
+  history:
+  - cmoget
+  - jdenis
+  - cmouret
+  - bamy
+  - mdenis
 fxduret:
   email: null
   exclude:
@@ -121,14 +153,8 @@ fxduret:
   - nboutin
   - mroudet
   - tmoro
-sbentabet:
-  email: null
-  exclude:
-  - fxduret
-  - tmoro
-  - aboinet
-  fullname: Samia Bentabet
-  history: []
+  - bamy
+  - sletellier
 jdenis:
   email: null
   exclude:
@@ -136,10 +162,12 @@ jdenis:
   fullname: Jennifer Denis
   history:
   - qdittiere
-  - scarreaboinet
+  - scarrea
   - sletellier
   - amoget
   - nboutin
+  - fxduret
+  - aboinet
 lcivel:
   email: null
   exclude:
@@ -151,6 +179,8 @@ lcivel:
   - atranchant
   - cboutillon
   - scarre
+  - cpelini
+  - cmouret
 mberthet:
   email: null
   exclude:
@@ -162,6 +192,8 @@ mberthet:
   - cpiffeteau
   - atranchant
   - pplumegeau
+  - nboutin
+  - cpelini
 mdenis:
   email: null
   exclude:
@@ -173,6 +205,8 @@ mdenis:
   - schouteau
   - aboinet
   - qdittiere
+  - scarre
+  - fxduret
 mroudet:
   email: null
   exclude:
@@ -184,6 +218,8 @@ mroudet:
   - cmoget
   - scarre
   - cpiffeteau
+  - cboutillon
+  - atranchant
 nboutin:
   email: null
   exclude:
@@ -196,6 +232,8 @@ nboutin:
   - mdenis
   - pplumegeau
   - bamy
+  - tmoro
+  - cpiffeteau
 pplumegeau:
   email: null
   exclude:
@@ -207,10 +245,12 @@ pplumegeau:
   - jdenis
   - sletellier
   - cpelini
+  - cmoget
+  - mroudet
 qdittiere:
   email: null
   exclude:
-  - cboutillonaboinet
+  - cboutillon
   fullname: Quentin Dittiere
   history:
   - mdenis
@@ -218,17 +258,42 @@ qdittiere:
   - cpelini
   - ccarre
   - jdenis
+  - aboinet
+  - lcivel
+sbentabet:
+  email: null
+  exclude:
+  - fxduret
+  - tmoro
+  - aboinet
+  fullname: Samia Bentabet
+  history:
+  - qdittiere
+  - jdenis
 scarre:
   email: null
   exclude:
   - ccarre
-  fullname: Sylvain CarrÃ©
+  fullname: Sylvain Carré
   history:
   - aboinet
-  - nboutinaboinetaboinet
+  - nboutin
   - fleduff
   - jdenis
   - fxduret
+  - cpiffeteau
+  - sbentabet
+schouteau:
+  email: null
+  exclude:
+  - fleduff
+  fullname: Sophie Leduff
+  history:
+  - cboutillon
+  - qdittiere
+  - bamy
+  - cmoget
+  - atranchant
 sletellier:
   email: null
   exclude:
@@ -240,6 +305,8 @@ sletellier:
   - amoget
   - tmoro
   - aboinet
+  - lcivel
+  - cmoget
 tmoro:
   email: null
   exclude:
@@ -250,3 +317,5 @@ tmoro:
   history:
   - fleduff
   - cmoget
+  - ccarre
+  - amoget

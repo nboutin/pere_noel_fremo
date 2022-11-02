@@ -11,7 +11,7 @@ aboinet:
   - qdittiere
   - nboutin
   - amoget
-  - jdenis
+  - mberthet
 amoget:
   email: null
   exclude:
@@ -23,7 +23,7 @@ amoget:
   - cboutillon
   - schouteau
   - lcivel
-  - bamy
+  - sletellier
 atranchant:
   email: null
   exclude:
@@ -36,7 +36,7 @@ atranchant:
   - scarre
   - qdittiere
   - cboutillon
-  - sbentabet
+  - jdenis
 bamy:
   email: null
   exclude:
@@ -48,7 +48,7 @@ bamy:
   - mroudet
   - cpiffeteau
   - mberthet
-  - aboinet
+  - atranchant
 cboutillon:
   email: null
   exclude:
@@ -60,23 +60,23 @@ cboutillon:
   - aboinet
   - cpelini
   - fleduff
-  - fxduret
+  - mroudet
 ccarre:
   email: null
   exclude:
   - scarre
-  fullname: Claire CarrÃ©
+  fullname: Claire Carré
   history:
   - atranchant
   - amoget
   - lcivel
   - mdenis
   - cmouret
-  - pplumegeau
+  - sbentabet
 cmoget:
   email: null
   exclude:
-  - amogetaboinet
+  - amoget
   fullname: Christophe Moget
   history:
   - schouteau
@@ -84,19 +84,20 @@ cmoget:
   - pplumegeau
   - lcivel
   - ccarre
-  - amoget
+  - cmouret
 cmouret:
   email: null
   exclude:
   - atranchant
   - nboutin
-  fullname: ClÃ©mence Mouret
+  fullname: Clémence Mouret
   history:
   - lcivel
   - ccarre
   - mberthet
+  - aboinet
   - mroudet
-  - tmoro
+  - amoget
 cpelini:
   email: null
   exclude:
@@ -106,18 +107,29 @@ cpelini:
   - fxduret
   - cmouret
   - sletellier
-  - atranchant
+  - pplumegeau
 cpiffeteau:
   email: null
   exclude:
   - pplumegeau
-  fullname: Celina Piffeteau
+  fullname: Célina Piffeteau
   history:
   - cmoget
-  - mberthetaboinet
+  - mberthet
   - fxduret
   - schouteau
-  - qdittiere
+  - mdenis
+fleduff:
+  email: null
+  exclude:
+  - schouteau
+  fullname: Franck Leduff
+  history:
+  - cmoget
+  - jdenis
+  - cmouret
+  - bamy
+  - mdenis
 fxduret:
   email: null
   exclude:
@@ -131,7 +143,7 @@ fxduret:
   - nboutin
   - mroudet
   - tmoro
-  - sletellier
+  - bamy
 jdenis:
   email: null
   exclude:
@@ -139,11 +151,11 @@ jdenis:
   fullname: Jennifer Denis
   history:
   - qdittiere
-  - scarreaboinet
+  - scarrea
   - sletellier
   - amoget
   - nboutin
-  - ccarre
+  - fxduret
 lcivel:
   email: null
   exclude:
@@ -155,7 +167,7 @@ lcivel:
   - atranchant
   - cboutillon
   - scarre
-  - cpiffeteau
+  - cpelini
 mberthet:
   email: null
   exclude:
@@ -179,7 +191,7 @@ mdenis:
   - schouteau
   - aboinet
   - qdittiere
-  - mroudet
+  - scarre
 mroudet:
   email: null
   exclude:
@@ -204,7 +216,7 @@ nboutin:
   - mdenis
   - pplumegeau
   - bamy
-  - cmoget
+  - tmoro
 pplumegeau:
   email: null
   exclude:
@@ -216,11 +228,11 @@ pplumegeau:
   - jdenis
   - sletellier
   - cpelini
-  - lcivel
+  - cmoget
 qdittiere:
   email: null
   exclude:
-  - cboutillonaboinet
+  - cboutillon
   fullname: Quentin Dittiere
   history:
   - mdenis
@@ -228,7 +240,7 @@ qdittiere:
   - cpelini
   - ccarre
   - jdenis
-  - scarre
+  - aboinet
 sbentabet:
   email: null
   exclude:
@@ -237,19 +249,30 @@ sbentabet:
   - aboinet
   fullname: Samia Bentabet
   history:
-  - cpelini
+  - qdittiere
 scarre:
   email: null
   exclude:
   - ccarre
-  fullname: Sylvain CarrÃ©
+  fullname: Sylvain Carré
   history:
   - aboinet
-  - nboutinaboinetaboinet
+  - nboutin
   - fleduff
   - jdenis
   - fxduret
-  - mberthet
+  - cpiffeteau
+schouteau:
+  email: null
+  exclude:
+  - fleduff
+  fullname: Sophie Leduff
+  history:
+  - cboutillon
+  - qdittiere
+  - bamy
+  - cmoget
+  - atranchant
 sletellier:
   email: null
   exclude:
@@ -261,7 +284,7 @@ sletellier:
   - amoget
   - tmoro
   - aboinet
-  - mdenis
+  - lcivel
 tmoro:
   email: null
   exclude:
@@ -272,4 +295,4 @@ tmoro:
   history:
   - fleduff
   - cmoget
-  - cmouret
+  - ccarre

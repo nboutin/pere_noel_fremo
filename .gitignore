@@ -1,5 +1,7 @@
 # Files
 secure_data.yml
+credentials.json
+token.json
 *.log
 
 # Folder
