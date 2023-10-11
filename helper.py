@@ -3,89 +3,57 @@
 # pylint: disable=logging-fstring-interpolation
 
 import logging
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import base64
+import os.path
 from email.message import EmailMessage
 
-import base64
-
-import os.path
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
+# from googleapiclient.errors import HttpError
 
 logger = logging.getLogger(__name__)
 
 
-def gmail_send_email(sender_email, subject, body, toaddr):
-    """Create and send an email message
-    Print the returned  message id
-    Returns: Message object, including message id
-    Load pre-authorized user credentials from the environment.
-    """
-    SCOPES = ['https://www.googleapis.com/auth/gmail.compose']
-    creds = None
+SCOPES = ['https://www.googleapis.com/auth/gmail.compose']
+TOKEN_PATH = 'res/token.json'
+CREDENTIALS_PATH = 'res/credentials.json'
 
-    if os.path.exists('res/token.json'):
-        creds = Credentials.from_authorized_user_file('res/token.json', SCOPES)
-    # If there are no (valid) credentials available, let the user log in.
+
+def load_credentials():
+    creds = None
+    if os.path.exists(TOKEN_PATH):
+        creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file('res/credentials.json', SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, SCOPES)
             creds = flow.run_local_server(port=0)
-        # Save the credentials for the next run
-        with open('res/token.json', 'w', encoding='utf-8') as token:
+        with open(TOKEN_PATH, 'w', encoding='utf-8') as token:
             token.write(creds.to_json())
+    return creds
 
+
+def create_message(sender_email, subject, body, toaddr):
+    message = EmailMessage()
+    message.set_content(body)
+    message['To'] = toaddr
+    message['From'] = sender_email
+    message['Subject'] = subject
+    encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    return {'raw': encoded_message}
+
+
+def gmail_send_email(sender_email, subject, body, toaddr):
     try:
-        logger.info(f"sending email... to {toaddr}")
-
+        creds = load_credentials()
         service = build('gmail', 'v1', credentials=creds)
-        message = EmailMessage()
-
-        message.set_content(body)
-
-        message['To'] = toaddr
-        message['From'] = sender_email
-        message['Subject'] = subject
-
-        # encoded message
-        encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
-
-        create_message = {
-            'raw': encoded_message
-        }
-        # pylint: disable=E1101
-        send_message = (service.users().messages().send(userId="me", body=create_message).execute())
-        logger.info("done")
-
-    except HttpError as error:
+        message = create_message(sender_email, subject, body, toaddr)
+        send_message = (service.users().messages().send(userId="me", body=message).execute())
+        logger.info(f"Sent to {toaddr}")
+    except Exception as error:
         logger.error(F'An error occurred: {error}')
         send_message = None
     return send_message
-
-
-# def send_email(sender_email, sender_pwd, subject, body, toaddr):
-#     # http://naelshiab.com/tutoriel-comment-envoyer-un-courriel-avec-python/
-#     logger.info("sending email... to {}".format(toaddr))
-
-#     fromaddr = sender_email
-#     msg = MIMEMultipart()
-#     msg['From'] = fromaddr
-#     msg['To'] = toaddr
-#     msg['Subject'] = subject
-#     msg.attach(MIMEText(body, 'html'))
-
-#     server = smtplib.SMTP('smtp.gmail.com', 587)
-#     server.starttls()
-#     server.login(fromaddr, sender_pwd)
-#     text = msg.as_string()
-#     server.sendmail(fromaddr, toaddr, text)
-#     server.quit()
-
-#     logger.info("done")
