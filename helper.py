@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 # coding: utf-8
+# pylint: disable=logging-fstring-interpolation
 
 import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.message import EmailMessage
 
 import base64
-from email.message import EmailMessage
 
 import os.path
 from google.oauth2.credentials import Credentials
@@ -38,11 +39,11 @@ def gmail_send_email(sender_email, subject, body, toaddr):
             flow = InstalledAppFlow.from_client_secrets_file('res/credentials.json', SCOPES)
             creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
-        with open('res/token.json', 'w') as token:
+        with open('res/token.json', 'w', encoding='utf-8') as token:
             token.write(creds.to_json())
 
     try:
-        logger.info("sending email... to {}".format(toaddr))
+        logger.info(f"sending email... to {toaddr}")
 
         service = build('gmail', 'v1', credentials=creds)
         message = EmailMessage()
@@ -69,22 +70,22 @@ def gmail_send_email(sender_email, subject, body, toaddr):
     return send_message
 
 
-def send_email(sender_email, sender_pwd, subject, body, toaddr):
-    # http://naelshiab.com/tutoriel-comment-envoyer-un-courriel-avec-python/
-    logger.info("sending email... to {}".format(toaddr))
+# def send_email(sender_email, sender_pwd, subject, body, toaddr):
+#     # http://naelshiab.com/tutoriel-comment-envoyer-un-courriel-avec-python/
+#     logger.info("sending email... to {}".format(toaddr))
 
-    fromaddr = sender_email
-    msg = MIMEMultipart()
-    msg['From'] = fromaddr
-    msg['To'] = toaddr
-    msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'html'))
+#     fromaddr = sender_email
+#     msg = MIMEMultipart()
+#     msg['From'] = fromaddr
+#     msg['To'] = toaddr
+#     msg['Subject'] = subject
+#     msg.attach(MIMEText(body, 'html'))
 
-    server = smtplib.SMTP('smtp.gmail.com', 587)
-    server.starttls()
-    server.login(fromaddr, sender_pwd)
-    text = msg.as_string()
-    server.sendmail(fromaddr, toaddr, text)
-    server.quit()
+#     server = smtplib.SMTP('smtp.gmail.com', 587)
+#     server.starttls()
+#     server.login(fromaddr, sender_pwd)
+#     text = msg.as_string()
+#     server.sendmail(fromaddr, toaddr, text)
+#     server.quit()
 
-    logger.info("done")
+#     logger.info("done")
