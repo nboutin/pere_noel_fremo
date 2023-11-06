@@ -1,40 +1,43 @@
 #!/usr/bin/env python
 # encoding=utf8
+# pylint: disable=logging-fstring-interpolation
+
+from random import randint
+import logging.handlers
 
 import yaml
-from random import randint
+
 import helper
-import logging.handlers
 
 logger = logging.getLogger(__name__)
 
 __SECURE_DATA = "res/secure_data.yml"
-__DATA_IN = "res/data_in_2022.yml"
-__BODY = "res/tossing_2022.txt"
-__DATA_OUT = "res/data_out_2022.yml"
+__DATA_IN = "res/2023_data_in.yml"
+__BODY = "res/2023_tossing.txt"
+__DATA_OUT = "res/2023_data_out.yml"
 
-to_skip = ['fleduff', 'schouteau']
+PERSON_TO_SKIP = []
 
 
 def main():
     _configure_logger('email_tossing.log')
     logger.info("##### Le Pere Noel de la Fremo #####")
 
-    with open(__DATA_IN, 'r') as stream:
+    with open(__DATA_IN, 'r', encoding='utf-8') as stream:
         data = yaml.safe_load(stream)
 
     retry_count = 10
-    while(not tossing(data, to_skip) and retry_count > 0):
-        logger.warning("Tossing ({}) did not found solution, restarting..".format(retry_count))
+    while (not tossing(data, PERSON_TO_SKIP) and retry_count > 0):
+        logger.warning(f"Tossing ({retry_count}) did not found solution, restarting...")
         retry_count -= 1
 
-    with open(__SECURE_DATA, 'r') as stream:
+    with open(__SECURE_DATA, 'r', encoding='utf-8') as stream:
         secure_data = yaml.safe_load(stream)
 
-    send_all_email(data, secure_data, to_skip)
+    send_all_email(data, secure_data, PERSON_TO_SKIP)
 
     # export new data
-    with open(__DATA_OUT, 'w') as file:
+    with open(__DATA_OUT, 'w', encoding='utf-8') as file:
         yaml.dump(data, file, allow_unicode=True)
 
     logger.info("Tossing is done")
@@ -45,9 +48,9 @@ def send_all_email(data, secure_data, to_skip):
     subject = 'Le Père Noël de la Frémo: Tirage au sort'
 
     for id_, id_param in data.items():
-        toaddr = secure_data['personnes'][id_]['email']
+        to_addr = secure_data['personnes'][id_]['email']
         # DEBUG
-        toaddr = secure_data['receiver_test']
+        to_addr = secure_data['receiver_test']
         # DEBUG
 
         if id_ in to_skip:
@@ -57,11 +60,11 @@ def send_all_email(data, secure_data, to_skip):
         to_gift_id = id_param['history'][-1]
         to_gift_fullname = data[to_gift_id]['fullname']
 
-        with open(__BODY, 'r') as file:
+        with open(__BODY, 'r', encoding='utf-8') as file:
             body = file.read().format(gift_from_fullname, to_gift_fullname)
 
-        logger.debug("{} -> {} ({})".format(id_, to_gift_fullname, to_gift_id))
-        helper.gmail_send_email(secure_data['sender_email'], subject, body, toaddr)
+        logger.debug(f"{id_} -> {to_gift_fullname} ({to_gift_id})")
+        helper.gmail_send_email(secure_data['sender_email'], subject, body, to_addr)
 
 
 def tossing(data, to_skip=[]):
@@ -77,46 +80,46 @@ def tossing(data, to_skip=[]):
     users_gifted = []
     users_history = {}
 
-    while(len(users_done) < (len(data) - len(to_skip)) and retry_count < TRY_MAX):
+    while (len(users_done) < (len(data) - len(to_skip)) and retry_count < TRY_MAX):
         retry_count += 1
         r1 = randint(0, len(data)) - 1
         r2 = randint(0, len(data)) - 1
 
         user_current = list(data)[r1]
-        user_togift = list(data)[r2]
+        user_to_gift = list(data)[r2]
 
-        if(r1 == r2):  # same person
+        if (r1 == r2):  # same person
             continue
 
-        if (user_current in to_skip or user_togift in to_skip):  # not present this year
+        if (user_current in to_skip or user_to_gift in to_skip):  # not present this year
             continue
 
-        if(user_current in users_done):  # already done
+        if (user_current in users_done):  # already done
             continue
 
-        if(user_togift in users_gifted):  # already chosen
+        if (user_to_gift in users_gifted):  # already chosen
             continue
 
-        if(user_togift in data[user_current]['exclude']):  # excluded
+        if (user_to_gift in data[user_current]['exclude']):  # excluded
             continue
 
-        if(user_togift in data[user_current]['history']):  # chosen last years
+        if (user_to_gift in data[user_current]['history']):  # chosen last years
             continue
 
         # All Good
         users_done.append(user_current)
-        users_gifted.append(user_togift)
-        users_history[user_current] = user_togift
+        users_gifted.append(user_to_gift)
+        users_history[user_current] = user_to_gift
 
-        logger.debug("{} -> {}".format(user_current, data[user_current]['history'][-1]))
-
-    if(retry_count >= TRY_MAX):
+    if (retry_count >= TRY_MAX):
         logger.error("Error: too much tossing")
         return False
     else:
         # Update History
-        for user_current, user_togift in users_history.items():
-            data[user_current]['history'].append(user_togift)
+        for user_current, user_to_gift in users_history.items():
+            data[user_current]['history'].append(user_to_gift)
+
+            logger.debug(f"{user_current} -> {data[user_current]['history'][-1]}")
 
         logger.info(F"Success (retry:{retry_count})")
         return True
