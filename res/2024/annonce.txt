@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Annonce du Père Noël</title>
+</head>
+<body>
+    <p><strong>HOHOHO,</strong></p>
+
+    <p>L'hiver est arrivé, et cette année, je cherche des amis pour partager un moment musical ! Plutôt que de skier, j'aimerais entendre vos plus belles voix chanter une chanson de Noël ! 🎶</p>
+
+    <p>Pour me prouver que tu es un vrai fan de Noël, choisis ta chanson préférée et enregistre-toi en vidéo en train de la chanter ! Que ce soit un classique ou une version personnalisée, tout est permis tant que l'esprit de Noël est au rendez-vous !</p>
+
+    <p><strong>Petit défi :</strong> Pour faire partie de ma liste spéciale, la vidéo doit durer au moins 30 secondes et tu dois chanter avec passion !</p>
+
+    <p><strong>Cadeau bonus :</strong> Celui qui chantera la plus belle chanson aura l'honneur d'ouvrir son cadeau en premier lors du repas de Noël ! 🎁</p>
+
+    <p>Et n'oublie pas : la date limite pour me confirmer ta présence au repas de Noël est <strong>le 3 Novembre</strong>, alors ne tarde pas ! Le concours du meilleur chanteur reste ouvert jusqu'au dernier moment.</p>
+
+    <p><strong>Je compte sur toi, All I Want For Christmas Is You !</strong></p>
+
+    <p><em>Le Père Noël de la Frémo</em> 🎅</p>
+</body>
+</html>

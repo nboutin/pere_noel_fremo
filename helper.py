@@ -21,9 +21,9 @@ logger = logging.getLogger(__name__)
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.compose']
 TOKEN_PATH = 'res/token.json'
-CREDENTIALS_PATH = 'res/credentials.json'
-IMG_BACKGROUND_URL = 'https://i.ibb.co/cD0Ddqb/2023-pere-noel-fait-du-ski-800.png'
-IMG_FILEPATH = 'res/img/2023_pere_noel_fait_du_ski_800.png'
+CREDENTIALS_PATH = 'res/code_secret_client.apps.googleusercontent.com.json'
+# IMG_BACKGROUND_URL = 'https://i.ibb.co/cD0Ddqb/2023-pere-noel-fait-du-ski-800.png'
+IMG_FILEPATH = 'res/img/mariah-carey-reine-noel_800.jpg'
 
 
 def load_credentials():

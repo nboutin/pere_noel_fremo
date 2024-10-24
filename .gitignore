@@ -6,3 +6,5 @@ token.json
 
 # Folder
 __pycache__
+.venv/
+res/*.json

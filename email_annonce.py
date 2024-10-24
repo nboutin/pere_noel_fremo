@@ -3,14 +3,15 @@
 
 import yaml
 import logging.handlers
+from pathlib import Path
 
 import helper
 
 logger = logging.getLogger(__name__)
 
-__SECURE_DATA_FILEPATH = "res/secure_data.yml"
-__EMAIL_TEXT_FILEPATH = 'res/2023_B_annonce.txt'
-__EMAIL_OBJECT = "[Annonce Emploi] Pôle Nord Compagnie recherche Lutins créatifs"
+__SECURE_DATA_FILEPATH = Path("res", "secure_data.yml")
+__EMAIL_TEXT_FILEPATH = Path("res", "2024", "annonce.txt")
+__EMAIL_OBJECT = "[Annonce Pole Nord Emploi] Recherche Lutin chanteur, Rising Star"
 
 
 def main():
