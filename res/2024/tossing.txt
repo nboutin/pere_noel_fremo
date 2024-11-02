@@ -1,0 +1,12 @@
+<p><strong>HOHOHO,</strong></p>
+
+<p>Bonjour petit lutin {},</p>
+
+<p>Noël approche à grand pas et il est temps de connaitre l'enfant que tu devras couvrir de cadeaux.</p>
+<p>Cette année pour conserver la magie de Noël, je souhaiterai que tu offres un cadeau à {}.</p>
+<p>Tu l'offriras le samedi 14 décembre, le lieu reste à déterminer.</p>
+<p>Je n'ai pas d'idée à te fournir mais grâce à tes talents de lutin, tu trouveras le cadeau idéal !</p>
+
+<p>Dans la tradition du Père Noël de la Frémo, la meilleure ou le meilleur chanteur ouvrira son cadeau en premier !</p>
+
+<p><i>Le Père Noël de la Frémo</i></p>

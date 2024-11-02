@@ -23,7 +23,7 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.compose']
 TOKEN_PATH = 'res/token.json'
 CREDENTIALS_PATH = 'res/code_secret_client.apps.googleusercontent.com.json'
 # IMG_BACKGROUND_URL = 'https://i.ibb.co/cD0Ddqb/2023-pere-noel-fait-du-ski-800.png'
-IMG_FILEPATH = 'res/img/mariah-carey-reine-noel_800.jpg'
+IMG_FILEPATH = 'res/img/mariah_carey_tossing.jpg'
 
 
 def load_credentials():
