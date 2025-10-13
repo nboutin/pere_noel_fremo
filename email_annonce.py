@@ -10,8 +10,8 @@ import helper
 logger = logging.getLogger(__name__)
 
 __SECURE_DATA_FILEPATH = Path("res", "secure_data.yml")
-__EMAIL_TEXT_FILEPATH = Path("res", "2024", "annonce.txt")
-__EMAIL_OBJECT = "[Annonce Pole Nord Emploi] Recherche Lutin chanteur, Rising Star"
+__EMAIL_TEXT_FILEPATH = Path("res", "2025", "annonce.txt")
+__EMAIL_OBJECT = "[Annonce Pole Nord Emploi] Recherche Lutin lugeur et lugeuse pour Noël 2025"
 
 
 def main():
@@ -26,7 +26,7 @@ def main():
         body = file.read()
 
     # for debug, change key from personnes to personnes_test
-    for id_, id_param in secure_data['personnes'].items():
+    for _, id_param in secure_data['personnes'].items():
         helper.gmail_send_email(
             secure_data['sender_email'],
             __EMAIL_OBJECT,

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Annonce du Père Noël</title>
+</head>
+<body>
+    <p><strong>HOHOHO,</strong></p>
+
+    <p>L'hiver est arrivé, et cette année, je cherche des pilotes de luges pour livrer avec moi des milliers de cadeaux ! Pour me prouver ta bravoure et tes compétences hors du commun, je te lance un défi !</p>
+
+    <p>Joue au jeu <a href="https://www.crazygames.fr/jeu/snow-rider-3d" target="_blank">"Snow Rider 3D"</a> et montre-moi ton meilleur score en dévalant les pentes enneigées !</p>
+
+    <p><strong>Petit défi :</strong> Pour faire partie de ma liste spéciale, il te suffit de m'envoyer une capture d'écran de ton score !
+    Évidemment je ne recrute que les meilleurs, pour cela je m'attends à ce que ton score dépasse les 40 points</p>
+
+    <p>Et n'oublie pas : la date limite pour me confirmer ta présence au repas de Noël est <strong>le 1 Novembre</strong>, alors ne tarde pas ! Le concours du meilleur lugeur et lugeuse reste ouvert jusqu'au dernier moment.</p>
+
+    <p><strong>Je compte sur toi</strong></p>
+
+    <p><em>Le Père Noël de la Frémo</em> 🎅</p>
+</body>
+</html>
