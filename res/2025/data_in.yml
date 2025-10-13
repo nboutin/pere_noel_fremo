@@ -258,6 +258,7 @@ nboutin:
   exclude:
   - atranchant
   - cmouret
+  - cswiss
   fullname: Nicolas Boutin
   history:
   - amoget
@@ -367,3 +368,10 @@ tmoro:
   - ccarre
   - amoget
   - mdenis
+cswiss:
+  email: null
+  exclude:
+  - cmouret
+  - nboutin
+  fullname: Christophe Wiss
+  history: []
