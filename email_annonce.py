@@ -13,6 +13,9 @@ __SECURE_DATA_FILEPATH = Path("res", "secure_data.yml")
 __EMAIL_TEXT_FILEPATH = Path("res", "2025", "annonce.txt")
 __EMAIL_OBJECT = "[Annonce Pole Nord Emploi] Recherche Lutin lugeur et lugeuse pour Noël 2025"
 
+# TODO: manage skip list
+PERSON_TO_SKIP = ['sbentabet']
+
 
 def main():
     """Load data from external file and send email to each person"""

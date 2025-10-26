@@ -57,14 +57,15 @@ def create_message(sender_email, subject, body, toaddr, img_path):
     msgText = MIMEText('<img src="cid:image1"><br>'+body, 'html')
     msgAlternative.attach(msgText)
 
-    # This example assumes the image is in the current directory
-    fp = open(img_path, 'rb')
-    msgImage = MIMEImage(fp.read())
-    fp.close()
+    if img_path:
+        # This example assumes the image is in the current directory
+        fp = open(img_path, 'rb')
+        msgImage = MIMEImage(fp.read())
+        fp.close()
 
-    # Define the image's ID as referenced above
-    msgImage.add_header('Content-ID', '<image1>')
-    msg.attach(msgImage)
+        # Define the image's ID as referenced above
+        msgImage.add_header('Content-ID', '<image1>')
+        msg.attach(msgImage)
 
     # encoded message
     encoded_message = base64.urlsafe_b64encode(msg.as_bytes()).decode()
@@ -76,7 +77,8 @@ def gmail_send_email(sender_email, subject, body, toaddr):
     try:
         creds = load_credentials()
         service = build('gmail', 'v1', credentials=creds)
-        message = create_message(sender_email, subject, body, toaddr, IMG_FILEPATH)
+        message = create_message(sender_email, subject, body, toaddr, None)
+        # message = create_message(sender_email, subject, body, toaddr, IMG_FILEPATH)
         send_message = (service.users().messages().send(userId="me", body=message).execute())
         logger.info(f"Sent to {toaddr}")
     except Exception as error:

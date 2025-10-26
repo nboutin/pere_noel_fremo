@@ -13,20 +13,41 @@ import helper
 
 logger = logging.getLogger(__name__)
 
-__YEAR = 2024
+__YEAR = 2025
 __SECURE_DATA = Path(f"res/secure_data.yml")
 __DATA_IN = Path(f"res/{__YEAR}/data_in.yml")
 __BODY = Path(f"res/{__YEAR}/tossing.txt")
 __DATA_OUT = Path(f"res/{__YEAR}/data_out.yml")
 
-PERSON_TO_SKIP = ['tmoro', 'bamy']
-__CHEATERS = [{'giver': 'fxduret', 'gifted': 'amoget'},
-              {'giver': 'nboutin', 'gifted': 'mroudet'},
-              {'giver': 'atranchant', 'gifted': 'schouteau'},
-              {'giver': 'ccarre', 'gifted': 'aboinet'},
-              {'giver': 'qdittiere', 'gifted': 'pplumegeau'},
-              {'giver': 'fleduff', 'gifted': 'fxduret'},
-              ]
+PERSON_TO_SKIP = ['sbentabet']
+
+__CHEATERS = [
+    {'giver': 'scarre', 'gifted': 'bamy'},
+    {'giver': 'mroudet', 'gifted': 'cmouret'},
+    {'giver': 'ccarre', 'gifted': 'sletellier'},
+    {'giver': 'aboinet', 'gifted': 'schouteau'},
+    {'giver': 'cpiffeteau', 'gifted': 'cboutillon'},
+    {'giver': 'sletellier', 'gifted': 'mroudet'},
+    {'giver': 'cpelini', 'gifted': 'mdenis'},
+    {'giver': 'schouteau', 'gifted': 'fxduret'},
+    {'giver': 'bamy', 'gifted': 'amoget'},
+    {'giver': 'nboutin', 'gifted': 'aboinet'},
+    {'giver': 'cboutillon', 'gifted': 'pplumegeau'},
+    {'giver': 'cmouret', 'gifted': 'scarre'},
+    {'giver': 'tmoro', 'gifted': 'cwiss'},
+    {'giver': 'qdittiere', 'gifted': 'mberthet'},
+    {'giver': 'fleduff', 'gifted': 'lcivel'},
+    {'giver': 'lcivel', 'gifted': 'fleduff'},
+    {'giver': 'mdenis', 'gifted': 'cpelini'},
+    {'giver': 'pplumegeau', 'gifted': 'qdittiere'},
+    {'giver': 'cwiss', 'gifted': 'cmoget'},
+    {'giver': 'fxduret', 'gifted': 'jdenis'},
+    {'giver': 'atranchant', 'gifted': 'cpiffeteau'},
+    {'giver': 'cmoget', 'gifted': 'tmoro'},
+    {'giver': 'jdenis', 'gifted':  'atranchant'},
+    {'giver':  'amoget', 'gifted':  'nboutin'},
+    {'giver':  'mberthet', 'gifted':  'ccarre'},
+]
 
 
 def main():
@@ -55,16 +76,17 @@ def main():
 
 def send_all_email(data, secure_data, to_skip):
 
-    subject = f'[{__YEAR}-bis] Le Père Noël de la Frémo: Tirage au sort'
+    subject = f'[{__YEAR}] Le Père Noël de la Frémo: Tirage au sort'
 
     for id_, id_param in data.items():
+
+        if id_ in to_skip:
+            continue
+
         to_addr = secure_data['personnes'][id_]['email']
         # DEBUG
         # to_addr = secure_data['receiver_test']
         # DEBUG
-
-        if id_ in to_skip:
-            continue
 
         gift_from_fullname = id_param['fullname']
         to_gift_id = id_param['history'][-1]

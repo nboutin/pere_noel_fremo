@@ -15,6 +15,7 @@ aboinet:
   - pplumegeau
   - fleduff
   - cmoget
+  - schouteau
 amoget:
   email: null
   exclude:
@@ -30,6 +31,7 @@ amoget:
   - scarre
   - ccarre
   - cpelini
+  - nboutin
 atranchant:
   email: null
   exclude:
@@ -46,6 +48,7 @@ atranchant:
   - tmoro
   - fxduret
   - schouteau
+  - cpiffeteau
 bamy:
   email: null
   exclude:
@@ -60,6 +63,7 @@ bamy:
   - atranchant
   - qdittiere
   - pplumegeau
+  - amoget
 cboutillon:
   email: null
   exclude:
@@ -75,6 +79,7 @@ cboutillon:
   - ccarre
   - schouteau
   - cmouret
+  - pplumegeau
 ccarre:
   email: null
   exclude:
@@ -90,6 +95,7 @@ ccarre:
   - bamy
   - cpelini
   - aboinet
+  - sletellier
 cmoget:
   email: null
   exclude:
@@ -105,6 +111,7 @@ cmoget:
   - mberthet
   - bamy
   - cboutillon
+  - tmoro
 cmouret:
   email: null
   exclude:
@@ -122,6 +129,7 @@ cmouret:
   - mdenis
   - sletellier
   - jdenis
+  - scarre
 cpelini:
   email: null
   exclude:
@@ -135,6 +143,7 @@ cpelini:
   - cboutillon
   - sbentabet
   - ccarre
+  - mdenis
 cpiffeteau:
   email: null
   exclude:
@@ -149,6 +158,15 @@ cpiffeteau:
   - nboutin
   - aboinet
   - fleduff
+  - cboutillon
+cwiss:
+  email: null
+  exclude:
+  - cmouret
+  - nboutin
+  fullname: Christophe Wiss
+  history:
+  - cmoget
 fleduff:
   email: null
   exclude:
@@ -162,6 +180,7 @@ fleduff:
   - mdenis
   - tmoro
   - fxduret
+  - lcivel
 fxduret:
   email: null
   exclude:
@@ -179,6 +198,7 @@ fxduret:
   - sletellier
   - cmoget
   - amoget
+  - jdenis
 jdenis:
   email: null
   exclude:
@@ -194,6 +214,7 @@ jdenis:
   - aboinet
   - cmouret
   - cpiffeteau
+  - atranchant
 lcivel:
   email: null
   exclude:
@@ -209,6 +230,7 @@ lcivel:
   - cmouret
   - cpiffeteau
   - sbentabet
+  - fleduff
 mberthet:
   email: null
   exclude:
@@ -224,6 +246,7 @@ mberthet:
   - cpelini
   - mroudet
   - mdenis
+  - ccarre
 mdenis:
   email: null
   exclude:
@@ -239,6 +262,7 @@ mdenis:
   - fxduret
   - amoget
   - sletellier
+  - cpelini
 mroudet:
   email: null
   exclude:
@@ -254,6 +278,7 @@ mroudet:
   - atranchant
   - qdittiere
   - nboutin
+  - cmouret
 nboutin:
   email: null
   exclude:
@@ -271,6 +296,7 @@ nboutin:
   - cpiffeteau
   - jdenis
   - mroudet
+  - aboinet
 pplumegeau:
   email: null
   exclude:
@@ -286,6 +312,7 @@ pplumegeau:
   - mroudet
   - nboutin
   - mberthet
+  - qdittiere
 qdittiere:
   email: null
   exclude:
@@ -301,6 +328,7 @@ qdittiere:
   - lcivel
   - atranchant
   - pplumegeau
+  - mberthet
 sbentabet:
   email: null
   exclude:
@@ -328,6 +356,7 @@ scarre:
   - sbentabet
   - mberthet
   - lcivel
+  - bamy
 schouteau:
   email: null
   exclude:
@@ -341,6 +370,7 @@ schouteau:
   - atranchant
   - lcivel
   - scarre
+  - fxduret
 sletellier:
   email: null
   exclude:
@@ -356,6 +386,7 @@ sletellier:
   - cmoget
   - scarre
   - qdittiere
+  - mroudet
 tmoro:
   email: null
   exclude:
@@ -369,10 +400,4 @@ tmoro:
   - ccarre
   - amoget
   - mdenis
-cwiss:
-  email: null
-  exclude:
-  - cmouret
-  - nboutin
-  fullname: Christophe Wiss
-  history: []
+  - cwiss
