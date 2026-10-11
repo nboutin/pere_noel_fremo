@@ -29,12 +29,32 @@ __CHEATERS: list[dict[str, str]] = [
 ]
 
 
+def validate_lutins_data(data: Any) -> None:
+    """Valide la structure et la présence des champs obligatoires pour chaque Lutin."""
+    if not isinstance(data, dict) or not data:
+        raise ValueError("Les données des Lutins doivent être un dictionnaire non vide.")
+
+    required_fields = {"fullname", "exclude", "history"}
+    for lutin_id, params in data.items():
+        if not isinstance(params, dict):
+            raise ValueError(f"Les paramètres du Lutin '{lutin_id}' doivent être un dictionnaire.")
+
+        missing = required_fields - set(params.keys())
+        if missing:
+            raise ValueError(f"Le Lutin '{lutin_id}' manque les champs obligatoires : {sorted(list(missing))}.")
+
+        if not isinstance(params["exclude"], list) or not isinstance(params["history"], list):
+            raise ValueError(f"Les champs 'exclude' et 'history' du Lutin '{lutin_id}' doivent être des listes.")
+
+
 def main() -> None:
     _configure_logger("email_tossing.log")
     logger.info("##### Le Pere Noel de la Fremo #####")
 
     with open(__DATA_IN, encoding="utf-8") as stream:
         data = yaml.safe_load(stream)
+
+    validate_lutins_data(data)
 
     retry_count = 10
     while not tossing(data, PERSON_TO_SKIP) and retry_count > 0:

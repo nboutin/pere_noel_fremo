@@ -112,3 +112,34 @@ def test_tossing_fails_when_no_valid_solution_possible() -> None:
     # Entre 2 personnes qui s'excluent mutuellement, aucun tirage n'est possible
     success = tossing(impossible_data, cheaters=[])
     assert success is False
+
+
+def test_validate_lutins_data_valid(sample_lutins_data: dict[str, Any]) -> None:
+    from pere_noel_fremo.email_tossing import validate_lutins_data
+
+    # Ne doit pas lever d'exception
+    validate_lutins_data(sample_lutins_data)
+
+
+def test_validate_lutins_data_invalid_structure() -> None:
+    from pere_noel_fremo.email_tossing import validate_lutins_data
+
+    # 1. Pas un dictionnaire
+    with pytest.raises(ValueError, match="dictionnaire non vide"):
+        validate_lutins_data([])  # type: ignore[arg-type]
+
+    # 2. Dictionnaire vide
+    with pytest.raises(ValueError, match="dictionnaire non vide"):
+        validate_lutins_data({})
+
+    # 3. Champ obligatoire manquant
+    incomplete_data = {
+        "lutin_1": {"fullname": "Lutin 1", "exclude": []}  # manque history
+    }
+    with pytest.raises(ValueError, match="manque les champs obligatoires"):
+        validate_lutins_data(incomplete_data)
+
+    # 4. Exclude ou history n'est pas une liste
+    invalid_types = {"lutin_1": {"fullname": "Lutin 1", "exclude": "lutin_2", "history": []}}
+    with pytest.raises(ValueError, match="doivent"):
+        validate_lutins_data(invalid_types)
