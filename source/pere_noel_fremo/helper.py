@@ -8,7 +8,7 @@ from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -39,7 +39,7 @@ def load_credentials() -> Credentials:
             creds = flow.run_local_server(port=0)
         with open(TOKEN_PATH, "w", encoding="utf-8") as token:
             token.write(creds.to_json())
-    return creds
+    return cast(Credentials, creds)
 
 
 def create_message(
