@@ -205,3 +205,26 @@ def test_cli_annonce_with_absent(tmp_path: Path, capsys: pytest.CaptureFixture[s
         assert mock_send.call_count == 1
         captured = capsys.readouterr()
         assert "1 absents" in captured.out
+
+
+def test_cli_serve_invokes_uvicorn(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    db_path = tmp_path / "fremo.db"
+    with patch("uvicorn.run") as mock_uvicorn:
+        ret = main(
+            [
+                "serve",
+                "--db-path",
+                str(db_path),
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8080",
+            ]
+        )
+        assert ret == 0
+        assert mock_uvicorn.call_count == 1
+        _, kwargs = mock_uvicorn.call_args
+        assert kwargs["host"] == "0.0.0.0"
+        assert kwargs["port"] == 8080

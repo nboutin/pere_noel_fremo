@@ -234,3 +234,52 @@ def get_lutin_exclusions(db_path: Path | str, lutin_id: str) -> list[str]:
         return [row["excluded_lutin_id"] for row in rows]
     finally:
         conn.close()
+
+
+def get_lutin_presence(db_path: Path | str, lutin_id: str, year: int) -> bool | None:
+    """Récupère l'état de confirmation de présence d'un Lutin pour une édition (None si non renseigné)."""
+    conn = get_db_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT present FROM presences WHERE lutin_id = ? AND year = ?;",
+            (lutin_id, year),
+        ).fetchone()
+        if row is None:
+            return None
+        return bool(row["present"])
+    finally:
+        conn.close()
+
+
+def set_lutin_presence(db_path: Path | str, lutin_id: str, year: int, present: bool) -> None:
+    """Enregistre ou met à jour la confirmation de présence d'un Lutin."""
+    conn = get_db_connection(db_path)
+    try:
+        with conn:
+            conn.execute(
+                """
+                INSERT INTO presences (lutin_id, year, present, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(lutin_id, year) DO UPDATE SET
+                    present = excluded.present,
+                    updated_at = CURRENT_TIMESTAMP;
+                """,
+                (lutin_id, year, 1 if present else 0),
+            )
+    finally:
+        conn.close()
+
+
+def get_edition_status(db_path: Path | str, year: int) -> str | None:
+    """Récupère le statut d'une édition ('draft', 'drawn', 'revealed')."""
+    conn = get_db_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT status FROM editions WHERE year = ?;",
+            (year,),
+        ).fetchone()
+        if not row:
+            return None
+        return str(row["status"])
+    finally:
+        conn.close()

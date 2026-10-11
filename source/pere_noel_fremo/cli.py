@@ -113,6 +113,30 @@ def create_parser() -> argparse.ArgumentParser:
         help="Alias de compatibilité pour --absent",
     )
 
+    # Subcommand: serve
+    serve_parser = subparsers.add_parser(
+        "serve",
+        help="Démarre le serveur web de l'Espace Lutin",
+    )
+    serve_parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="Adresse d'écoute du serveur web (défaut: 127.0.0.1)",
+    )
+    serve_parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port d'écoute du serveur web (défaut: 8000)",
+    )
+    serve_parser.add_argument(
+        "--db-path",
+        type=Path,
+        default=DEFAULT_DB_PATH,
+        help="Chemin de la base de données SQLite (défaut: res/fremo.db)",
+    )
+
     return parser
 
 
@@ -187,6 +211,17 @@ def handle_annonce(args: argparse.Namespace) -> int:
         return 1
 
 
+def handle_serve(args: argparse.Namespace) -> int:
+    import uvicorn
+
+    from .web import create_app
+
+    web_app = create_app(db_path=args.db_path)
+    print(f"Démarrage de l'Espace Lutin sur http://{args.host}:{args.port} (DB: {args.db_path})")
+    uvicorn.run(web_app, host=args.host, port=args.port)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = create_parser()
     if argv is None:
@@ -201,6 +236,8 @@ def main(argv: list[str] | None = None) -> int:
         return handle_init_db(args)
     if args.command == "annonce":
         return handle_annonce(args)
+    if args.command == "serve":
+        return handle_serve(args)
 
     return 0
 

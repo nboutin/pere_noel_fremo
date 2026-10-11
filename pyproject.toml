@@ -12,6 +12,9 @@ dependencies = [
     "google-api-python-client",
     "google-auth-httplib2",
     "google-auth-oauthlib",
+    "fastapi",
+    "uvicorn",
+    "jinja2",
 ]
 
 [project.scripts]
@@ -22,6 +25,9 @@ pere-noel-annonce = "pere_noel_fremo.email_annonce:main"
 
 [tool.setuptools.packages.find]
 where = ["source"]
+
+[tool.setuptools.package-data]
+pere_noel_fremo = ["templates/*", "static/*"]
 
 [tool.ruff]
 line-length = 120

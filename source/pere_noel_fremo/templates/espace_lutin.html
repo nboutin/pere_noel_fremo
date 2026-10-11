@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Espace Lutin - Père Noël de la Frémo</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <span class="badge-edition">Édition {{ edition }}</span>
+            <h1>🎅 Père Noël de la Frémo 🎄</h1>
+            <p>Bienvenue dans ton Espace Lutin, <strong>{{ lutin.fullname }}</strong> !</p>
+        </header>
+
+        <section class="card" id="card-presence" data-presence="{% if presence is not none %}{{ 'true' if presence else 'false' }}{% else %}unknown{% endif %}">
+            <h2>Confirmation de présence</h2>
+            <p>Participeras-tu à l'échange de cadeaux cette année ?</p>
+
+            <div id="status-box" class="presence-status {% if presence is true %}status-present{% elif presence is false %}status-absent{% else %}status-unknown{% endif %}">
+                {% if presence is true %}
+                    ✅ Ta présence est confirmée et tu es prêt(e) pour le tirage au sort !
+                {% elif presence is false %}
+                    ❌ Tu as indiqué être Absent(e) pour cette édition.
+                {% else %}
+                    ⏳ Présence non encore confirmée.
+                {% endif %}
+            </div>
+
+            {% if is_locked %}
+                <p><em>🔒 Le tirage au sort a été effectué, les confirmations de présence sont désormais verrouillées.</em></p>
+            {% else %}
+                <div class="btn-group">
+                    <button type="button" id="btn-oui" class="btn-present {% if presence is true %}btn-selected{% endif %}" onclick="setPresence(true)">
+                        🎁 Je participe !
+                    </button>
+                    <button type="button" id="btn-non" class="btn-absent {% if presence is false %}btn-selected{% endif %}" onclick="setPresence(false)">
+                        ❄️ Je serai Absent
+                    </button>
+                </div>
+            {% endif %}
+        </section>
+
+        <section class="card teaser">
+            <h2>🛷 Défi de la luge (Bientôt disponible)</h2>
+            <p>Résous la grille logique pour inscrire ton pseudo de lugeur et gravir le classement !</p>
+        </section>
+
+        <section class="card teaser">
+            <h2>✨ Ton Bénéficiaire mystère</h2>
+            <p>La carte à gratter virtuelle sera révélée dès que le tirage au sort aura été validé.</p>
+        </section>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        const TOKEN = "{{ lutin.token }}";
+        const IS_LOCKED = {{ 'true' if is_locked else 'false' }};
+
+        function showToast(msg) {
+            const toast = document.getElementById("toast");
+            toast.textContent = msg;
+            toast.style.display = "block";
+            setTimeout(() => {
+                toast.style.display = "none";
+            }, 3000);
+        }
+
+        async function setPresence(val) {
+            if (IS_LOCKED) {
+                showToast("Le tirage a été effectué, présence verrouillée.");
+                return;
+            }
+            try {
+                const res = await fetch(`/api/lutin/${TOKEN}/presence`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ present: val })
+                });
+                if (!res.ok) {
+                    const err = await res.json();
+                    showToast(err.detail || "Erreur lors de l'enregistrement");
+                    return;
+                }
+                const data = await res.json();
+                const statusBox = document.getElementById("status-box");
+                const btnOui = document.getElementById("btn-oui");
+                const btnNon = document.getElementById("btn-non");
+                const card = document.getElementById("card-presence");
+
+                if (data.present) {
+                    statusBox.className = "presence-status status-present";
+                    statusBox.textContent = "✅ Ta présence est confirmée et tu es prêt(e) pour le tirage au sort !";
+                    btnOui.classList.add("btn-selected");
+                    btnNon.classList.remove("btn-selected");
+                    card.setAttribute("data-presence", "true");
+                    showToast("Présence confirmée ! 🎁");
+                } else {
+                    statusBox.className = "presence-status status-absent";
+                    statusBox.textContent = "❌ Tu as indiqué être Absent(e) pour cette édition.";
+                    btnOui.classList.remove("btn-selected");
+                    btnNon.classList.add("btn-selected");
+                    card.setAttribute("data-presence", "false");
+                    showToast("Absence enregistrée ❄️");
+                }
+            } catch (e) {
+                showToast("Erreur de connexion au serveur.");
+            }
+        }
+    </script>
+</body>
+</html>
