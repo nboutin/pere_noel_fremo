@@ -24,32 +24,8 @@ __DATA_OUT = RES_DIR / f"{__YEAR}" / "data_out.yml"
 
 PERSON_TO_SKIP: list[str] = ["sbentabet"]
 
-__CHEATERS = [
-    {"giver": "scarre", "gifted": "bamy"},
-    {"giver": "mroudet", "gifted": "cmouret"},
-    {"giver": "ccarre", "gifted": "sletellier"},
-    {"giver": "aboinet", "gifted": "schouteau"},
-    {"giver": "cpiffeteau", "gifted": "cboutillon"},
-    {"giver": "sletellier", "gifted": "mroudet"},
-    {"giver": "cpelini", "gifted": "mdenis"},
-    {"giver": "schouteau", "gifted": "fxduret"},
-    {"giver": "bamy", "gifted": "amoget"},
-    {"giver": "nboutin", "gifted": "aboinet"},
-    {"giver": "cboutillon", "gifted": "pplumegeau"},
-    {"giver": "cmouret", "gifted": "scarre"},
-    {"giver": "tmoro", "gifted": "cwiss"},
-    {"giver": "qdittiere", "gifted": "mberthet"},
-    {"giver": "fleduff", "gifted": "lcivel"},
-    {"giver": "lcivel", "gifted": "fleduff"},
-    {"giver": "mdenis", "gifted": "cpelini"},
-    {"giver": "pplumegeau", "gifted": "qdittiere"},
-    {"giver": "cwiss", "gifted": "cmoget"},
-    {"giver": "fxduret", "gifted": "jdenis"},
-    {"giver": "atranchant", "gifted": "cpiffeteau"},
-    {"giver": "cmoget", "gifted": "tmoro"},
-    {"giver": "jdenis", "gifted": "atranchant"},
-    {"giver": "amoget", "gifted": "nboutin"},
-    {"giver": "mberthet", "gifted": "ccarre"},
+__CHEATERS: list[dict[str, str]] = [
+    # {"giver": "scarre", "gifted": "bamy"},
 ]
 
 
