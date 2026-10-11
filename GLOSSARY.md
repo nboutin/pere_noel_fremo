@@ -39,3 +39,31 @@ _Avoid_: Désinscrit, ignoré, skipped
 **Annonce**:
 Courriel initial annonçant le lancement officiel de l'édition annuelle aux Lutins avant la réalisation du tirage.
 _Avoid_: Teaser, invitation, notification
+
+**Lien magique**:
+URL unique et sécurisée transmise à un Lutin pour lui donner un accès direct à son Espace Lutin sans nécessiter de mot de passe.
+_Avoid_: Token link, magic URL, jeton
+
+**Espace Lutin**:
+Page web individuelle et confidentielle dédiée à un Lutin pour confirmer sa présence, relever le défi et consulter son Bénéficiaire.
+_Avoid_: Dashboard, portail, profil, compte
+
+**Confirmation de présence**:
+Action par laquelle un Lutin valide ou décline sa participation à l'édition courante en réponse à l'Annonce.
+_Avoid_: RSVP, inscription, check-in, vote
+
+**Défi de la luge**:
+Épreuve rituelle annuelle (alternant entre défi créatif et défi de logique/énigme) permettant de départager les Lutins et de désigner le meilleur lugeur qui ouvrira son cadeau en premier lors de la fête.
+_Avoid_: Quiz, challenge, mini-jeu, concours
+
+**Grille logique**:
+Casse-tête de déduction à indices croisés proposé comme Défi de la luge pour l'édition courante, chronométré pour établir le classement des Lutins.
+_Avoid_: Logigramme, puzzle d'Einstein, énigme
+
+**Pseudo de lugeur**:
+Pseudonyme festif et humoristique attribué aléatoirement à chaque Lutin sur le tableau des scores public pour préserver le secret de l'identité du vainqueur jusqu'à la fête.
+_Avoid_: Alias, handle, avatar
+
+**Admin aveugle**:
+Mode d'administration masquant les attributions de cadeaux à l'organisateur pour préserver sa propre surprise, tout en conservant une traçabilité exploitable par un agent.
+_Avoid_: Mode discret, blind mode, masquage
