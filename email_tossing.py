@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-# encoding=utf8
 # pylint: disable=logging-fstring-interpolation
 
 import logging
 import logging.handlers
-from random import randint
 from pathlib import Path
+from random import randint
+from typing import Any
 
 import yaml
 
@@ -14,118 +14,117 @@ import helper
 logger = logging.getLogger(__name__)
 
 __YEAR = 2025
-__SECURE_DATA = Path(f"res/secure_data.yml")
+__SECURE_DATA = Path("res/secure_data.yml")
 __DATA_IN = Path(f"res/{__YEAR}/data_in.yml")
 __BODY = Path(f"res/{__YEAR}/tossing.txt")
 __DATA_OUT = Path(f"res/{__YEAR}/data_out.yml")
 
-PERSON_TO_SKIP = ['sbentabet']
+PERSON_TO_SKIP: list[str] = ["sbentabet"]
 
 __CHEATERS = [
-    {'giver': 'scarre', 'gifted': 'bamy'},
-    {'giver': 'mroudet', 'gifted': 'cmouret'},
-    {'giver': 'ccarre', 'gifted': 'sletellier'},
-    {'giver': 'aboinet', 'gifted': 'schouteau'},
-    {'giver': 'cpiffeteau', 'gifted': 'cboutillon'},
-    {'giver': 'sletellier', 'gifted': 'mroudet'},
-    {'giver': 'cpelini', 'gifted': 'mdenis'},
-    {'giver': 'schouteau', 'gifted': 'fxduret'},
-    {'giver': 'bamy', 'gifted': 'amoget'},
-    {'giver': 'nboutin', 'gifted': 'aboinet'},
-    {'giver': 'cboutillon', 'gifted': 'pplumegeau'},
-    {'giver': 'cmouret', 'gifted': 'scarre'},
-    {'giver': 'tmoro', 'gifted': 'cwiss'},
-    {'giver': 'qdittiere', 'gifted': 'mberthet'},
-    {'giver': 'fleduff', 'gifted': 'lcivel'},
-    {'giver': 'lcivel', 'gifted': 'fleduff'},
-    {'giver': 'mdenis', 'gifted': 'cpelini'},
-    {'giver': 'pplumegeau', 'gifted': 'qdittiere'},
-    {'giver': 'cwiss', 'gifted': 'cmoget'},
-    {'giver': 'fxduret', 'gifted': 'jdenis'},
-    {'giver': 'atranchant', 'gifted': 'cpiffeteau'},
-    {'giver': 'cmoget', 'gifted': 'tmoro'},
-    {'giver': 'jdenis', 'gifted':  'atranchant'},
-    {'giver':  'amoget', 'gifted':  'nboutin'},
-    {'giver':  'mberthet', 'gifted':  'ccarre'},
+    {"giver": "scarre", "gifted": "bamy"},
+    {"giver": "mroudet", "gifted": "cmouret"},
+    {"giver": "ccarre", "gifted": "sletellier"},
+    {"giver": "aboinet", "gifted": "schouteau"},
+    {"giver": "cpiffeteau", "gifted": "cboutillon"},
+    {"giver": "sletellier", "gifted": "mroudet"},
+    {"giver": "cpelini", "gifted": "mdenis"},
+    {"giver": "schouteau", "gifted": "fxduret"},
+    {"giver": "bamy", "gifted": "amoget"},
+    {"giver": "nboutin", "gifted": "aboinet"},
+    {"giver": "cboutillon", "gifted": "pplumegeau"},
+    {"giver": "cmouret", "gifted": "scarre"},
+    {"giver": "tmoro", "gifted": "cwiss"},
+    {"giver": "qdittiere", "gifted": "mberthet"},
+    {"giver": "fleduff", "gifted": "lcivel"},
+    {"giver": "lcivel", "gifted": "fleduff"},
+    {"giver": "mdenis", "gifted": "cpelini"},
+    {"giver": "pplumegeau", "gifted": "qdittiere"},
+    {"giver": "cwiss", "gifted": "cmoget"},
+    {"giver": "fxduret", "gifted": "jdenis"},
+    {"giver": "atranchant", "gifted": "cpiffeteau"},
+    {"giver": "cmoget", "gifted": "tmoro"},
+    {"giver": "jdenis", "gifted": "atranchant"},
+    {"giver": "amoget", "gifted": "nboutin"},
+    {"giver": "mberthet", "gifted": "ccarre"},
 ]
 
 
-def main():
-    _configure_logger('email_tossing.log')
+def main() -> None:
+    _configure_logger("email_tossing.log")
     logger.info("##### Le Pere Noel de la Fremo #####")
 
-    with open(__DATA_IN, 'r', encoding='utf-8') as stream:
+    with open(__DATA_IN, encoding="utf-8") as stream:
         data = yaml.safe_load(stream)
 
     retry_count = 10
-    while (not tossing(data, PERSON_TO_SKIP) and retry_count > 0):
+    while not tossing(data, PERSON_TO_SKIP) and retry_count > 0:
         logger.warning(f"Tossing ({retry_count}) did not found solution, restarting...")
         retry_count -= 1
 
-    with open(__SECURE_DATA, 'r', encoding='utf-8') as stream:
+    with open(__SECURE_DATA, encoding="utf-8") as stream:
         secure_data = yaml.safe_load(stream)
 
     send_all_email(data, secure_data, PERSON_TO_SKIP)
 
     # export new data
-    with open(__DATA_OUT, 'w', encoding='utf-8') as file:
+    with open(__DATA_OUT, "w", encoding="utf-8") as file:
         yaml.dump(data, file, allow_unicode=True)
 
     logger.info("Tossing is done")
 
 
-def send_all_email(data, secure_data, to_skip):
-
-    subject = f'[{__YEAR}] Le Père Noël de la Frémo: Tirage au sort'
+def send_all_email(data: dict[str, Any], secure_data: dict[str, Any], to_skip: list[str]) -> None:
+    subject = f"[{__YEAR}] Le Père Noël de la Frémo: Tirage au sort"
 
     for id_, id_param in data.items():
-
         if id_ in to_skip:
             continue
 
-        to_addr = secure_data['personnes'][id_]['email']
+        to_addr = secure_data["personnes"][id_]["email"]
         # DEBUG
         # to_addr = secure_data['receiver_test']
         # DEBUG
 
-        gift_from_fullname = id_param['fullname']
-        to_gift_id = id_param['history'][-1]
-        to_gift_fullname = data[to_gift_id]['fullname']
+        gift_from_fullname = id_param["fullname"]
+        to_gift_id = id_param["history"][-1]
+        to_gift_fullname = data[to_gift_id]["fullname"]
 
-        with open(__BODY, 'r', encoding='utf-8') as file:
+        with open(__BODY, encoding="utf-8") as file:
             body = file.read().format(gift_from_fullname, to_gift_fullname)
 
         logger.debug(f"{id_} -> {to_gift_fullname} ({to_gift_id})")
-        helper.gmail_send_email(secure_data['sender_email'], subject, body, to_addr)
+        helper.gmail_send_email(secure_data["sender_email"], subject, body, to_addr)
 
 
-def tossing(data, to_skip=[]):
+def tossing(data: dict[str, Any], to_skip: list[str] | None = None) -> bool:
     """
-    @param to_skip: array of id to skip
+    @param to_skip: list of id to skip
     """
+    if to_skip is None:
+        to_skip = []
 
     logger.info("Tossing...")
 
     TRY_MAX = 100000
     retry_count = 0
-    users_done = []
-    users_gifted = []
-    users_history = {}
+    users_done: list[str] = []
+    users_gifted: list[str] = []
+    users_history: dict[str, str] = {}
 
     while (len(users_done) < (len(data) - len(to_skip))) and (retry_count < TRY_MAX):
-
         retry_count += 1
-        r1 = randint(0, len(data)-1)
-        r2 = randint(0, len(data)-1)
+        r1 = randint(0, len(data) - 1)
+        r2 = randint(0, len(data) - 1)
 
         user_giver = list(data)[r1]
         user_gifted = list(data)[r2]
 
         # Cheat
         for cheater in __CHEATERS:
-            if user_giver == cheater['giver'] or user_gifted == cheater['gifted']:
-                user_giver = cheater['giver']
-                user_gifted = cheater['gifted']
+            if user_giver == cheater["giver"] or user_gifted == cheater["gifted"]:
+                user_giver = cheater["giver"]
+                user_gifted = cheater["gifted"]
                 break
 
         if r1 == r2:  # same person
@@ -140,10 +139,10 @@ def tossing(data, to_skip=[]):
         if user_gifted in users_gifted:  # already chosen
             continue
 
-        if user_gifted in data[user_giver]['exclude']:  # excluded
+        if user_gifted in data[user_giver]["exclude"]:  # excluded
             continue
 
-        if user_gifted in data[user_giver]['history']:  # chosen last years
+        if user_gifted in data[user_giver]["history"]:  # chosen last years
             continue
 
         # All Good
@@ -157,37 +156,37 @@ def tossing(data, to_skip=[]):
     else:
         # Update History
         for user_giver, user_gifted in users_history.items():
-            data[user_giver]['history'].append(user_gifted)
+            data[user_giver]["history"].append(user_gifted)
 
             logger.debug(f"{user_giver} -> {data[user_giver]['history'][-1]}")
 
-        logger.info(F"Success (retry:{retry_count})")
+        logger.info(f"Success (retry:{retry_count})")
         return True
 
 
-def _configure_logger(filename):
+def _configure_logger(filename: str) -> None:
     """
     write to console, simple message with log level info
     write to file, formatted message with log level debug
     """
-    logger = logging.getLogger('')
-    logger.setLevel(logging.DEBUG)
+    logger_ = logging.getLogger("")
+    logger_.setLevel(logging.DEBUG)
 
     # Console
     consoleHandler = logging.StreamHandler()
     consoleHandler.setLevel(logging.INFO)
-    consoleFormatter = logging.Formatter('%(message)s')
+    consoleFormatter = logging.Formatter("%(message)s")
     consoleHandler.setFormatter(consoleFormatter)
-    logger.addHandler(consoleHandler)
+    logger_.addHandler(consoleHandler)
 
     # File
     fileHandler = logging.handlers.RotatingFileHandler(filename, maxBytes=1024 * 1024, backupCount=1)
     fileHandler.setLevel(logging.DEBUG)
     fileFormatter = logging.Formatter(
-        fmt='[%(asctime)s][%(name)s][%(levelname)-5s]%(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S')
+        fmt="[%(asctime)s][%(name)s][%(levelname)-5s]%(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    )
     fileHandler.setFormatter(fileFormatter)
-    logger.addHandler(fileHandler)
+    logger_.addHandler(fileHandler)
 
 
 if __name__ == "__main__":

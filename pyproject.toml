@@ -1,0 +1,38 @@
+[project]
+name = "pere-noel-fremo"
+version = "1.5.0"
+description = "Tirage au sort et annonces pour le Père Noël secret de la Frémo"
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+    "PIE",  # flake8-pie
+]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+ignore_missing_imports = true
+
+[tool.bandit]
+exclude_dirs = [".venv", "poc"]
+skips = ["B311"] # B311: pseudo-random generators suitable for non-cryptographic secret santa tossing
