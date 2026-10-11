@@ -7,3 +7,4 @@ ruff
 mypy
 types-PyYAML
 bandit
+pytest

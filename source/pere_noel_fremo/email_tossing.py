@@ -100,71 +100,83 @@ def send_all_email(data: dict[str, Any], secure_data: dict[str, Any], to_skip: l
         helper.gmail_send_email(secure_data["sender_email"], subject, body, to_addr)
 
 
-def tossing(data: dict[str, Any], to_skip: list[str] | None = None) -> bool:
+def tossing(
+    data: dict[str, Any],
+    to_skip: list[str] | None = None,
+    cheaters: list[dict[str, str]] | None = None,
+) -> bool:
     """
     @param to_skip: list of id to skip
+    @param cheaters: list of forced pairs (defaults to __CHEATERS)
     """
     if to_skip is None:
         to_skip = []
+    cheaters_list = cheaters if cheaters is not None else __CHEATERS
 
     logger.info("Tossing...")
 
-    TRY_MAX = 100000
-    retry_count = 0
-    users_done: list[str] = []
-    users_gifted: list[str] = []
-    users_history: dict[str, str] = {}
+    MAX_ATTEMPTS = 500
+    MAX_STEPS_PER_ATTEMPT = 2000
+    target_count = len(data) - len(to_skip)
 
-    while (len(users_done) < (len(data) - len(to_skip))) and (retry_count < TRY_MAX):
-        retry_count += 1
-        r1 = randint(0, len(data) - 1)
-        r2 = randint(0, len(data) - 1)
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        users_done: list[str] = []
+        users_gifted: list[str] = []
+        users_history: dict[str, str] = {}
+        steps = 0
 
-        user_giver = list(data)[r1]
-        user_gifted = list(data)[r2]
+        while len(users_done) < target_count and steps < MAX_STEPS_PER_ATTEMPT:
+            steps += 1
+            r1 = randint(0, len(data) - 1)
+            r2 = randint(0, len(data) - 1)
 
-        # Cheat
-        for cheater in __CHEATERS:
-            if user_giver == cheater["giver"] or user_gifted == cheater["gifted"]:
-                user_giver = cheater["giver"]
-                user_gifted = cheater["gifted"]
-                break
+            user_giver = list(data)[r1]
+            user_gifted = list(data)[r2]
 
-        if r1 == r2:  # same person
-            continue
+            # Cheat
+            for cheater in cheaters_list:
+                if user_giver == cheater["giver"] or user_gifted == cheater["gifted"]:
+                    user_giver = cheater["giver"]
+                    user_gifted = cheater["gifted"]
+                    break
 
-        if (user_giver in to_skip) or (user_gifted in to_skip):  # not present this year
-            continue
+            if r1 == r2:  # same person
+                continue
 
-        if user_giver in users_done:  # already done
-            continue
+            if (user_giver in to_skip) or (user_gifted in to_skip):  # not present this year
+                continue
 
-        if user_gifted in users_gifted:  # already chosen
-            continue
+            if user_giver in users_done:  # already done
+                continue
 
-        if user_gifted in data[user_giver]["exclude"]:  # excluded
-            continue
+            if user_gifted in users_gifted:  # already chosen
+                continue
 
-        if user_gifted in data[user_giver]["history"]:  # chosen last years
-            continue
+            if user_gifted not in data:  # cheater target not in participants data
+                continue
 
-        # All Good
-        users_done.append(user_giver)
-        users_gifted.append(user_gifted)
-        users_history[user_giver] = user_gifted
+            if user_gifted in data[user_giver]["exclude"]:  # excluded
+                continue
 
-    if retry_count >= TRY_MAX:
-        logger.error("Error: too much tossing")
-        return False
-    else:
-        # Update History
-        for user_giver, user_gifted in users_history.items():
-            data[user_giver]["history"].append(user_gifted)
+            if user_gifted in data[user_giver]["history"]:  # chosen last years
+                continue
 
-            logger.debug(f"{user_giver} -> {data[user_giver]['history'][-1]}")
+            # All Good
+            users_done.append(user_giver)
+            users_gifted.append(user_gifted)
+            users_history[user_giver] = user_gifted
 
-        logger.info(f"Success (retry:{retry_count})")
-        return True
+        if len(users_done) == target_count:
+            # Succès : mise à jour de l'historique
+            for user_giver, user_gifted in users_history.items():
+                data[user_giver]["history"].append(user_gifted)
+                logger.debug(f"{user_giver} -> {data[user_giver]['history'][-1]}")
+
+            logger.info(f"Success (attempt:{attempt}, steps:{steps})")
+            return True
+
+    logger.error("Error: too much tossing")
+    return False
 
 
 def _configure_logger(filename: str) -> None:
