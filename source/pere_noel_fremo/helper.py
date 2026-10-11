@@ -7,6 +7,7 @@ import os.path
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from pathlib import Path
 from typing import Any
 
 from google.auth.transport.requests import Request
@@ -16,12 +17,14 @@ from googleapiclient.discovery import build
 
 logger = logging.getLogger(__name__)
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+RES_DIR = PROJECT_ROOT / "res"
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.compose"]
-TOKEN_PATH = "res/token.json"  # nosec B105
-CREDENTIALS_PATH = "res/code_secret_client.apps.googleusercontent.com.json"
+TOKEN_PATH = RES_DIR / "token.json"  # nosec B105
+CREDENTIALS_PATH = RES_DIR / "code_secret_client.apps.googleusercontent.com.json"
 # IMG_BACKGROUND_URL = 'https://i.ibb.co/cD0Ddqb/2023-pere-noel-fait-du-ski-800.png'
-IMG_FILEPATH = "res/img/snow_rider_3d_B.png"
+IMG_FILEPATH = RES_DIR / "img" / "snow_rider_3d_B.png"
 
 
 def load_credentials() -> Credentials:

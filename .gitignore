@@ -8,3 +8,8 @@ token.json
 __pycache__
 .venv/
 res/*.json
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/

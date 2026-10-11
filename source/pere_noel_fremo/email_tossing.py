@@ -9,15 +9,18 @@ from typing import Any
 
 import yaml
 
-import helper
+from . import helper
 
 logger = logging.getLogger(__name__)
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+RES_DIR = PROJECT_ROOT / "res"
+
 __YEAR = 2025
-__SECURE_DATA = Path("res/secure_data.yml")
-__DATA_IN = Path(f"res/{__YEAR}/data_in.yml")
-__BODY = Path(f"res/{__YEAR}/tossing.txt")
-__DATA_OUT = Path(f"res/{__YEAR}/data_out.yml")
+__SECURE_DATA = RES_DIR / "secure_data.yml"
+__DATA_IN = RES_DIR / f"{__YEAR}" / "data_in.yml"
+__BODY = RES_DIR / f"{__YEAR}" / "tossing.txt"
+__DATA_OUT = RES_DIR / f"{__YEAR}" / "data_out.yml"
 
 PERSON_TO_SKIP: list[str] = ["sbentabet"]
 

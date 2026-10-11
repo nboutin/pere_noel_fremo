@@ -6,12 +6,15 @@ from pathlib import Path
 
 import yaml
 
-import helper
+from . import helper
 
 logger = logging.getLogger(__name__)
 
-__SECURE_DATA_FILEPATH = Path("res", "secure_data.yml")
-__EMAIL_TEXT_FILEPATH = Path("res", "2025", "annonce.txt")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+RES_DIR = PROJECT_ROOT / "res"
+
+__SECURE_DATA_FILEPATH = RES_DIR / "secure_data.yml"
+__EMAIL_TEXT_FILEPATH = RES_DIR / "2025" / "annonce.txt"
 __EMAIL_OBJECT = "[Annonce Pole Nord Emploi] Recherche Lutin lugeur et lugeuse pour Noël 2025"
 
 # TODO: manage skip list

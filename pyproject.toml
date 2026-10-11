@@ -1,8 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "pere-noel-fremo"
 version = "1.5.0"
 description = "Tirage au sort et annonces pour le Père Noël secret de la Frémo"
 requires-python = ">=3.10"
+dependencies = [
+    "pyyaml",
+    "google-api-python-client",
+    "google-auth-httplib2",
+    "google-auth-oauthlib",
+]
+
+[project.scripts]
+pere-noel-tossing = "pere_noel_fremo.email_tossing:main"
+pere-noel-annonce = "pere_noel_fremo.email_annonce:main"
+
+[tool.setuptools.packages.find]
+where = ["source"]
 
 [tool.ruff]
 line-length = 120
@@ -32,6 +49,7 @@ warn_unused_configs = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 ignore_missing_imports = true
+mypy_path = "source"
 
 [tool.bandit]
 exclude_dirs = [".venv", "poc"]
