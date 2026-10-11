@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # pylint: disable=logging-fstring-interpolation
 
+import argparse
 import logging
 import logging.handlers
 from pathlib import Path
@@ -16,17 +17,22 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 RES_DIR = PROJECT_ROOT / "res"
 
-__YEAR = 2025
-__SECURE_DATA = RES_DIR / "secure_data.yml"
-__DATA_IN = RES_DIR / f"{__YEAR}" / "data_in.yml"
-__BODY = RES_DIR / f"{__YEAR}" / "tossing.txt"
-__DATA_OUT = RES_DIR / f"{__YEAR}" / "data_out.yml"
-
-PERSON_TO_SKIP: list[str] = ["sbentabet"]
-
+DEFAULT_YEAR = 2025
 __CHEATERS: list[dict[str, str]] = [
     # {"giver": "scarre", "gifted": "bamy"},
 ]
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Tirage au sort du Père Noël secret de la Frémo")
+    parser.add_argument("--year", type=int, default=DEFAULT_YEAR, help="Année de l'édition (ex. 2025)")
+    parser.add_argument(
+        "--skip",
+        type=lambda s: [item.strip() for item in s.split(",") if item.strip()] if s else [],
+        default=[],
+        help="Liste d'identifiants de Lutins absents séparés par des virgules (ex. 'lutin_1,lutin_2')",
+    )
+    return parser
 
 
 def validate_lutins_data(data: Any) -> None:
@@ -47,49 +53,60 @@ def validate_lutins_data(data: Any) -> None:
             raise ValueError(f"Les champs 'exclude' et 'history' du Lutin '{lutin_id}' doivent être des listes.")
 
 
-def main() -> None:
-    _configure_logger("email_tossing.log")
-    logger.info("##### Le Pere Noel de la Fremo #####")
+def main(argv: list[str] | None = None) -> None:
+    parser = build_parser()
+    args = parser.parse_args(argv)
 
-    with open(__DATA_IN, encoding="utf-8") as stream:
+    _configure_logger("email_tossing.log")
+    logger.info(f"##### Le Pere Noel de la Fremo ({args.year}) #####")
+
+    secure_data_path = RES_DIR / "secure_data.yml"
+    data_in_path = RES_DIR / f"{args.year}" / "data_in.yml"
+    data_out_path = RES_DIR / f"{args.year}" / "data_out.yml"
+    body_path = RES_DIR / f"{args.year}" / "tossing.txt"
+
+    with open(data_in_path, encoding="utf-8") as stream:
         data = yaml.safe_load(stream)
 
     validate_lutins_data(data)
 
     retry_count = 10
-    while not tossing(data, PERSON_TO_SKIP) and retry_count > 0:
+    while not tossing(data, args.skip) and retry_count > 0:
         logger.warning(f"Tossing ({retry_count}) did not found solution, restarting...")
         retry_count -= 1
 
-    with open(__SECURE_DATA, encoding="utf-8") as stream:
+    with open(secure_data_path, encoding="utf-8") as stream:
         secure_data = yaml.safe_load(stream)
 
-    send_all_email(data, secure_data, PERSON_TO_SKIP)
+    send_all_email(data, secure_data, args.skip, args.year, body_path)
 
     # export new data
-    with open(__DATA_OUT, "w", encoding="utf-8") as file:
+    with open(data_out_path, "w", encoding="utf-8") as file:
         yaml.dump(data, file, allow_unicode=True)
 
     logger.info("Tossing is done")
 
 
-def send_all_email(data: dict[str, Any], secure_data: dict[str, Any], to_skip: list[str]) -> None:
-    subject = f"[{__YEAR}] Le Père Noël de la Frémo: Tirage au sort"
+def send_all_email(
+    data: dict[str, Any],
+    secure_data: dict[str, Any],
+    to_skip: list[str],
+    year: int = DEFAULT_YEAR,
+    body_path: Path | None = None,
+) -> None:
+    subject = f"[{year}] Le Père Noël de la Frémo: Tirage au sort"
+    template_path = body_path if body_path is not None else (RES_DIR / f"{year}" / "tossing.txt")
 
     for id_, id_param in data.items():
         if id_ in to_skip:
             continue
 
         to_addr = secure_data["personnes"][id_]["email"]
-        # DEBUG
-        # to_addr = secure_data['receiver_test']
-        # DEBUG
-
         gift_from_fullname = id_param["fullname"]
         to_gift_id = id_param["history"][-1]
         to_gift_fullname = data[to_gift_id]["fullname"]
 
-        with open(__BODY, encoding="utf-8") as file:
+        with open(template_path, encoding="utf-8") as file:
             body = file.read().format(gift_from_fullname, to_gift_fullname)
 
         logger.debug(f"{id_} -> {to_gift_fullname} ({to_gift_id})")

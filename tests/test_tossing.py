@@ -143,3 +143,30 @@ def test_validate_lutins_data_invalid_structure() -> None:
     invalid_types = {"lutin_1": {"fullname": "Lutin 1", "exclude": "lutin_2", "history": []}}
     with pytest.raises(ValueError, match="doivent"):
         validate_lutins_data(invalid_types)
+
+
+def test_tossing_cli_parser_defaults() -> None:
+    from pere_noel_fremo.email_tossing import build_parser
+
+    parser = build_parser()
+    args = parser.parse_args([])
+    assert args.year == 2025
+    assert args.skip == []
+
+
+def test_tossing_cli_parser_custom_args() -> None:
+    from pere_noel_fremo.email_tossing import build_parser
+
+    parser = build_parser()
+    args = parser.parse_args(["--year", "2024", "--skip", "lutin_a,lutin_b"])
+    assert args.year == 2024
+    assert args.skip == ["lutin_a", "lutin_b"]
+
+
+def test_annonce_cli_parser_args() -> None:
+    from pere_noel_fremo.email_annonce import build_parser
+
+    parser = build_parser()
+    args = parser.parse_args(["--year", "2023", "--skip", "lutin_x"])
+    assert args.year == 2023
+    assert args.skip == ["lutin_x"]
