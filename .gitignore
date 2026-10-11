@@ -4,6 +4,8 @@ secure_data.yml
 credentials.json
 token.json
 *.log
+*.db
+
 
 # Folder
 __pycache__

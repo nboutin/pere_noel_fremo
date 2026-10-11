@@ -1,0 +1,175 @@
+from pathlib import Path
+
+import pytest
+import yaml
+from pere_noel_fremo.database import (
+    get_lutin_exclusions,
+    get_lutin_history,
+    get_lutins,
+    import_yaml_data,
+    init_db,
+)
+
+
+def test_init_db_creates_all_required_tables(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo.db"
+    conn = init_db(db_path)
+
+    cursor = conn.cursor()
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    tables = {row[0] for row in cursor.fetchall()}
+    conn.close()
+
+    required_tables = {
+        "lutins",
+        "exclusions",
+        "editions",
+        "tokens",
+        "presences",
+        "scores_defi",
+        "attributions",
+    }
+    assert required_tables.issubset(tables)
+
+
+def test_init_db_enables_foreign_keys_and_is_idempotent(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo.db"
+    conn1 = init_db(db_path)
+    conn1.close()
+
+    conn2 = init_db(db_path)
+    cursor = conn2.cursor()
+    cursor.execute("PRAGMA foreign_keys;")
+    fk_status = cursor.fetchone()[0]
+    conn2.close()
+
+    assert fk_status == 1
+
+
+def test_import_yaml_data_and_get_lutins(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+
+    data_in_path = tmp_path / "data_in.yml"
+    secure_data_path = tmp_path / "secure_data.yml"
+
+    sample_data = {
+        "lutin_a": {
+            "fullname": "Lutin A",
+            "email": None,
+            "exclude": ["lutin_b"],
+            "history": ["lutin_b", "lutin_c"],
+        },
+        "lutin_b": {
+            "fullname": "Lutin B",
+            "email": None,
+            "exclude": ["lutin_a"],
+            "history": ["lutin_a"],
+        },
+        "lutin_c": {
+            "fullname": "Lutin C",
+            "email": None,
+            "exclude": [],
+            "history": [],
+        },
+    }
+    sample_secure = {
+        "personnes": {
+            "lutin_a": {"email": "lutin_a@fremo.org"},
+            "lutin_b": {"email": "lutin_b@fremo.org"},
+            "lutin_c": {"email": "lutin_c@fremo.org"},
+        }
+    }
+
+    with open(data_in_path, "w", encoding="utf-8") as f:
+        yaml.dump(sample_data, f)
+    with open(secure_data_path, "w", encoding="utf-8") as f:
+        yaml.dump(sample_secure, f)
+
+    # First import
+    counts = import_yaml_data(db_path, data_in_path, secure_data_path)
+    assert counts["lutins"] == 3
+    assert counts["exclusions"] == 2
+    assert counts["attributions"] == 3
+
+    # Verify retrieved lutins structure
+    lutins = get_lutins(db_path)
+    assert len(lutins) == 3
+    assert lutins["lutin_a"]["fullname"] == "Lutin A"
+    assert lutins["lutin_a"]["email"] == "lutin_a@fremo.org"
+    assert lutins["lutin_a"]["exclude"] == ["lutin_b"]
+    assert lutins["lutin_a"]["history"] == ["lutin_b", "lutin_c"]
+
+    # Verify helper query functions
+    assert get_lutin_history(db_path, "lutin_a") == ["lutin_b", "lutin_c"]
+    assert get_lutin_exclusions(db_path, "lutin_a") == ["lutin_b"]
+
+    # Test idempotence: running import a second time updates or preserves without duplicate keys/rows
+    counts_repeat = import_yaml_data(db_path, data_in_path, secure_data_path)
+    assert counts_repeat["lutins"] == 3
+
+    lutins_after = get_lutins(db_path)
+    assert lutins_after["lutin_a"]["history"] == ["lutin_b", "lutin_c"]
+    assert lutins_after["lutin_a"]["exclude"] == ["lutin_b"]
+
+
+def test_import_yaml_data_validates_referential_integrity(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+
+    data_in_path = tmp_path / "data_in.yml"
+    secure_data_path = tmp_path / "secure_data.yml"
+
+    # lutin_a excludes unknown_lutin
+    invalid_data = {
+        "lutin_a": {
+            "fullname": "Lutin A",
+            "email": None,
+            "exclude": ["ghost_lutin"],
+            "history": [],
+        }
+    }
+    with open(data_in_path, "w", encoding="utf-8") as f:
+        yaml.dump(invalid_data, f)
+    with open(secure_data_path, "w", encoding="utf-8") as f:
+        yaml.dump({"personnes": {}}, f)
+
+    with pytest.raises(ValueError, match="ghost_lutin"):
+        import_yaml_data(db_path, data_in_path, secure_data_path)
+
+
+def test_import_real_res_data_if_present(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parent.parent
+    data_in_path = root / "res" / "2025" / "data_in.yml"
+    secure_data_path = root / "res" / "secure_data.yml"
+
+    if not data_in_path.exists() or not secure_data_path.exists():
+        pytest.skip("Repository res files not found")
+
+    db_path = tmp_path / "fremo_real.db"
+    counts = import_yaml_data(db_path, data_in_path, secure_data_path)
+    assert counts["lutins"] > 0
+    assert counts["exclusions"] > 0
+    assert counts["attributions"] > 0
+
+    lutins = get_lutins(db_path)
+    assert len(lutins) == counts["lutins"]
+
+
+def test_database_foreign_key_constraints(tmp_path: Path) -> None:
+    import sqlite3
+
+    db_path = tmp_path / "fremo.db"
+    conn = init_db(db_path)
+
+    # Attempting to insert an exclusion with non-existent lutin must fail FK constraint
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute("INSERT INTO exclusions (lutin_id, excluded_lutin_id) VALUES ('non_existent', 'unknown');")
+
+    # Attempting to insert an attribution with non-existent donneur_id must fail FK constraint
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO attributions (donneur_id, beneficiaire_id, year, order_index) VALUES ('x', 'y', NULL, 0);"
+        )
+
+    conn.close()

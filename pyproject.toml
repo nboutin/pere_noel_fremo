@@ -15,8 +15,10 @@ dependencies = [
 ]
 
 [project.scripts]
+pere-noel = "pere_noel_fremo.cli:main"
 pere-noel-tossing = "pere_noel_fremo.email_tossing:main"
 pere-noel-annonce = "pere_noel_fremo.email_annonce:main"
+
 
 [tool.setuptools.packages.find]
 where = ["source"]
