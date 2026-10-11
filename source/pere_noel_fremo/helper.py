@@ -3,6 +3,7 @@
 
 import base64
 import logging
+import logging.handlers
 import os.path
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
@@ -19,12 +20,49 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 RES_DIR = PROJECT_ROOT / "res"
+LOGS_DIR = PROJECT_ROOT / "logs"
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.compose"]
 TOKEN_PATH = RES_DIR / "token.json"  # nosec B105
 CREDENTIALS_PATH = RES_DIR / "code_secret_client.apps.googleusercontent.com.json"
 # IMG_BACKGROUND_URL = 'https://i.ibb.co/cD0Ddqb/2023-pere-noel-fait-du-ski-800.png'
 IMG_FILEPATH = RES_DIR / "img" / "snow_rider_3d_B.png"
+
+
+def configure_logger(filename: str) -> None:
+    """Configure root logger with console INFO and rotating file DEBUG in LOGS_DIR."""
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    log_filepath = LOGS_DIR / filename
+
+    root_logger = logging.getLogger("")
+    root_logger.setLevel(logging.DEBUG)
+
+    # Check if a FileHandler targeting this file already exists
+    has_file_handler = any(
+        isinstance(h, logging.FileHandler) and getattr(h, "baseFilename", None) == str(log_filepath.resolve())
+        for h in root_logger.handlers
+    )
+
+    if not has_file_handler:
+        file_handler = logging.handlers.RotatingFileHandler(
+            str(log_filepath), maxBytes=1024 * 1024, backupCount=1, encoding="utf-8"
+        )
+        file_handler.setLevel(logging.DEBUG)
+        file_formatter = logging.Formatter(
+            fmt="[%(asctime)s][%(name)s][%(levelname)-5s]%(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+        )
+        file_handler.setFormatter(file_formatter)
+        root_logger.addHandler(file_handler)
+
+    has_console_handler = any(
+        isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler) for h in root_logger.handlers
+    )
+    if not has_console_handler:
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_formatter = logging.Formatter("%(message)s")
+        console_handler.setFormatter(console_formatter)
+        root_logger.addHandler(console_handler)
 
 
 def load_credentials() -> Credentials:

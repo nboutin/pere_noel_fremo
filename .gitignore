@@ -1,5 +1,6 @@
 # Files
 secure_data.yml
+**/secure_data.yml
 credentials.json
 token.json
 *.log
@@ -13,3 +14,4 @@ dist/
 build/
 .mypy_cache/
 .ruff_cache/
+logs/

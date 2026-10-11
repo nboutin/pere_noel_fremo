@@ -66,3 +66,15 @@ def test_gmail_send_email_mocked(mock_build: MagicMock, mock_load_credentials: M
     assert res == {"id": "12345", "status": "SENT"}
     mock_build.assert_called_once_with("gmail", "v1", credentials=mock_creds)
     mock_messages.send.assert_called_once()
+
+
+def test_configure_logger_creates_file_in_logs_dir() -> None:
+    from pere_noel_fremo.helper import LOGS_DIR, configure_logger
+
+    test_log_filename = "test_execution.log"
+    configure_logger(test_log_filename)
+
+    assert LOGS_DIR.exists()
+    assert LOGS_DIR.is_dir()
+    expected_log_path = LOGS_DIR / test_log_filename
+    assert expected_log_path.exists()

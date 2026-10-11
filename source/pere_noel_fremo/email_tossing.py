@@ -156,28 +156,7 @@ def tossing(
 
 
 def _configure_logger(filename: str) -> None:
-    """
-    write to console, simple message with log level info
-    write to file, formatted message with log level debug
-    """
-    logger_ = logging.getLogger("")
-    logger_.setLevel(logging.DEBUG)
-
-    # Console
-    consoleHandler = logging.StreamHandler()
-    consoleHandler.setLevel(logging.INFO)
-    consoleFormatter = logging.Formatter("%(message)s")
-    consoleHandler.setFormatter(consoleFormatter)
-    logger_.addHandler(consoleHandler)
-
-    # File
-    fileHandler = logging.handlers.RotatingFileHandler(filename, maxBytes=1024 * 1024, backupCount=1)
-    fileHandler.setLevel(logging.DEBUG)
-    fileFormatter = logging.Formatter(
-        fmt="[%(asctime)s][%(name)s][%(levelname)-5s]%(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-    )
-    fileHandler.setFormatter(fileFormatter)
-    logger_.addHandler(fileHandler)
+    helper.configure_logger(filename)
 
 
 if __name__ == "__main__":
