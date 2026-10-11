@@ -32,6 +32,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Liste d'identifiants de Lutins absents séparés par des virgules (ex. 'lutin_1,lutin_2')",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Simuler le tirage au sort sans modifier data_out.yml ni envoyer de courriels",
+    )
+    parser.add_argument(
+        "--no-email",
+        action="store_true",
+        help="Calculer et enregistrer le tirage au sort dans data_out.yml sans envoyer de courriels",
+    )
     return parser
 
 
@@ -75,10 +85,16 @@ def main(argv: list[str] | None = None) -> None:
         logger.warning(f"Tossing ({retry_count}) did not found solution, restarting...")
         retry_count -= 1
 
-    with open(secure_data_path, encoding="utf-8") as stream:
-        secure_data = yaml.safe_load(stream)
+    if args.dry_run:
+        logger.info("[DRY-RUN] Tirage au sort simulé avec succès. Aucun e-mail envoyé ni fichier modifié.")
+        return
 
-    send_all_email(data, secure_data, args.skip, args.year, body_path)
+    if not args.no_email:
+        with open(secure_data_path, encoding="utf-8") as stream:
+            secure_data = yaml.safe_load(stream)
+        send_all_email(data, secure_data, args.skip, args.year, body_path)
+    else:
+        logger.info("[NO-EMAIL] Envoi d'e-mails ignoré par commande.")
 
     # export new data
     with open(data_out_path, "w", encoding="utf-8") as file:

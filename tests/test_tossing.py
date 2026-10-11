@@ -167,6 +167,36 @@ def test_annonce_cli_parser_args() -> None:
     from pere_noel_fremo.email_annonce import build_parser
 
     parser = build_parser()
-    args = parser.parse_args(["--year", "2023", "--skip", "lutin_x"])
+    args = parser.parse_args(["--year", "2023", "--skip", "lutin_x", "--dry-run"])
     assert args.year == 2023
     assert args.skip == ["lutin_x"]
+    assert args.dry_run is True
+
+
+def test_tossing_cli_parser_dry_run_and_no_email() -> None:
+    from pere_noel_fremo.email_tossing import build_parser
+
+    parser = build_parser()
+    args = parser.parse_args(["--dry-run", "--no-email"])
+    assert args.dry_run is True
+    assert args.no_email is True
+
+
+def test_tossing_main_dry_run(monkeypatch: pytest.MonkeyPatch, sample_lutins_data: dict[str, Any]) -> None:
+    from unittest.mock import MagicMock
+
+    from pere_noel_fremo import email_tossing
+
+    mock_send = MagicMock()
+    mock_dump = MagicMock()
+    monkeypatch.setattr(email_tossing.helper, "gmail_send_email", mock_send)
+    monkeypatch.setattr("yaml.dump", mock_dump)
+    monkeypatch.setattr("builtins.open", MagicMock())
+    monkeypatch.setattr("yaml.safe_load", lambda stream: copy.deepcopy(sample_lutins_data))
+
+    # Execution en mode dry-run
+    email_tossing.main(["--dry-run"])
+
+    # En dry-run, ni envoi d'email ni dump de fichier ne doivent être effectués
+    mock_send.assert_not_called()
+    mock_dump.assert_not_called()

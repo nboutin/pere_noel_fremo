@@ -23,6 +23,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Liste d'identifiants de Lutins absents séparés par des virgules (ex. 'lutin_1,lutin_2')",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Simuler l'envoi de l'annonce sans appeler l'API Gmail",
+    )
     return parser
 
 
@@ -48,7 +53,11 @@ def main(argv: list[str] | None = None) -> None:
         if lutin_id in args.skip:
             logger.info(f"Skipping absent Lutin: {lutin_id}")
             continue
-        helper.gmail_send_email(secure_data["sender_email"], email_subject, body, id_param["email"])
+
+        if args.dry_run:
+            logger.info(f"[DRY-RUN] Annonce prête pour {lutin_id} ({id_param['email']})")
+        else:
+            helper.gmail_send_email(secure_data["sender_email"], email_subject, body, id_param["email"])
 
     logger.info("Finish")
 
