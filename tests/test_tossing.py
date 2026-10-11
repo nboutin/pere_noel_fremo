@@ -1,8 +1,17 @@
 import copy
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
-from pere_noel_fremo.email_tossing import tossing
+from pere_noel_fremo import email_tossing
+from pere_noel_fremo.email_annonce import build_parser as build_annonce_parser
+from pere_noel_fremo.email_tossing import (
+    build_parser as build_tossing_parser,
+)
+from pere_noel_fremo.email_tossing import (
+    tossing,
+    validate_lutins_data,
+)
 
 
 @pytest.fixture
@@ -115,15 +124,11 @@ def test_tossing_fails_when_no_valid_solution_possible() -> None:
 
 
 def test_validate_lutins_data_valid(sample_lutins_data: dict[str, Any]) -> None:
-    from pere_noel_fremo.email_tossing import validate_lutins_data
-
     # Ne doit pas lever d'exception
     validate_lutins_data(sample_lutins_data)
 
 
 def test_validate_lutins_data_invalid_structure() -> None:
-    from pere_noel_fremo.email_tossing import validate_lutins_data
-
     # 1. Pas un dictionnaire
     with pytest.raises(ValueError, match="dictionnaire non vide"):
         validate_lutins_data([])  # type: ignore[arg-type]
@@ -144,29 +149,28 @@ def test_validate_lutins_data_invalid_structure() -> None:
     with pytest.raises(ValueError, match="doivent"):
         validate_lutins_data(invalid_types)
 
+    # 5. Exclusion faisant référence à un Lutin inexistant
+    unknown_exclude = {"lutin_1": {"fullname": "Lutin 1", "exclude": ["lutin_inconnu"], "history": []}}
+    with pytest.raises(ValueError, match="exclusions inconnues"):
+        validate_lutins_data(unknown_exclude)
+
 
 def test_tossing_cli_parser_defaults() -> None:
-    from pere_noel_fremo.email_tossing import build_parser
-
-    parser = build_parser()
+    parser = build_tossing_parser()
     args = parser.parse_args([])
     assert args.year == 2025
     assert args.skip == []
 
 
 def test_tossing_cli_parser_custom_args() -> None:
-    from pere_noel_fremo.email_tossing import build_parser
-
-    parser = build_parser()
+    parser = build_tossing_parser()
     args = parser.parse_args(["--year", "2024", "--skip", "lutin_a,lutin_b"])
     assert args.year == 2024
     assert args.skip == ["lutin_a", "lutin_b"]
 
 
 def test_annonce_cli_parser_args() -> None:
-    from pere_noel_fremo.email_annonce import build_parser
-
-    parser = build_parser()
+    parser = build_annonce_parser()
     args = parser.parse_args(["--year", "2023", "--skip", "lutin_x", "--dry-run"])
     assert args.year == 2023
     assert args.skip == ["lutin_x"]
@@ -174,19 +178,13 @@ def test_annonce_cli_parser_args() -> None:
 
 
 def test_tossing_cli_parser_dry_run_and_no_email() -> None:
-    from pere_noel_fremo.email_tossing import build_parser
-
-    parser = build_parser()
+    parser = build_tossing_parser()
     args = parser.parse_args(["--dry-run", "--no-email"])
     assert args.dry_run is True
     assert args.no_email is True
 
 
 def test_tossing_main_dry_run(monkeypatch: pytest.MonkeyPatch, sample_lutins_data: dict[str, Any]) -> None:
-    from unittest.mock import MagicMock
-
-    from pere_noel_fremo import email_tossing
-
     mock_send = MagicMock()
     mock_dump = MagicMock()
     monkeypatch.setattr(email_tossing.helper, "gmail_send_email", mock_send)

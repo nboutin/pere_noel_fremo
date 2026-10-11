@@ -62,6 +62,18 @@ def validate_lutins_data(data: Any) -> None:
         if not isinstance(params["exclude"], list) or not isinstance(params["history"], list):
             raise ValueError(f"Les champs 'exclude' et 'history' du Lutin '{lutin_id}' doivent être des listes.")
 
+    # Validation de l'intégrité référentielle
+    all_lutin_ids = set(data.keys())
+    for lutin_id, params in data.items():
+        unknown_excludes = set(params["exclude"]) - all_lutin_ids
+        if unknown_excludes:
+            raise ValueError(
+                f"Le Lutin '{lutin_id}' référence des exclusions inconnues : {sorted(list(unknown_excludes))}."
+            )
+        # Note: l'historique peut faire référence à des anciens participants, mais on valide le type string
+        if not all(isinstance(h, str) for h in params["history"]):
+            raise ValueError(f"L'historique du Lutin '{lutin_id}' doit contenir uniquement des chaînes.")
+
 
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
@@ -81,13 +93,29 @@ def main(argv: list[str] | None = None) -> None:
     validate_lutins_data(data)
 
     retry_count = 10
-    while not tossing(data, args.skip) and retry_count > 0:
-        logger.warning(f"Tossing ({retry_count}) did not found solution, restarting...")
+    success = False
+    while retry_count > 0:
+        if tossing(data, args.skip):
+            success = True
+            break
+        logger.warning(f"Le tirage au sort ({retry_count}) n'a pas trouvé de solution, nouvelle tentative...")
         retry_count -= 1
 
+    if not success:
+        logger.error("Échec : impossible de trouver une solution de tirage au sort respectant toutes les contraintes.")
+        raise RuntimeError("Échec du tirage au sort : aucune combinaison valide trouvée.")
+
     if args.dry_run:
-        logger.info("[DRY-RUN] Tirage au sort simulé avec succès. Aucun e-mail envoyé ni fichier modifié.")
+        logger.info("[DRY-RUN] Tirage au sort simulé avec succès :")
+        for giver, params in data.items():
+            if giver not in args.skip and params["history"]:
+                logger.info(f"  [DRY-RUN] {giver} -> {params['history'][-1]}")
+        logger.info("[DRY-RUN] Aucun e-mail envoyé ni fichier modifié.")
         return
+
+    # Export des données calculées avant envoi d'emails (sauvegarde préalable)
+    with open(data_out_path, "w", encoding="utf-8") as file:
+        yaml.dump(data, file, allow_unicode=True)
 
     if not args.no_email:
         with open(secure_data_path, encoding="utf-8") as stream:
@@ -96,11 +124,7 @@ def main(argv: list[str] | None = None) -> None:
     else:
         logger.info("[NO-EMAIL] Envoi d'e-mails ignoré par commande.")
 
-    # export new data
-    with open(data_out_path, "w", encoding="utf-8") as file:
-        yaml.dump(data, file, allow_unicode=True)
-
-    logger.info("Tossing is done")
+    logger.info("Tirage au sort terminé avec succès.")
 
 
 def send_all_email(

@@ -1,8 +1,9 @@
 import base64
+import logging
 from email import message_from_bytes
 from unittest.mock import MagicMock, patch
 
-from pere_noel_fremo.helper import create_message, gmail_send_email
+from pere_noel_fremo.helper import LOGS_DIR, configure_logger, create_message, gmail_send_email
 
 
 def test_create_message_structure_without_image() -> None:
@@ -69,8 +70,6 @@ def test_gmail_send_email_mocked(mock_build: MagicMock, mock_load_credentials: M
 
 
 def test_configure_logger_creates_file_in_logs_dir() -> None:
-    from pere_noel_fremo.helper import LOGS_DIR, configure_logger
-
     test_log_filename = "test_execution.log"
     configure_logger(test_log_filename)
 
@@ -78,3 +77,14 @@ def test_configure_logger_creates_file_in_logs_dir() -> None:
     assert LOGS_DIR.is_dir()
     expected_log_path = LOGS_DIR / test_log_filename
     assert expected_log_path.exists()
+
+    # Fermeture et détachement du handler pour libérer le fichier sous Windows
+    root_logger = logging.getLogger("")
+    for handler in list(root_logger.handlers):
+        if isinstance(handler, logging.FileHandler) and getattr(handler, "baseFilename", None) == str(
+            expected_log_path.resolve()
+        ):
+            handler.close()
+            root_logger.removeHandler(handler)
+
+    expected_log_path.unlink(missing_ok=True)
