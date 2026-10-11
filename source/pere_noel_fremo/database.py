@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS tokens (
     token TEXT PRIMARY KEY,
     lutin_id TEXT NOT NULL REFERENCES lutins(id) ON DELETE CASCADE,
     year INTEGER NOT NULL REFERENCES editions(year) ON DELETE CASCADE,
+    sent_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (lutin_id, year)
 );
