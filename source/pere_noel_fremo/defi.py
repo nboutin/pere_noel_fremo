@@ -108,6 +108,70 @@ def calculate_manche_points(classement: list[dict[str, Any]]) -> list[dict[str, 
     return result
 
 
+def calculate_championship_standings(
+    db_path: Path | str,
+    year: int,
+    res_dir: Path | str | None = None,
+    now: datetime | None = None,
+) -> list[dict[str, Any]]:
+    """Calcule le classement général du championnat en agrégeant les points et temps des manches débloquées."""
+    from .database import get_scores_classement
+
+    unlocked_manches = get_all_manches(year=year, res_dir=res_dir, now=now, only_unlocked=True)
+    if not unlocked_manches:
+        return []
+
+    standings_map: dict[str, dict[str, Any]] = {}
+
+    for manche in unlocked_manches:
+        manche_id = int(manche["id"])
+        manche_scores = get_scores_classement(db_path, year, manche_id=manche_id)
+        scored_entries = calculate_manche_points(manche_scores)
+
+        for entry in scored_entries:
+            pseudo = str(entry["pseudo_lugeur"])
+            if pseudo not in standings_map:
+                standings_map[pseudo] = {
+                    "pseudo_lutin": pseudo,
+                    "pseudo_lugeur": pseudo,
+                    "total_points": 0,
+                    "total_time_seconds": 0.0,
+                    "manches_resolved_count": 0,
+                    "details": {},
+                }
+
+            lutin_entry = standings_map[pseudo]
+            points = int(entry.get("points", 0))
+            lutin_entry["total_points"] += points
+
+            if entry.get("solved") and entry.get("time_seconds") is not None:
+                lutin_entry["total_time_seconds"] += float(entry["time_seconds"])
+                lutin_entry["manches_resolved_count"] += 1
+
+            lutin_entry["details"][manche_id] = {
+                "solved": bool(entry.get("solved")),
+                "time_seconds": entry.get("time_seconds"),
+                "rank": entry.get("rank"),
+                "points": points,
+            }
+
+    standings = list(standings_map.values())
+    # Classement officiel : total_points décroissant, puis départage au temps cumulé croissant
+    standings.sort(
+        key=lambda lutin_score: (
+            -lutin_score["total_points"],
+            lutin_score["total_time_seconds"],
+            -lutin_score["manches_resolved_count"],
+            lutin_score["pseudo_lutin"],
+        )
+    )
+
+    for rank_idx, lutin_entry in enumerate(standings, start=1):
+        lutin_entry["rank"] = rank_idx
+
+    return standings
+
+
 def is_manche_unlocked(manche: dict[str, Any], now: datetime | None = None) -> bool:
     """Vérifie si une manche est débloquée temporellement (fail-closed si format invalide)."""
     unlock_at_val = manche.get("unlock_at")
@@ -136,10 +200,11 @@ def get_manche(
     manche_id: int = 1,
     res_dir: Path | str | None = None,
     now: datetime | None = None,
-) -> dict[str, Any]:
-    """Charge une manche spécifique depuis res/{YEAR}/grilles/manche_{ID}.yml (ou repli par défaut)."""
+) -> dict[str, Any] | None:
+    """Charge une manche spécifique depuis res/{YEAR}/grilles/manche_{ID}.yml (ou None si introuvable)."""
     base_res = Path(res_dir) if res_dir is not None else RES_DIR
-    manche_file = base_res / str(year) / "grilles" / f"manche_{manche_id}.yml"
+    grilles_dir = base_res / str(year) / "grilles"
+    manche_file = grilles_dir / f"manche_{manche_id}.yml"
 
     data: dict[str, Any]
     if manche_file.exists():
@@ -151,21 +216,24 @@ def get_manche(
                 data["is_unlocked"] = is_manche_unlocked(data, now=now)
                 return data
 
-    # Repli sur l'ancien fichier defi_grille.yml ou DEFAULT_GRILLE_2026
-    grille_file = base_res / str(year) / "defi_grille.yml"
-    if grille_file.exists() and manche_id == 1:
-        with open(grille_file, encoding="utf-8") as f:
-            loaded = yaml.safe_load(f)
-            if isinstance(loaded, dict):
-                data = dict(loaded)
-                data.setdefault("id", 1)
-                data["is_unlocked"] = is_manche_unlocked(data, now=now)
-                return data
+    # Repli sur l'ancien fichier defi_grille.yml ou DEFAULT_GRILLE_2026 pour la manche 1
+    if manche_id == 1:
+        grille_file = base_res / str(year) / "defi_grille.yml"
+        if grille_file.exists():
+            with open(grille_file, encoding="utf-8") as f:
+                loaded = yaml.safe_load(f)
+                if isinstance(loaded, dict):
+                    data = dict(loaded)
+                    data.setdefault("id", 1)
+                    data["is_unlocked"] = is_manche_unlocked(data, now=now)
+                    return data
 
-    fallback = dict(DEFAULT_GRILLE_2026)
-    fallback["id"] = manche_id
-    fallback["is_unlocked"] = True
-    return fallback
+        fallback = dict(DEFAULT_GRILLE_2026)
+        fallback["id"] = 1
+        fallback["is_unlocked"] = True
+        return fallback
+
+    return None
 
 
 def get_all_manches(
@@ -202,7 +270,7 @@ def get_all_manches(
     else:
         # Aucune grille configurée sur disque : repli sur manche 1 par défaut
         default_manche = get_manche(year=year, manche_id=1, res_dir=base_res, now=now_dt)
-        if not only_unlocked or default_manche.get("is_unlocked", True):
+        if default_manche is not None and (not only_unlocked or default_manche.get("is_unlocked", True)):
             manches.append(default_manche)
 
     manches.sort(key=lambda m: int(m.get("id", 0)))
@@ -211,7 +279,8 @@ def get_all_manches(
 
 def get_or_load_grille(year: int = 2026, res_dir: Path | str | None = None) -> dict[str, Any]:
     """Rétro-compatibilité : charge la première grille (manche 1)."""
-    return get_manche(year=year, manche_id=1, res_dir=res_dir)
+    manche = get_manche(year=year, manche_id=1, res_dir=res_dir)
+    return manche if manche is not None else dict(DEFAULT_GRILLE_2026)
 
 
 def validate_grille_solution(grille: dict[str, Any], solution_soumise: dict[str, Any]) -> bool:

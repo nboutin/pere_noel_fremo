@@ -68,19 +68,20 @@ def test_calculate_points_for_rank() -> None:
 def test_get_manche_loads_configured_grille_or_fallback(tmp_path: Path) -> None:
     # Grille existante dans le dépôt pour 2026
     m1 = get_manche(year=2026, manche_id=1)
+    assert m1 is not None
     assert m1["id"] == 1
     assert "Les Luges de l'Avent" in m1["title"]
     assert "Barnabé" in m1["categories"]["lutins"]
 
     m2 = get_manche(year=2026, manche_id=2)
+    assert m2 is not None
     assert m2["id"] == 2
     assert "La Ronde des Étoiles" in m2["title"]
     assert "Léon" in m2["categories"]["lutins"]
 
-    # Manche inexistante dans un dossier temporaire vide -> repli par défaut
-    m_fallback = get_manche(year=2026, manche_id=42, res_dir=tmp_path)
-    assert m_fallback["id"] == 42
-    assert "categories" in m_fallback
+    # Manche inexistante -> None
+    m_not_found = get_manche(year=2026, manche_id=42, res_dir=tmp_path)
+    assert m_not_found is None
 
 
 def test_get_all_manches_temporal_unlock() -> None:
@@ -112,6 +113,7 @@ def test_get_all_manches_temporal_unlock() -> None:
 
 def test_validate_grille_solution_on_manche_2() -> None:
     m2 = get_manche(year=2026, manche_id=2)
+    assert m2 is not None
     assert validate_grille_solution(m2, m2["solution"]) is True
 
 
@@ -170,3 +172,48 @@ def test_all_15_manches_calendar_integration() -> None:
     all_15 = get_all_manches(year=2026, now=post_season, only_unlocked=True)
     assert len(all_15) == 15
     assert [m["id"] for m in all_15] == list(range(1, 16))
+
+
+def test_calculate_championship_standings_aggregates_points_and_ties(tmp_path: Path) -> None:
+    from pere_noel_fremo.database import complete_score_defi, get_or_create_score_defi, init_db
+    from pere_noel_fremo.defi import calculate_championship_standings
+
+    db_path = tmp_path / "fremo.db"
+    conn = init_db(db_path)
+    with conn:
+        conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
+        conn.execute("INSERT INTO lutins (id, fullname, email) VALUES ('l1', 'Lutin 1', 'l1@fremo.org');")
+        conn.execute("INSERT INTO lutins (id, fullname, email) VALUES ('l2', 'Lutin 2', 'l2@fremo.org');")
+    conn.close()
+
+    # Manche 1 : l1=30.0s (1er, 10pts), l2=45.0s (2e, 8pts)
+    get_or_create_score_defi(db_path, "l1", 2026, "Renne Agile", manche_id=1)
+    complete_score_defi(db_path, "l1", 2026, time_seconds=30.0, manche_id=1)
+    get_or_create_score_defi(db_path, "l2", 2026, "Lutin Givré", manche_id=1)
+    complete_score_defi(db_path, "l2", 2026, time_seconds=45.0, manche_id=1)
+
+    # Manche 2 : l2=20.0s (1er, 10pts), l1=40.0s (2e, 8pts)
+    get_or_create_score_defi(db_path, "l1", 2026, "Renne Agile", manche_id=2)
+    complete_score_defi(db_path, "l1", 2026, time_seconds=40.0, manche_id=2)
+    get_or_create_score_defi(db_path, "l2", 2026, "Lutin Givré", manche_id=2)
+    complete_score_defi(db_path, "l2", 2026, time_seconds=20.0, manche_id=2)
+
+    simulated_now = datetime(2026, 10, 20, 12, 0, 0, tzinfo=timezone.utc)
+    standings = calculate_championship_standings(db_path, 2026, now=simulated_now)
+
+    assert len(standings) == 2
+    # Égalité aux points (18 chacun) : l2 (45+20=65s) passe devant l1 (30+40=70s) au temps cumulé
+    first = standings[0]
+    second = standings[1]
+
+    assert first["pseudo_lugeur"] == "Lutin Givré"
+    assert first["rank"] == 1
+    assert first["total_points"] == 18
+    assert round(first["total_time_seconds"], 1) == 65.0
+    assert first["manches_resolved_count"] == 2
+
+    assert second["pseudo_lugeur"] == "Renne Agile"
+    assert second["rank"] == 2
+    assert second["total_points"] == 18
+    assert round(second["total_time_seconds"], 1) == 70.0
+    assert second["manches_resolved_count"] == 2

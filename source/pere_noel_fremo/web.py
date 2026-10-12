@@ -19,7 +19,15 @@ from .database import (
     set_lutin_presence,
     start_score_defi,
 )
-from .defi import generate_pseudo_lugeur, get_or_load_grille, validate_grille_solution
+from .defi import (
+    calculate_championship_standings,
+    generate_pseudo_lugeur,
+    get_all_manches,
+    get_manche,
+    get_or_load_grille,
+    is_manche_unlocked,
+    validate_grille_solution,
+)
 from .tokens import get_lutin_by_token
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
@@ -50,13 +58,18 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
     @app.get("/scores/{year}", response_class=HTMLResponse)
     async def get_scores_page(request: Request, year: int | None = None) -> Any:
         target_year = year if year is not None else get_latest_edition_year(db_path)
-        classement = get_scores_classement(db_path, target_year)
+        standings = calculate_championship_standings(db_path, target_year)
+        # Repli si aucune manche agrégée
+        classement = standings if standings else get_scores_classement(db_path, target_year)
+        manches = get_all_manches(year=target_year, only_unlocked=False)
         return templates.TemplateResponse(
             request=request,
             name="tableau_scores.html",
             context={
                 "edition": target_year,
                 "classement": classement,
+                "standings": standings,
+                "manches": manches,
                 "my_pseudo": None,
             },
         )
@@ -124,8 +137,7 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
         set_lutin_presence(db_path, lutin_info["id"], year, payload.present)
         return JSONResponse({"ok": True, "present": payload.present})
 
-    @app.post("/api/lutin/{token}/defi/start")
-    async def start_defi(token: str) -> JSONResponse:
+    def _get_lutin_and_manche_or_raise(token: str, manche_id: int) -> tuple[dict[str, Any], dict[str, Any]]:
         lutin_info = get_lutin_by_token(db_path, token)
         if not lutin_info:
             raise HTTPException(status_code=404, detail="Lien magique introuvable")
@@ -137,56 +149,68 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
         if not presence:
             raise HTTPException(
                 status_code=403,
-                detail="Tu dois d'abord confirmer ta présence pour lancer le Défi de la luge.",
+                detail="Tu dois d'abord confirmer ta présence pour lancer le Défi du lutin.",
             )
 
-        pseudo = generate_pseudo_lugeur(lutin_id, year)
-        get_or_create_score_defi(db_path, lutin_id, year, pseudo)
-        updated = start_score_defi(db_path, lutin_id, year)
+        manche = get_manche(year=year, manche_id=manche_id)
+        if manche is None:
+            raise HTTPException(status_code=404, detail=f"Manche {manche_id} introuvable.")
 
+        if not is_manche_unlocked(manche):
+            raise HTTPException(
+                status_code=403,
+                detail=f"La manche {manche_id} n'est pas encore déverrouillée.",
+            )
+
+        return lutin_info, manche
+
+    async def _handle_start_defi(token: str, manche_id: int = 1) -> JSONResponse:
+        lutin_info, _manche = _get_lutin_and_manche_or_raise(token, manche_id)
+        year = lutin_info["year"]
+        lutin_id = lutin_info["id"]
+
+        pseudo = generate_pseudo_lugeur(lutin_id, year)
+        score_entry = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=manche_id)
+        if score_entry.get("solved"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"La manche {manche_id} a déjà été résolue (essai unique officiel).",
+            )
+
+        updated = start_score_defi(db_path, lutin_id, year, manche_id=manche_id)
         return JSONResponse(
             {
                 "ok": True,
+                "manche_id": manche_id,
                 "pseudo_lugeur": updated.get("pseudo_lugeur", pseudo),
                 "started_at": updated.get("started_at"),
                 "solved": bool(updated.get("solved", 0)),
             }
         )
 
-    @app.post("/api/lutin/{token}/defi/solve")
-    async def solve_defi(token: str, payload: GrilleSolveRequest) -> JSONResponse:
-        lutin_info = get_lutin_by_token(db_path, token)
-        if not lutin_info:
-            raise HTTPException(status_code=404, detail="Lien magique introuvable")
-
+    async def _handle_solve_defi(token: str, payload: GrilleSolveRequest, manche_id: int = 1) -> JSONResponse:
+        lutin_info, manche = _get_lutin_and_manche_or_raise(token, manche_id)
         year = lutin_info["year"]
         lutin_id = lutin_info["id"]
 
-        presence = get_lutin_presence(db_path, lutin_id, year)
-        if not presence:
-            raise HTTPException(status_code=403, detail="Présence non confirmée.")
-
-        grille = get_or_load_grille(year)
-        is_valid = validate_grille_solution(grille, payload.solution)
+        is_valid = validate_grille_solution(manche, payload.solution)
         if not is_valid:
             return JSONResponse(
                 status_code=400,
                 content={"ok": False, "solved": False, "detail": "La solution soumise comporte des erreurs."},
             )
 
-        # Calcul du temps écoulé côté serveur
         pseudo = generate_pseudo_lugeur(lutin_id, year)
-        score_entry = get_or_create_score_defi(db_path, lutin_id, year, pseudo)
+        score_entry = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=manche_id)
         started_at_raw = score_entry.get("started_at")
 
         if not started_at_raw:
             raise HTTPException(
                 status_code=400,
-                detail="Le Défi de la luge doit être démarré avant d'être validé.",
+                detail="Le Défi du lutin doit être démarré avant d'être validé.",
             )
 
         try:
-            # SQLite CURRENT_TIMESTAMP format '%Y-%m-%d %H:%M:%S'
             start_time = datetime.strptime(str(started_at_raw), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
             now_utc = datetime.now(timezone.utc)
             time_diff = (now_utc - start_time).total_seconds()
@@ -197,15 +221,32 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
                 detail="Erreur lors du calcul du temps de complétion.",
             ) from None
 
-        updated = complete_score_defi(db_path, lutin_id, year, time_seconds=time_seconds)
+        updated = complete_score_defi(db_path, lutin_id, year, time_seconds=time_seconds, manche_id=manche_id)
         return JSONResponse(
             {
                 "ok": True,
+                "manche_id": manche_id,
                 "solved": True,
                 "time_seconds": updated.get("time_seconds"),
                 "pseudo_lugeur": updated.get("pseudo_lugeur", pseudo),
             }
         )
+
+    @app.post("/api/lutin/{token}/defi/start")
+    async def start_defi(token: str) -> JSONResponse:
+        return await _handle_start_defi(token=token, manche_id=1)
+
+    @app.post("/api/lutin/{token}/defi/{manche_id}/start")
+    async def start_defi_manche(token: str, manche_id: int) -> JSONResponse:
+        return await _handle_start_defi(token=token, manche_id=manche_id)
+
+    @app.post("/api/lutin/{token}/defi/solve")
+    async def solve_defi(token: str, payload: GrilleSolveRequest) -> JSONResponse:
+        return await _handle_solve_defi(token=token, payload=payload, manche_id=1)
+
+    @app.post("/api/lutin/{token}/defi/{manche_id}/solve")
+    async def solve_defi_manche(token: str, manche_id: int, payload: GrilleSolveRequest) -> JSONResponse:
+        return await _handle_solve_defi(token=token, payload=payload, manche_id=manche_id)
 
     @app.get("/api/lutin/{token}/beneficiaire")
     async def get_beneficiaire(token: str) -> JSONResponse:

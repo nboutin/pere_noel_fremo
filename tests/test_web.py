@@ -186,3 +186,98 @@ def test_revelation_beneficiaire_carte_a_gratter(client: TestClient, test_db: Pa
     page_after_draw = client.get(f"/lutin/{token}")
     assert page_after_draw.status_code == 200
     assert "Alice Lacroix" in page_after_draw.text
+
+
+def test_defi_multi_manches_api_flow(client: TestClient, test_db: Path) -> None:
+    from pere_noel_fremo.database import set_lutin_presence
+    from pere_noel_fremo.defi import get_manche
+
+    token = create_or_get_token(test_db, "fbonnet", 2025)
+    set_lutin_presence(test_db, "fbonnet", 2025, present=True)
+
+    # 1. Erreurs 404 : Token inconnu ou Manche inconnue
+    resp_bad_token = client.post("/api/lutin/token-inconnu-xyz/defi/1/start")
+    assert resp_bad_token.status_code == 404
+
+    resp_bad_manche = client.post(f"/api/lutin/{token}/defi/999/start")
+    assert resp_bad_manche.status_code == 404
+
+    m1 = get_manche(2025, 1)
+    assert m1 is not None
+
+    # 2. Démarrage manche 1
+    resp_start_m1 = client.post(f"/api/lutin/{token}/defi/1/start")
+    assert resp_start_m1.status_code == 200
+    data_m1 = resp_start_m1.json()
+    assert data_m1["ok"] is True
+    assert data_m1["manche_id"] == 1
+    assert data_m1["started_at"] is not None
+
+    # 3. Résolution mauvaise solution sur manche 1 -> 400
+    resp_solve_wrong = client.post(
+        f"/api/lutin/{token}/defi/1/solve",
+        json={"solution": {"Faux": {"luge": "X"}}},
+    )
+    assert resp_solve_wrong.status_code == 400
+    assert resp_solve_wrong.json()["solved"] is False
+
+    # 4. Résolution bonne solution sur manche 1 -> 200
+    resp_solve_m1 = client.post(
+        f"/api/lutin/{token}/defi/1/solve",
+        json={"solution": m1["solution"]},
+    )
+    assert resp_solve_m1.status_code == 200
+    res_data = resp_solve_m1.json()
+    assert res_data["solved"] is True
+    assert res_data["manche_id"] == 1
+    assert res_data["time_seconds"] >= 0
+
+    # 5. Tentative de redémarrer une manche déjà résolue -> 400 (essai unique officiel)
+    resp_restart = client.post(f"/api/lutin/{token}/defi/1/start")
+    assert resp_restart.status_code == 400
+    assert "déjà été résolue" in resp_restart.json().get("detail", "").lower()
+
+    # 6. Vérification de l'actualisation dynamique du classement en direct
+    resp_scores = client.get("/scores/2025")
+    assert resp_scores.status_code == 200
+    assert data_m1["pseudo_lugeur"] in resp_scores.text
+
+
+def test_locked_manche_refuses_start_and_solve(client: TestClient, test_db: Path) -> None:
+    from pere_noel_fremo.database import set_lutin_presence
+
+    # Édition 2026 où les manches ont un unlock_at futur (ex: 2026-10-16)
+    conn = init_db(test_db)
+    with conn:
+        conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
+    conn.close()
+
+    token_2026 = create_or_get_token(test_db, "fbonnet", 2026)
+    set_lutin_presence(test_db, "fbonnet", 2026, present=True)
+
+    # Manche 1 pour 2026 s'ouvre le 16/10/2026 (futur par rapport à la date de test) -> 403
+    resp_start = client.post(f"/api/lutin/{token_2026}/defi/1/start")
+    assert resp_start.status_code == 403
+    assert "déverrouillée" in resp_start.json().get("detail", "").lower()
+
+    # Tentative de résolution directe -> 403
+    resp_solve = client.post(
+        f"/api/lutin/{token_2026}/defi/1/solve",
+        json={"solution": {}},
+    )
+    assert resp_solve.status_code == 403
+    assert "déverrouillée" in resp_solve.json().get("detail", "").lower()
+
+
+def test_scores_page_displays_championship_standings(client: TestClient, test_db: Path) -> None:
+    from pere_noel_fremo.database import complete_score_defi, get_or_create_score_defi
+
+    # Enregistrer des scores sur 2025
+    get_or_create_score_defi(test_db, "fbonnet", 2025, "Renne Agile", manche_id=1)
+    complete_score_defi(test_db, "fbonnet", 2025, time_seconds=32.4, manche_id=1)
+
+    resp = client.get("/scores/2025")
+    assert resp.status_code == 200
+    assert "Tableau des scores" in resp.text
+    assert "Renne Agile" in resp.text
+    assert "32.4" in resp.text

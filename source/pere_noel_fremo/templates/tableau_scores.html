@@ -15,8 +15,8 @@
         </header>
 
         <section class="card">
-            <h2>Classement des lutins</h2>
-            <p>Le meilleur lutin aura l'honneur d'ouvrir son cadeau en premier le soir du réveillon !</p>
+            <h2>Classement du Championnat</h2>
+            <p>Le meilleur lutin au classement général aura l'honneur d'ouvrir son cadeau en premier le soir du réveillon !</p>
 
             {% if classement %}
                 <table class="scores-table">
@@ -24,8 +24,14 @@
                         <tr>
                             <th>Rang</th>
                             <th>Pseudo de lutin</th>
-                            <th>Statut</th>
-                            <th>Temps</th>
+                            {% if classement[0].total_points is defined %}
+                                <th>Points</th>
+                                <th>Manches</th>
+                                <th>Temps cumulé</th>
+                            {% else %}
+                                <th>Statut</th>
+                                <th>Temps</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -44,20 +50,32 @@
                                         <span class="badge-you">(Toi)</span>
                                     {% endif %}
                                 </td>
-                                <td>
-                                    {% if entry.solved %}
-                                        <span class="badge-solved">Résolu ✅</span>
-                                    {% else %}
-                                        <span class="badge-pending">En cours ⏳</span>
-                                    {% endif %}
-                                </td>
-                                <td class="time-col">
-                                    {% if entry.time_seconds is not none %}
-                                        {{ "%.1f"|format(entry.time_seconds) }} s
-                                    {% else %}
-                                        --
-                                    {% endif %}
-                                </td>
+                                {% if entry.total_points is defined %}
+                                    <td><strong style="color: var(--color-gold);">{{ entry.total_points }} pts</strong></td>
+                                    <td>{{ entry.manches_resolved_count }} / {{ manches|length if manches else '?' }}</td>
+                                    <td class="time-col">
+                                        {% if entry.total_time_seconds %}
+                                            {{ "%.1f"|format(entry.total_time_seconds) }} s
+                                        {% else %}
+                                            --
+                                        {% endif %}
+                                    </td>
+                                {% else %}
+                                    <td>
+                                        {% if entry.solved %}
+                                            <span class="badge-solved">Résolu ✅</span>
+                                        {% else %}
+                                            <span class="badge-pending">En cours ⏳</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="time-col">
+                                        {% if entry.time_seconds is not none %}
+                                            {{ "%.1f"|format(entry.time_seconds) }} s
+                                        {% else %}
+                                            --
+                                        {% endif %}
+                                    </td>
+                                {% endif %}
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -66,6 +84,26 @@
                 <p><em>Aucun lutin n'a encore pris le départ du défi cette année.</em></p>
             {% endif %}
         </section>
+
+        {% if manches %}
+        <section class="card" style="margin-top: 1.5rem;">
+            <h2>📅 Calendrier des Manches</h2>
+            <div class="manches-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                {% for m in manches %}
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.8rem; background: rgba(255,255,255,0.05); border-radius: 6px;">
+                        <span><strong>Manche {{ m.id }} :</strong> {{ m.title or 'Épreuve logique' }}</span>
+                        <span style="font-size: 0.85rem; color: #a0aec0;">
+                            {% if m.is_unlocked %}
+                                <span class="badge-solved">Débloquée 🚀</span>
+                            {% else %}
+                                🔒 {{ m.unlock_at }}
+                            {% endif %}
+                        </span>
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
 
         <footer style="text-align: center; margin-top: 1rem;">
             <p><a href="/" style="color: var(--color-gold); text-decoration: none;">🎅 Père Noël de la Frémo</a></p>
