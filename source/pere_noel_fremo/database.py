@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS scores_defi (
     lutin_id TEXT NOT NULL REFERENCES lutins(id) ON DELETE CASCADE,
     year INTEGER NOT NULL REFERENCES editions(year) ON DELETE CASCADE,
     pseudo_lugeur TEXT NOT NULL,
+    started_at TIMESTAMP,
     solved BOOLEAN NOT NULL DEFAULT 0,
     time_seconds REAL,
     completed_at TIMESTAMP,
@@ -406,5 +407,161 @@ def get_attributions(db_path: Path | str, year: int) -> dict[str, str]:
             (year,),
         ).fetchall()
         return {row["donneur_id"]: row["beneficiaire_id"] for row in rows}
+    finally:
+        conn.close()
+
+
+def get_beneficiaire_for_lutin(
+    db_path: Path | str,
+    donneur_id: str,
+    year: int,
+) -> dict[str, str] | None:
+    """Récupère l'identité du Bénéficiaire attribué à un Donneur pour une édition."""
+    conn = get_db_connection(db_path)
+    try:
+        row = conn.execute(
+            """
+            SELECT l.id, l.fullname, l.email
+            FROM attributions a
+            JOIN lutins l ON a.beneficiaire_id = l.id
+            WHERE a.donneur_id = ? AND a.year = ?;
+            """,
+            (donneur_id, year),
+        ).fetchone()
+        if not row:
+            return None
+        return {
+            "id": row["id"],
+            "fullname": row["fullname"],
+            "email": row["email"] or "",
+        }
+    finally:
+        conn.close()
+
+
+def _get_score_entry(conn: Any, lutin_id: str, year: int) -> dict[str, Any]:
+    row = conn.execute(
+        """
+        SELECT lutin_id, year, pseudo_lugeur, started_at, solved, time_seconds, completed_at
+        FROM scores_defi
+        WHERE lutin_id = ? AND year = ?;
+        """,
+        (lutin_id, year),
+    ).fetchone()
+    return dict(row) if row else {}
+
+
+def get_or_create_score_defi(
+    db_path: Path | str,
+    lutin_id: str,
+    year: int,
+    pseudo_lugeur: str,
+) -> dict[str, Any]:
+    """Récupère ou initialise la ligne score_defi pour un Lutin et une édition."""
+    conn = get_db_connection(db_path)
+    try:
+        with conn:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO scores_defi (lutin_id, year, pseudo_lugeur, solved)
+                VALUES (?, ?, ?, 0);
+                """,
+                (lutin_id, year, pseudo_lugeur),
+            )
+            return _get_score_entry(conn, lutin_id, year)
+    finally:
+        conn.close()
+
+
+def start_score_defi(
+    db_path: Path | str,
+    lutin_id: str,
+    year: int,
+) -> dict[str, Any]:
+    """Démarre le chronomètre du Défi de la luge si non déjà démarré ou résolu."""
+    conn = get_db_connection(db_path)
+    try:
+        with conn:
+            row = conn.execute(
+                "SELECT started_at, solved, time_seconds FROM scores_defi WHERE lutin_id = ? AND year = ?;",
+                (lutin_id, year),
+            ).fetchone()
+            if row and not row["solved"] and row["started_at"] is None:
+                conn.execute(
+                    """
+                    UPDATE scores_defi
+                    SET started_at = CURRENT_TIMESTAMP
+                    WHERE lutin_id = ? AND year = ?;
+                    """,
+                    (lutin_id, year),
+                )
+            return _get_score_entry(conn, lutin_id, year)
+    finally:
+        conn.close()
+
+
+def complete_score_defi(
+    db_path: Path | str,
+    lutin_id: str,
+    year: int,
+    time_seconds: float,
+) -> dict[str, Any]:
+    """Scelle la complétion du Défi de la luge avec le temps officiel."""
+    conn = get_db_connection(db_path)
+    try:
+        with conn:
+            row = conn.execute(
+                "SELECT solved FROM scores_defi WHERE lutin_id = ? AND year = ?;",
+                (lutin_id, year),
+            ).fetchone()
+            # Si déjà résolu, on ne modifie pas le temps (essai unique officiel)
+            if row and not row["solved"]:
+                conn.execute(
+                    """
+                    UPDATE scores_defi
+                    SET solved = 1,
+                        time_seconds = ?,
+                        completed_at = CURRENT_TIMESTAMP
+                    WHERE lutin_id = ? AND year = ?;
+                    """,
+                    (time_seconds, lutin_id, year),
+                )
+            return _get_score_entry(conn, lutin_id, year)
+    finally:
+        conn.close()
+
+
+def get_scores_classement(
+    db_path: Path | str,
+    year: int,
+) -> list[dict[str, Any]]:
+    """Récupère le Tableau des scores ordonné pour une édition."""
+    conn = get_db_connection(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT pseudo_lugeur, solved, time_seconds, completed_at
+            FROM scores_defi
+            WHERE year = ?
+            ORDER BY
+                CASE WHEN solved = 1 THEN 0 ELSE 1 END ASC,
+                time_seconds ASC,
+                completed_at ASC;
+            """,
+            (year,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_latest_edition_year(db_path: Path | str) -> int:
+    """Récupère l'année de l'édition la plus récente (ou 2026 par défaut)."""
+    conn = get_db_connection(db_path)
+    try:
+        row = conn.execute("SELECT MAX(year) AS max_year FROM editions;").fetchone()
+        if row and row["max_year"] is not None:
+            return int(row["max_year"])
+        return 2026
     finally:
         conn.close()

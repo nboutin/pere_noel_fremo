@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau des scores - Défi de la luge</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <span class="badge-edition">Édition {{ edition }}</span>
+            <h1>🛷 Tableau des scores 🏆</h1>
+            <p>Classement rituel du Défi de la luge du Père Noël de la Frémo</p>
+        </header>
+
+        <section class="card">
+            <h2>Classement des lugeurs</h2>
+            <p>Le meilleur lugeur aura l'honneur d'ouvrir son cadeau en premier le soir du réveillon !</p>
+
+            {% if classement %}
+                <table class="scores-table">
+                    <thead>
+                        <tr>
+                            <th>Rang</th>
+                            <th>Pseudo de lugeur</th>
+                            <th>Statut</th>
+                            <th>Temps</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in classement %}
+                            <tr class="{% if my_pseudo and entry.pseudo_lugeur == my_pseudo %}my-score-row{% endif %}">
+                                <td class="rank-col">
+                                    {% if loop.index == 1 %}🥇
+                                    {% elif loop.index == 2 %}🥈
+                                    {% elif loop.index == 3 %}🥉
+                                    {% else %}#{{ loop.index }}
+                                    {% endif %}
+                                </td>
+                                <td class="pseudo-col">
+                                    <strong>{{ entry.pseudo_lugeur }}</strong>
+                                    {% if my_pseudo and entry.pseudo_lugeur == my_pseudo %}
+                                        <span class="badge-you">(Toi)</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if entry.solved %}
+                                        <span class="badge-solved">Résolu ✅</span>
+                                    {% else %}
+                                        <span class="badge-pending">En cours ⏳</span>
+                                    {% endif %}
+                                </td>
+                                <td class="time-col">
+                                    {% if entry.time_seconds is not none %}
+                                        {{ "%.1f"|format(entry.time_seconds) }} s
+                                    {% else %}
+                                        --
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p><em>Aucun lugeur n'a encore pris le départ du défi cette année.</em></p>
+            {% endif %}
+        </section>
+
+        <footer style="text-align: center; margin-top: 1rem;">
+            <p><a href="/" style="color: var(--color-gold); text-decoration: none;">🎅 Père Noël de la Frémo</a></p>
+        </footer>
+    </div>
+</body>
+</html>

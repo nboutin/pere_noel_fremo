@@ -168,4 +168,164 @@ button {
   border-radius: 8px;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
   display: none;
+  z-index: 1000;
+}
+
+/* Grille logique et Défi */
+.grid-container {
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.logic-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: center;
+}
+
+.logic-table th, .logic-table td {
+  border: 1px solid var(--color-card-border);
+  padding: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.logic-table th {
+  background-color: #0f172a;
+  color: var(--color-gold);
+}
+
+.logic-select {
+  background-color: #0f172a;
+  color: #fff;
+  border: 1px solid var(--color-card-border);
+  padding: 0.4rem;
+  border-radius: 6px;
+  width: 100%;
+}
+
+.indices-list {
+  list-style: none;
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.indice-item {
+  background-color: #0f172a;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border-left: 3px solid var(--color-gold);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.indice-item.checked {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+/* Carte à gratter */
+.scratch-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  height: 180px;
+  margin: 1.5rem auto;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.scratch-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #7f1d1d, #991b1b);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  text-align: center;
+  padding: 1rem;
+}
+
+.scratch-content h3 {
+  font-size: 1rem;
+  color: var(--color-gold);
+  margin-bottom: 0.5rem;
+}
+
+.scratch-content .beneficiaire-name {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.scratch-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+/* Tableau des scores */
+.scores-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.scores-table th, .scores-table td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--color-card-border);
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.scores-table th {
+  color: var(--color-gold);
+}
+
+.rank-col {
+  width: 15%;
+  text-align: center;
+  font-weight: bold;
+}
+
+.time-col {
+  width: 25%;
+  text-align: right;
+  font-family: monospace;
+  font-weight: bold;
+}
+
+.badge-you {
+  background-color: var(--color-primary);
+  color: #fff;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  margin-left: 0.4rem;
+}
+
+.badge-solved {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.badge-pending {
+  color: #fbbf24;
+}
+
+.my-score-row {
+  background-color: rgba(245, 158, 11, 0.15);
 }

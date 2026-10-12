@@ -14,6 +14,7 @@
             <p>Bienvenue dans ton Espace Lutin, <strong>{{ lutin.fullname }}</strong> !</p>
         </header>
 
+        <!-- 1. Confirmation de présence -->
         <section class="card" id="card-presence" data-presence="{% if presence is not none %}{{ 'true' if presence else 'false' }}{% else %}unknown{% endif %}">
             <h2>Confirmation de présence</h2>
             <p>Participeras-tu à l'échange de cadeaux cette année ?</p>
@@ -42,14 +43,170 @@
             {% endif %}
         </section>
 
-        <section class="card teaser">
-            <h2>🛷 Défi de la luge (Bientôt disponible)</h2>
-            <p>Résous la grille logique pour inscrire ton pseudo de lugeur et gravir le classement !</p>
+        <!-- 2. Révélation du Bénéficiaire (Carte à gratter) -->
+        <section class="card" id="card-beneficiaire">
+            <h2>✨ Ton Bénéficiaire mystère</h2>
+            {% if status in ['drawn', 'revealed'] %}
+                {% if beneficiaire %}
+                    <p>Frotte la carte avec ta souris ou ton doigt pour découvrir le Lutin à qui tu offres un cadeau !</p>
+                    <div class="scratch-wrap">
+                        <div class="scratch-content">
+                            <h3>🎁 Tu offres un cadeau à :</h3>
+                            <div class="beneficiaire-name" id="beneficiaire-name-display">{{ beneficiaire.fullname }}</div>
+                        </div>
+                        <canvas id="scratch-canvas" class="scratch-canvas" width="380" height="180"></canvas>
+                    </div>
+                    <div style="text-align: center; margin-top: 0.5rem;">
+                        <button type="button" id="btn-re-scratch" style="font-size: 0.8rem; background: transparent; color: var(--color-gold); text-decoration: underline;" onclick="resetScratch()">
+                            Revoir l'effet à gratter 🪄
+                        </button>
+                    </div>
+                {% else %}
+                    <p><em>Tu n'as pas de Bénéficiaire attribué pour cette édition.</em></p>
+                {% endif %}
+            {% else %}
+                <p><em>⏳ Le tirage au sort n'a pas encore été réalisé par les organisateurs. Reviens très bientôt !</em></p>
+            {% endif %}
         </section>
 
-        <section class="card teaser">
-            <h2>✨ Ton Bénéficiaire mystère</h2>
-            <p>La carte à gratter virtuelle sera révélée dès que le tirage au sort aura été validé.</p>
+        <!-- 3. Défi de la luge (Grille logique festive) -->
+        <section class="card" id="card-defi">
+            <h2>🛷 Défi de la luge</h2>
+            <p>Résous la grille logique pour inscrire ton pseudo de lugeur et tenter d'ouvrir ton cadeau en premier !</p>
+            <p>Ton Pseudo de lugeur officiel : <strong style="color: var(--color-gold);">{{ pseudo_lugeur }}</strong></p>
+
+            {% if not presence %}
+                <div class="presence-status status-unknown">
+                    ⚠️ Confirme d'abord ta présence ci-dessus pour accéder au Défi de la luge !
+                </div>
+            {% else %}
+                {% if score_info.solved %}
+                    <div class="presence-status status-present">
+                        🎉 Défi brillamment résolu en <strong>{{ "%.1f"|format(score_info.time_seconds) }} s</strong> ! Ton chrono est scellé.
+                    </div>
+                {% else %}
+                    <div id="defi-start-box" style="{% if score_info.started_at %}display:none;{% endif %} text-align: center; margin: 1rem 0;">
+                        <button type="button" class="btn-present" onclick="startDefi()">
+                            🚀 Lancer le chronomètre & démarrer le Défi !
+                        </button>
+                    </div>
+
+                    <div id="defi-game-box" style="{% if not score_info.started_at %}display:none;{% endif %}">
+                        <div style="text-align: right; font-family: monospace; color: var(--color-gold); font-size: 1.1rem; margin-bottom: 0.5rem;">
+                            ⏱️ Temps écoulé : <span id="timer-display">0.0</span>s
+                        </div>
+
+                        <h3>Indices de la course :</h3>
+                        <ul class="indices-list">
+                            {% for indice in grille.indices %}
+                                <li class="indice-item" onclick="this.classList.toggle('checked')">
+                                    {{ indice }}
+                                </li>
+                            {% endfor %}
+                        </ul>
+
+                        <h3>Associe chaque Lutin à sa luge et sa friandise :</h3>
+                        <div class="grid-container">
+                            <table class="logic-table">
+                                <thead>
+                                    <tr>
+                                        <th>Lutin</th>
+                                        <th>Luge</th>
+                                        <th>Friandise</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for lutin_name in grille.categories.lutins %}
+                                        <tr>
+                                            <td><strong>{{ lutin_name }}</strong></td>
+                                            <td>
+                                                <select id="select-luge-{{ lutin_name }}" class="logic-select">
+                                                    <option value="">-- Choisir la luge --</option>
+                                                    {% for luge in grille.categories.luges %}
+                                                        <option value="{{ luge }}">{{ luge }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <select id="select-friandise-{{ lutin_name }}" class="logic-select">
+                                                    <option value="">-- Choisir la friandise --</option>
+                                                    {% for friandise in grille.categories.friandises %}
+                                                        <option value="{{ friandise }}">{{ friandise }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div style="text-align: center; margin-top: 1rem;">
+                            <button type="button" class="btn-present" onclick="submitDefi()">
+                                🏁 Valider ma grille !
+                            </button>
+                        </div>
+                    </div>
+                {% endif %}
+            {% endif %}
+        </section>
+
+        <!-- 4. Tableau des scores -->
+        <section class="card">
+            <h2>🏆 Tableau des scores</h2>
+            <p>Classement en direct de l'édition {{ edition }} :</p>
+            {% if classement %}
+                <table class="scores-table">
+                    <thead>
+                        <tr>
+                            <th>Rang</th>
+                            <th>Lugeur</th>
+                            <th>Statut</th>
+                            <th>Temps</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in classement %}
+                            <tr class="{% if entry.pseudo_lugeur == pseudo_lugeur %}my-score-row{% endif %}">
+                                <td class="rank-col">
+                                    {% if loop.index == 1 %}🥇
+                                    {% elif loop.index == 2 %}🥈
+                                    {% elif loop.index == 3 %}🥉
+                                    {% else %}#{{ loop.index }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ entry.pseudo_lugeur }}
+                                    {% if entry.pseudo_lugeur == pseudo_lugeur %}
+                                        <span class="badge-you">(Toi)</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if entry.solved %}
+                                        <span class="badge-solved">Résolu ✅</span>
+                                    {% else %}
+                                        <span class="badge-pending">En cours ⏳</span>
+                                    {% endif %}
+                                </td>
+                                <td class="time-col">
+                                    {% if entry.time_seconds is not none %}
+                                        {{ "%.1f"|format(entry.time_seconds) }} s
+                                    {% else %}
+                                        --
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p><em>Aucun lugeur n'a encore enregistré de score.</em></p>
+            {% endif %}
+            <div style="text-align: right; margin-top: 1rem;">
+                <a href="/scores/{{ edition }}" target="_blank" style="color: var(--color-gold); font-size: 0.9rem;">
+                    Ouvrir le tableau public plein écran ↗
+                </a>
+            </div>
         </section>
     </div>
 
@@ -58,6 +215,11 @@
     <script>
         const TOKEN = "{{ lutin.token }}";
         const IS_LOCKED = {{ 'true' if is_locked else 'false' }};
+        const LUTIN_NAMES = {{ grille.categories.lutins | tojson }};
+        let isStarted = {{ 'true' if score_info.started_at else 'false' }};
+        let isSolved = {{ 'true' if score_info.solved else 'false' }};
+        let timerInterval = null;
+        let startTime = Date.now();
 
         function showToast(msg) {
             const toast = document.getElementById("toast");
@@ -97,6 +259,7 @@
                     btnNon.classList.remove("btn-selected");
                     card.setAttribute("data-presence", "true");
                     showToast("Présence confirmée ! 🎁");
+                    setTimeout(() => location.reload(), 1000);
                 } else {
                     statusBox.className = "presence-status status-absent";
                     statusBox.textContent = "❌ Tu as indiqué être Absent(e) pour cette édition.";
@@ -109,6 +272,152 @@
                 showToast("Erreur de connexion au serveur.");
             }
         }
+
+        // --- Défi de la luge ---
+        async function startDefi() {
+            try {
+                const res = await fetch(`/api/lutin/${TOKEN}/defi/start`, { method: 'POST' });
+                if (!res.ok) {
+                    const err = await res.json();
+                    showToast(err.detail || "Impossible de démarrer le défi.");
+                    return;
+                }
+                document.getElementById("defi-start-box").style.display = "none";
+                document.getElementById("defi-game-box").style.display = "block";
+                startTime = Date.now();
+                startLocalTimer();
+                showToast("Chronomètre lancé ! ⏱️");
+            } catch (e) {
+                showToast("Erreur de connexion.");
+            }
+        }
+
+        function startLocalTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                const display = document.getElementById("timer-display");
+                if (display) display.textContent = elapsed;
+            }, 100);
+        }
+
+        async function submitDefi() {
+            const solution = {};
+            for (const name of LUTIN_NAMES) {
+                const luge = document.getElementById(`select-luge-${name}`).value;
+                const friandise = document.getElementById(`select-friandise-${name}`).value;
+                if (!luge || !friandise) {
+                    showToast(`Merci de compléter les choix pour ${name} !`);
+                    return;
+                }
+                solution[name] = { luge: luge, friandise: friandise };
+            }
+
+            try {
+                const res = await fetch(`/api/lutin/${TOKEN}/defi/solve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ solution: solution })
+                });
+                const data = await res.json();
+                if (res.ok && data.solved) {
+                    if (timerInterval) clearInterval(timerInterval);
+                    showToast(`Bravo ! Défi réussi en ${data.time_seconds}s 🏆`);
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showToast(data.detail || "La solution comporte des erreurs !");
+                }
+            } catch (e) {
+                showToast("Erreur lors de la validation du défi.");
+            }
+        }
+
+        // --- Carte à gratter (HTML5 Canvas) ---
+        function initScratchCard() {
+            const canvas = document.getElementById("scratch-canvas");
+            if (!canvas) return;
+
+            const ctx = canvas.getContext("2d");
+            const w = canvas.width;
+            const h = canvas.height;
+
+            // Vérifier si déjà gratté dans localStorage
+            const storageKey = `scratched_${TOKEN}`;
+            if (localStorage.getItem(storageKey) === "true") {
+                canvas.style.display = "none";
+                return;
+            }
+
+            // Dessiner le calque à gratter
+            ctx.fillStyle = "#cbd5e1";
+            ctx.fillRect(0, 0, w, h);
+
+            // Motif festif
+            ctx.fillStyle = "#94a3b8";
+            ctx.font = "bold 16px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText("✨ Gratte ici pour révéler ✨", w / 2, h / 2 - 10);
+            ctx.font = "24px sans-serif";
+            ctx.fillText("🎁", w / 2, h / 2 + 25);
+
+            let isDrawing = false;
+            let scratchedPixels = 0;
+
+            function scratch(x, y) {
+                ctx.globalCompositeOperation = "destination-out";
+                ctx.beginPath();
+                ctx.arc(x, y, 22, 0, Math.PI * 2);
+                ctx.fill();
+                scratchedPixels += 1;
+
+                // Après un certain montant de grattage, on révèle complètement
+                if (scratchedPixels > 45) {
+                    canvas.style.transition = "opacity 0.6s ease";
+                    canvas.style.opacity = "0";
+                    setTimeout(() => {
+                        canvas.style.display = "none";
+                        localStorage.setItem(storageKey, "true");
+                    }, 600);
+                }
+            }
+
+            function getPos(e) {
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return {
+                    x: (clientX - rect.left) * scaleX,
+                    y: (clientY - rect.top) * scaleY
+                };
+            }
+
+            canvas.addEventListener("mousedown", (e) => { isDrawing = true; const p = getPos(e); scratch(p.x, p.y); });
+            canvas.addEventListener("mousemove", (e) => { if (isDrawing) { const p = getPos(e); scratch(p.x, p.y); } });
+            window.addEventListener("mouseup", () => { isDrawing = false; });
+
+            canvas.addEventListener("touchstart", (e) => { isDrawing = true; const p = getPos(e); scratch(p.x, p.y); }, { passive: true });
+            canvas.addEventListener("touchmove", (e) => { if (isDrawing) { const p = getPos(e); scratch(p.x, p.y); } }, { passive: true });
+            window.addEventListener("touchend", () => { isDrawing = false; });
+        }
+
+        function resetScratch() {
+            localStorage.removeItem(`scratched_${TOKEN}`);
+            const canvas = document.getElementById("scratch-canvas");
+            if (canvas) {
+                canvas.style.display = "block";
+                canvas.style.opacity = "1";
+                initScratchCard();
+            }
+        }
+
+        window.addEventListener("DOMContentLoaded", () => {
+            initScratchCard();
+            if (isStarted && !isSolved) {
+                startLocalTimer();
+            }
+        });
     </script>
 </body>
 </html>

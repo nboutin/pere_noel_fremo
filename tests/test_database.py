@@ -3,16 +3,21 @@ from pathlib import Path
 import pytest
 import yaml
 from pere_noel_fremo.database import (
+    complete_score_defi,
     get_attributions,
+    get_beneficiaire_for_lutin,
     get_confirmed_lutins,
     get_edition_status,
     get_lutin_exclusions,
     get_lutin_history,
     get_lutins,
+    get_or_create_score_defi,
+    get_scores_classement,
     import_yaml_data,
     init_db,
     save_attributions,
     set_lutin_presence,
+    start_score_defi,
 )
 
 
@@ -211,3 +216,55 @@ def test_confirmed_lutins_and_save_attributions(tmp_path: Path) -> None:
     attributions_updated = {"lutin_1": "lutin_2", "lutin_2": "lutin_1"}
     save_attributions(db_path, 2026, attributions_updated)
     assert get_attributions(db_path, 2026) == attributions_updated
+
+
+def test_scores_defi_and_beneficiaire_operations(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo.db"
+    conn = init_db(db_path)
+    with conn:
+        conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
+        conn.execute("INSERT INTO lutins (id, fullname, email) VALUES ('l1', 'Lutin 1', 'l1@fremo.org');")
+        conn.execute("INSERT INTO lutins (id, fullname, email) VALUES ('l2', 'Lutin 2', 'l2@fremo.org');")
+    conn.close()
+
+    # 1. Attributions & get_beneficiaire_for_lutin
+    save_attributions(db_path, 2026, {"l1": "l2", "l2": "l1"})
+    beneficiaire = get_beneficiaire_for_lutin(db_path, "l1", 2026)
+    assert beneficiaire is not None
+    assert beneficiaire["id"] == "l2"
+    assert beneficiaire["fullname"] == "Lutin 2"
+
+    # Donneur inexistant ou sans attribution
+    assert get_beneficiaire_for_lutin(db_path, "l_inconnu", 2026) is None
+
+    # 2. Score Défi cycle de vie
+    score = get_or_create_score_defi(db_path, "l1", 2026, "Renne Agile")
+    assert score["lutin_id"] == "l1"
+    assert score["pseudo_lugeur"] == "Renne Agile"
+    assert score["solved"] == 0
+    assert score["started_at"] is None
+
+    # Démarrage
+    started = start_score_defi(db_path, "l1", 2026)
+    assert started["started_at"] is not None
+
+    # Complétion
+    completed = complete_score_defi(db_path, "l1", 2026, time_seconds=42.5)
+    assert completed["solved"] == 1
+    assert completed["time_seconds"] == 42.5
+
+    # Idempotence complétion (ne modifie pas un score déjà résolu)
+    completed_again = complete_score_defi(db_path, "l1", 2026, time_seconds=999.0)
+    assert completed_again["time_seconds"] == 42.5
+
+    # 3. Classement ordonné
+    get_or_create_score_defi(db_path, "l2", 2026, "Lutin Givré")
+    complete_score_defi(db_path, "l2", 2026, time_seconds=30.0)
+
+    classement = get_scores_classement(db_path, 2026)
+    assert len(classement) == 2
+    # l2 (30.0s) doit être 1er devant l1 (42.5s)
+    assert classement[0]["pseudo_lugeur"] == "Lutin Givré"
+    assert classement[0]["time_seconds"] == 30.0
+    assert classement[1]["pseudo_lugeur"] == "Renne Agile"
+    assert classement[1]["time_seconds"] == 42.5
