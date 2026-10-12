@@ -53,11 +53,15 @@ Action par laquelle un Lutin valide ou décline sa participation à l'édition c
 _Avoid_: RSVP, inscription, check-in, vote
 
 **Défi du lutin**:
-Épreuve rituelle annuelle (alternant entre défi créatif et défi de logique/énigme) permettant de départager les Lutins et de désigner le vainqueur qui ouvrira son cadeau en premier lors de la fête.
+Compétition rituelle annuelle (alternant entre défi créatif et série de logigrammes hebdomadaires) disputée sous forme de championnat à points permettant de départager les Lutins et de désigner le vainqueur qui ouvrira son cadeau en premier lors de la fête.
 _Avoid_: Défi de la luge, quiz, challenge, mini-jeu, concours
 
+**Manche**:
+Épreuve hebdomadaire du Défi du lutin associée à une Grille logique débloquée à date fixe, sur laquelle chaque Lutin dispose d'un essai unique chronométré pour marquer des points de championnat.
+_Avoid_: Round, niveau, étape, session
+
 **Grille logique**:
-Casse-tête de déduction à indices croisés proposé comme Défi du lutin pour l'édition courante, chronométré pour établir le classement des Lutins.
+Casse-tête de déduction à indices croisés proposé lors d'une Manche du Défi du lutin, chronométré pour établir le classement de la manche.
 _Avoid_: Logigramme, puzzle d'Einstein, énigme
 
 **Pseudo de lutin**:
@@ -73,5 +77,5 @@ Composant interactif virtuel sur l'Espace Lutin permettant à un Donneur de dév
 _Avoid_: Scratchcard, révélation immédiate, popup
 
 **Tableau des scores**:
-Classement rituel public affichant en permanence les temps de résolution du Défi du lutin sous les Pseudos de lutin pour désigner le vainqueur qui ouvrira son cadeau en premier.
+Classement rituel public affichant en permanence les points et les temps du championnat du Défi du lutin sous les Pseudos de lutin pour désigner le vainqueur qui ouvrira son cadeau en premier.
 _Avoid_: Leaderboard, ranking, palmarès
