@@ -78,6 +78,10 @@ def init_db(db_path: Path | str) -> sqlite3.Connection:
     conn = get_db_connection(path)
     with conn:
         conn.executescript(SCHEMA_SQL)
+        # Migration automatique idempotente des colonnes ajoutées
+        cols = [c[1] for c in conn.execute("PRAGMA table_info(scores_defi);").fetchall()]
+        if "started_at" not in cols:
+            conn.execute("ALTER TABLE scores_defi ADD COLUMN started_at TIMESTAMP;")
     return conn
 
 
