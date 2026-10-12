@@ -67,3 +67,11 @@ _Avoid_: Alias, handle, avatar
 **Admin aveugle**:
 Mode d'administration masquant les attributions de cadeaux à l'organisateur pour préserver sa propre surprise, tout en conservant une traçabilité exploitable par un agent.
 _Avoid_: Mode discret, blind mode, masquage
+
+**Carte à gratter**:
+Composant interactif virtuel sur l'Espace Lutin permettant à un Donneur de dévoiler l'identité de son Bénéficiaire après la réalisation du tirage au sort.
+_Avoid_: Scratchcard, révélation immédiate, popup
+
+**Tableau des scores**:
+Classement rituel public affichant en permanence les temps de résolution du Défi de la luge sous les Pseudos de lugeur pour désigner le vainqueur qui ouvrira son cadeau en premier.
+_Avoid_: Leaderboard, ranking, palmarès
