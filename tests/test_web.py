@@ -255,14 +255,14 @@ def test_locked_manche_refuses_start_and_solve(client: TestClient, test_db: Path
     token_2026 = create_or_get_token(test_db, "fbonnet", 2026)
     set_lutin_presence(test_db, "fbonnet", 2026, present=True)
 
-    # Manche 1 pour 2026 s'ouvre le 16/10/2026 (futur par rapport à la date de test) -> 403
-    resp_start = client.post(f"/api/lutin/{token_2026}/defi/1/start")
+    # Manche 2 pour 2026 s'ouvre le 19/10/2026 (futur par rapport à la date de test) -> 403
+    resp_start = client.post(f"/api/lutin/{token_2026}/defi/2/start")
     assert resp_start.status_code == 403
     assert "déverrouillée" in resp_start.json().get("detail", "").lower()
 
     # Tentative de résolution directe -> 403
     resp_solve = client.post(
-        f"/api/lutin/{token_2026}/defi/1/solve",
+        f"/api/lutin/{token_2026}/defi/2/solve",
         json={"solution": {}},
     )
     assert resp_solve.status_code == 403

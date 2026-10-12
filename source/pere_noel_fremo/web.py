@@ -17,6 +17,7 @@ from .database import (
     get_lutin_presence,
     get_or_create_score_defi,
     get_scores_classement,
+    init_db,
     set_lutin_presence,
     start_score_defi,
 )
@@ -48,6 +49,7 @@ class GrilleSolveRequest(BaseModel):
 
 def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
     """Crée l'application FastAPI pour l'Espace Lutin et les services festifs."""
+    init_db(db_path)
     app = FastAPI(title="Père Noël de la Frémo - Espace Lutin")
 
     if STATIC_DIR.exists():
