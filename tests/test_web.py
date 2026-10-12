@@ -118,6 +118,13 @@ def test_defi_de_la_luge_flow(client: TestClient, test_db: Path) -> None:
     assert resp_solve_before_start.status_code == 400
     assert "démarré" in resp_solve_before_start.json().get("detail", "").lower()
 
+    # Vérifier que la page présente bien l'encart d'avertissement et le temps estimé
+    page_prep = client.get(f"/lutin/{token}")
+    assert page_prep.status_code == 200
+    assert "Défi du lutin malin" in page_prep.text
+    assert "Temps estimé" in page_prep.text
+    assert "check-ready" in page_prep.text
+
     # 3. Démarrer le défi
     resp_start = client.post(f"/api/lutin/{token}/defi/start")
     assert resp_start.status_code == 200

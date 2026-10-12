@@ -3,27 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tableau des scores - Défi de la luge</title>
+    <title>Tableau des scores - Défi du lutin</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div class="container">
         <header>
             <span class="badge-edition">Édition {{ edition }}</span>
-            <h1>🛷 Tableau des scores 🏆</h1>
-            <p>Classement rituel du Défi de la luge du Père Noël de la Frémo</p>
+            <h1>🏆 Tableau des scores 🏆</h1>
+            <p>Classement rituel du Défi du lutin du Père Noël de la Frémo</p>
         </header>
 
         <section class="card">
-            <h2>Classement des lugeurs</h2>
-            <p>Le meilleur lugeur aura l'honneur d'ouvrir son cadeau en premier le soir du réveillon !</p>
+            <h2>Classement des lutins</h2>
+            <p>Le meilleur lutin aura l'honneur d'ouvrir son cadeau en premier le soir du réveillon !</p>
 
             {% if classement %}
                 <table class="scores-table">
                     <thead>
                         <tr>
                             <th>Rang</th>
-                            <th>Pseudo de lugeur</th>
+                            <th>Pseudo de lutin</th>
                             <th>Statut</th>
                             <th>Temps</th>
                         </tr>
@@ -63,7 +63,7 @@
                     </tbody>
                 </table>
             {% else %}
-                <p><em>Aucun lugeur n'a encore pris le départ du défi cette année.</em></p>
+                <p><em>Aucun lutin n'a encore pris le départ du défi cette année.</em></p>
             {% endif %}
         </section>
 

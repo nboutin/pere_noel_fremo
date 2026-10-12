@@ -69,15 +69,15 @@
             {% endif %}
         </section>
 
-        <!-- 3. Défi de la luge (Grille logique festive) -->
+        <!-- 3. Défi du lutin (Grille logique festive) -->
         <section class="card" id="card-defi">
-            <h2>🛷 Défi de la luge</h2>
-            <p>Résous la grille logique pour inscrire ton pseudo de lugeur et tenter d'ouvrir ton cadeau en premier !</p>
-            <p>Ton Pseudo de lugeur officiel : <strong style="color: var(--color-gold);">{{ pseudo_lugeur }}</strong></p>
+            <h2>🧩 {{ grille.title or "Défi du lutin malin" }}</h2>
+            <p>{{ grille.description or "Résous la grille logique pour inscrire ton pseudo et tenter d'ouvrir ton cadeau en premier !" }}</p>
+            <p>Ton Pseudo de lutin officiel : <strong style="color: var(--color-gold);">{{ pseudo_lugeur }}</strong></p>
 
             {% if not presence %}
                 <div class="presence-status status-unknown">
-                    ⚠️ Confirme d'abord ta présence ci-dessus pour accéder au Défi de la luge !
+                    ⚠️ Confirme d'abord ta présence ci-dessus pour accéder au Défi du lutin !
                 </div>
             {% else %}
                 {% if score_info.solved %}
@@ -85,18 +85,41 @@
                         🎉 Défi brillamment résolu en <strong>{{ "%.1f"|format(score_info.time_seconds) }} s</strong> ! Ton chrono est scellé.
                     </div>
                 {% else %}
-                    <div id="defi-start-box" style="{% if score_info.started_at %}display:none;{% endif %} text-align: center; margin: 1rem 0;">
-                        <button type="button" class="btn-present" onclick="startDefi()">
-                            🚀 Lancer le chronomètre & démarrer le Défi !
-                        </button>
+                    <!-- Encart d'avertissement et préparation avant lancement -->
+                    <div id="defi-start-box" style="{% if score_info.started_at %}display:none;{% endif %} margin: 1.5rem 0; padding: 1.2rem; background: rgba(212, 175, 55, 0.08); border: 1px solid var(--color-gold); border-radius: 8px;">
+                        <h3 style="margin-top: 0; color: var(--color-gold);">⏱️ Prêt(e) pour le chronomètre ?</h3>
+                        <p style="margin-bottom: 0.8rem;">
+                            <strong>Règles de l'épreuve :</strong>
+                        </p>
+                        <ul style="margin: 0 0 1rem 1.2rem; line-height: 1.5;">
+                            <li>Le jeu est <strong>chronométré au dixième de seconde</strong> dès que tu cliques sur le bouton de départ.</li>
+                            <li>⚠️ <strong>Une seule et unique tentative officielle !</strong> Une fois la grille validée, ton temps sera définitivement scellé.</li>
+                            <li>⏱️ <strong>Temps estimé :</strong> {{ grille.estimated_time or "2 à 5 minutes" }}.</li>
+                            <li>La grille et les indices apparaîtront dès le départ du chronomètre.</li>
+                        </ul>
+
+                        <div style="margin: 1.2rem 0; padding: 0.8rem; background: rgba(0, 0, 0, 0.2); border-radius: 6px;">
+                            <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; font-weight: 500;">
+                                <input type="checkbox" id="check-ready" style="width: 1.2rem; height: 1.2rem; accent-color: var(--color-gold);" onchange="toggleStartButton()">
+                                <span>J'ai lu les consignes, je suis bien installé(e) et prêt(e) à relever le défi !</span>
+                            </label>
+                        </div>
+
+                        <div style="text-align: center; margin-top: 1rem;">
+                            <button type="button" id="btn-start-defi" class="btn-present" style="opacity: 0.5; cursor: not-allowed;" disabled onclick="startDefi()">
+                                🚀 Lancer mon chrono et afficher la grille !
+                            </button>
+                        </div>
                     </div>
 
+                    <!-- Zone de jeu (indices et grille masqués avant le démarrage) -->
                     <div id="defi-game-box" style="{% if not score_info.started_at %}display:none;{% endif %}">
                         <div style="text-align: right; font-family: monospace; color: var(--color-gold); font-size: 1.1rem; margin-bottom: 0.5rem;">
                             ⏱️ Temps écoulé : <span id="timer-display">0.0</span>s
                         </div>
 
-                        <h3>Indices de la course :</h3>
+                        <h3>Indices de l'énigme :</h3>
+                        <p style="font-size: 0.9rem; color: #cbd5e1; margin-bottom: 0.6rem;">💡 Clique sur un indice pour le barrer une fois déduit.</p>
                         <ul class="indices-list">
                             {% for indice in grille.indices %}
                                 <li class="indice-item" onclick="this.classList.toggle('checked')">
@@ -160,7 +183,7 @@
                     <thead>
                         <tr>
                             <th>Rang</th>
-                            <th>Lugeur</th>
+                            <th>Pseudo de lutin</th>
                             <th>Statut</th>
                             <th>Temps</th>
                         </tr>
@@ -273,7 +296,17 @@
             }
         }
 
-        // --- Défi de la luge ---
+        // --- Défi du lutin ---
+        function toggleStartButton() {
+            const check = document.getElementById("check-ready");
+            const btn = document.getElementById("btn-start-defi");
+            if (check && btn) {
+                btn.disabled = !check.checked;
+                btn.style.opacity = check.checked ? "1" : "0.5";
+                btn.style.cursor = check.checked ? "pointer" : "not-allowed";
+            }
+        }
+
         async function startDefi() {
             try {
                 const res = await fetch(`/api/lutin/${TOKEN}/defi/start`, { method: 'POST' });

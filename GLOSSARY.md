@@ -52,17 +52,17 @@ _Avoid_: Dashboard, portail, profil, compte
 Action par laquelle un Lutin valide ou décline sa participation à l'édition courante en réponse à l'Annonce.
 _Avoid_: RSVP, inscription, check-in, vote
 
-**Défi de la luge**:
-Épreuve rituelle annuelle (alternant entre défi créatif et défi de logique/énigme) permettant de départager les Lutins et de désigner le meilleur lugeur qui ouvrira son cadeau en premier lors de la fête.
-_Avoid_: Quiz, challenge, mini-jeu, concours
+**Défi du lutin**:
+Épreuve rituelle annuelle (alternant entre défi créatif et défi de logique/énigme) permettant de départager les Lutins et de désigner le vainqueur qui ouvrira son cadeau en premier lors de la fête.
+_Avoid_: Défi de la luge, quiz, challenge, mini-jeu, concours
 
 **Grille logique**:
-Casse-tête de déduction à indices croisés proposé comme Défi de la luge pour l'édition courante, chronométré pour établir le classement des Lutins.
+Casse-tête de déduction à indices croisés proposé comme Défi du lutin pour l'édition courante, chronométré pour établir le classement des Lutins.
 _Avoid_: Logigramme, puzzle d'Einstein, énigme
 
-**Pseudo de lugeur**:
+**Pseudo de lutin**:
 Pseudonyme festif et humoristique attribué aléatoirement à chaque Lutin sur le tableau des scores public pour préserver le secret de l'identité du vainqueur jusqu'à la fête.
-_Avoid_: Alias, handle, avatar
+_Avoid_: Pseudo de lugeur, alias, handle, avatar
 
 **Admin aveugle**:
 Mode d'administration masquant les attributions de cadeaux à l'organisateur pour préserver sa propre surprise, tout en conservant une traçabilité exploitable par un agent.
@@ -73,5 +73,5 @@ Composant interactif virtuel sur l'Espace Lutin permettant à un Donneur de dév
 _Avoid_: Scratchcard, révélation immédiate, popup
 
 **Tableau des scores**:
-Classement rituel public affichant en permanence les temps de résolution du Défi de la luge sous les Pseudos de lugeur pour désigner le vainqueur qui ouvrira son cadeau en premier.
+Classement rituel public affichant en permanence les temps de résolution du Défi du lutin sous les Pseudos de lutin pour désigner le vainqueur qui ouvrira son cadeau en premier.
 _Avoid_: Leaderboard, ranking, palmarès

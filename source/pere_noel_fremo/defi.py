@@ -41,8 +41,9 @@ ANIMAUX_LUGEURS = [
 ]
 
 DEFAULT_GRILLE_2026: dict[str, Any] = {
-    "title": "La Course des Traîneaux de la Frémo",
+    "title": "Le Défi du lutin malin",
     "description": "Retrouve quel Lutin conduit quelle luge et apporte quelle friandise !",
+    "estimated_time": "2 à 5 minutes",
     "categories": {
         "lutins": ["Barnabé", "Clémence", "Gaspard"],
         "luges": ["Étoile Rouge", "Comète Bleue", "Éclair Vert"],
