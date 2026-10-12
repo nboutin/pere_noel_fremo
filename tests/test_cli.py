@@ -228,3 +228,75 @@ def test_cli_serve_invokes_uvicorn(tmp_path: Path) -> None:
         _, kwargs = mock_uvicorn.call_args
         assert kwargs["host"] == "0.0.0.0"
         assert kwargs["port"] == 8080
+
+
+def test_cli_tirage_admin_aveugle(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from pere_noel_fremo.database import import_yaml_data, init_db, set_lutin_presence
+
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+    data_in_path = tmp_path / "data_in.yml"
+    secure_data_path = tmp_path / "secure_data.yml"
+
+    sample_data: dict[str, Any] = {
+        f"l{i}": {"fullname": f"Lutin {i}", "email": None, "exclude": [], "history": []} for i in range(1, 5)
+    }
+    sample_secure = {"personnes": {f"l{i}": {"email": f"l{i}@test.org"} for i in range(1, 5)}}
+    with open(data_in_path, "w", encoding="utf-8") as f:
+        yaml.dump(sample_data, f)
+    with open(secure_data_path, "w", encoding="utf-8") as f:
+        yaml.dump(sample_secure, f)
+
+    import_yaml_data(db_path, data_in_path, secure_data_path, year=2026)
+
+    # Marquer la présence des 4 lutins
+    for i in range(1, 5):
+        set_lutin_presence(db_path, f"l{i}", 2026, present=True)
+
+    ret = main(
+        [
+            "tirage",
+            "--db-path",
+            str(db_path),
+            "--year",
+            "2026",
+            "--organizer",
+            "l1",
+        ]
+    )
+    assert ret == 0
+    captured = capsys.readouterr()
+    assert "*** SECRET ***" in captured.out
+    assert "l1 ->" not in captured.out
+    assert "-> l1" not in captured.out
+
+
+def test_cli_audit_tirage_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from pere_noel_fremo.database import import_yaml_data, init_db, set_lutin_presence
+
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+    data_in_path = tmp_path / "data_in.yml"
+    secure_data_path = tmp_path / "secure_data.yml"
+
+    sample_data: dict[str, Any] = {
+        f"l{i}": {"fullname": f"Lutin {i}", "email": None, "exclude": [], "history": []} for i in range(1, 5)
+    }
+    with open(data_in_path, "w", encoding="utf-8") as f:
+        yaml.dump(sample_data, f)
+    with open(secure_data_path, "w", encoding="utf-8") as f:
+        yaml.dump({"personnes": {}}, f)
+
+    import_yaml_data(db_path, data_in_path, secure_data_path, year=2026)
+    for i in range(1, 5):
+        set_lutin_presence(db_path, f"l{i}", 2026, present=True)
+
+    # Exécuter tirage
+    assert main(["tirage", "--db-path", str(db_path), "--year", "2026"]) == 0
+    capsys.readouterr()
+
+    # Exécuter audit
+    ret_audit = main(["audit-tirage", "--db-path", str(db_path), "--year", "2026"])
+    assert ret_audit == 0
+    captured_audit = capsys.readouterr()
+    assert "VALIDE" in captured_audit.out or "valid" in captured_audit.out.lower()

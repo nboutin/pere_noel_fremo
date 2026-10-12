@@ -3,11 +3,16 @@ from pathlib import Path
 import pytest
 import yaml
 from pere_noel_fremo.database import (
+    get_attributions,
+    get_confirmed_lutins,
+    get_edition_status,
     get_lutin_exclusions,
     get_lutin_history,
     get_lutins,
     import_yaml_data,
     init_db,
+    save_attributions,
+    set_lutin_presence,
 )
 
 
@@ -173,3 +178,36 @@ def test_database_foreign_key_constraints(tmp_path: Path) -> None:
         )
 
     conn.close()
+
+
+def test_confirmed_lutins_and_save_attributions(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo.db"
+    conn = init_db(db_path)
+    with conn:
+        conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
+        conn.execute("INSERT INTO lutins (id, fullname, email) VALUES ('lutin_1', 'Lutin 1', 'l1@fremo.org');")
+        conn.execute("INSERT INTO lutins (id, fullname, email) VALUES ('lutin_2', 'Lutin 2', 'l2@fremo.org');")
+        conn.execute("INSERT INTO lutins (id, fullname, email) VALUES ('lutin_3', 'Lutin 3', 'l3@fremo.org');")
+    conn.close()
+
+    # Confirmer lutin_1 et lutin_2 comme présents, lutin_3 comme absent
+    set_lutin_presence(db_path, "lutin_1", 2026, present=True)
+    set_lutin_presence(db_path, "lutin_2", 2026, present=True)
+    set_lutin_presence(db_path, "lutin_3", 2026, present=False)
+
+    confirmed = get_confirmed_lutins(db_path, 2026)
+    assert set(confirmed.keys()) == {"lutin_1", "lutin_2"}
+    assert "lutin_3" not in confirmed
+
+    # Sauvegarder les attributions
+    attributions = {"lutin_1": "lutin_2", "lutin_2": "lutin_1"}
+    save_attributions(db_path, 2026, attributions)
+
+    assert get_edition_status(db_path, 2026) == "drawn"
+    saved = get_attributions(db_path, 2026)
+    assert saved == attributions
+
+    # Idempotence / update attributions: réenregistrement met à jour sans collision
+    attributions_updated = {"lutin_1": "lutin_2", "lutin_2": "lutin_1"}
+    save_attributions(db_path, 2026, attributions_updated)
+    assert get_attributions(db_path, 2026) == attributions_updated

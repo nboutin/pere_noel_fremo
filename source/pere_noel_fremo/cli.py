@@ -137,6 +137,59 @@ def create_parser() -> argparse.ArgumentParser:
         help="Chemin de la base de données SQLite (défaut: res/fremo.db)",
     )
 
+    # Subcommand: tirage
+    tirage_parser = subparsers.add_parser(
+        "tirage",
+        help="Effectue le tirage au sort parmi les Lutins confirmés en mode Admin aveugle",
+    )
+    tirage_parser.add_argument(
+        "--db-path",
+        type=Path,
+        default=DEFAULT_DB_PATH,
+        help="Chemin de la base de données SQLite (défaut: res/fremo.db)",
+    )
+    tirage_parser.add_argument(
+        "--year",
+        type=int,
+        default=2026,
+        help="Année de l'édition (défaut: 2026)",
+    )
+    tirage_parser.add_argument(
+        "--organizer",
+        type=str,
+        default=None,
+        help="Identifiant du Lutin organisateur pour préserver son secret",
+    )
+    tirage_parser.add_argument(
+        "--cheater",
+        action="append",
+        default=[],
+        help="Imposer une paire cheater au format 'donneur:beneficiaire' (peut être répété)",
+    )
+    tirage_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Simule le tirage sans enregistrer en base",
+    )
+
+    # Subcommand: audit-tirage
+    audit_parser = subparsers.add_parser(
+        "audit-tirage",
+        help="Inspecte la validité du graphe et des contraintes du tirage pour audit agent",
+    )
+    audit_parser.add_argument(
+        "--db-path",
+        type=Path,
+        default=DEFAULT_DB_PATH,
+        help="Chemin de la base de données SQLite (défaut: res/fremo.db)",
+    )
+    audit_parser.add_argument(
+        "--year",
+        type=int,
+        default=2026,
+        help="Année de l'édition (défaut: 2026)",
+    )
+
     return parser
 
 
@@ -222,6 +275,48 @@ def handle_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_tirage(args: argparse.Namespace) -> int:
+    from .tirage import run_tirage
+
+    cheaters_list: list[dict[str, str]] = []
+    for item in args.cheater or []:
+        if ":" in item:
+            d, b = item.split(":", 1)
+            cheaters_list.append({"donneur": d.strip(), "beneficiaire": b.strip()})
+
+    result = run_tirage(
+        db_path=args.db_path,
+        year=args.year,
+        organizer_id=args.organizer,
+        cheaters=cheaters_list if cheaters_list else None,
+        dry_run=args.dry_run,
+    )
+    print(result.get_masked_summary(organizer_id=args.organizer, dry_run=args.dry_run))
+    return 0 if result.success else 1
+
+
+def handle_audit_tirage(args: argparse.Namespace) -> int:
+    from .audit import audit_tirage
+
+    audit_result = audit_tirage(db_path=args.db_path, year=args.year)
+    status_str = "VALIDE" if audit_result.is_valid else "INVALIDE"
+    print(f"=== Audit du tirage ({args.year}) : {status_str} ===")
+    print(f"Lutins confirmés : {audit_result.total_lutins}")
+    print(f"Attributions enregistrées : {audit_result.attributions_count}")
+
+    if audit_result.errors:
+        print("Erreurs détectées :")
+        for err in audit_result.errors:
+            print(f"  - {err}")
+
+    if audit_result.warnings:
+        print("Avertissements :")
+        for warn in audit_result.warnings:
+            print(f"  - {warn}")
+
+    return 0 if audit_result.is_valid else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = create_parser()
     if argv is None:
@@ -238,6 +333,10 @@ def main(argv: list[str] | None = None) -> int:
         return handle_annonce(args)
     if args.command == "serve":
         return handle_serve(args)
+    if args.command == "tirage":
+        return handle_tirage(args)
+    if args.command == "audit-tirage":
+        return handle_audit_tirage(args)
 
     return 0
 

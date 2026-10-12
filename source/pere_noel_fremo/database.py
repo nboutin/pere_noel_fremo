@@ -172,6 +172,40 @@ def import_yaml_data(
     }
 
 
+def _load_exclusions_and_history(
+    conn: sqlite3.Connection,
+    exclude_year: int | None = None,
+) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    """Charge les correspondances d'exclusions et d'historique d'attributions."""
+    exclusions_rows = conn.execute(
+        "SELECT lutin_id, excluded_lutin_id FROM exclusions ORDER BY excluded_lutin_id;"
+    ).fetchall()
+    exclusions_map: dict[str, list[str]] = {}
+    for row in exclusions_rows:
+        exclusions_map.setdefault(row["lutin_id"], []).append(row["excluded_lutin_id"])
+
+    if exclude_year is not None:
+        history_rows = conn.execute(
+            """
+            SELECT donneur_id, beneficiaire_id
+            FROM attributions
+            WHERE year != ? OR year IS NULL
+            ORDER BY order_index ASC, id ASC;
+            """,
+            (exclude_year,),
+        ).fetchall()
+    else:
+        history_rows = conn.execute(
+            "SELECT donneur_id, beneficiaire_id FROM attributions ORDER BY order_index ASC, id ASC;"
+        ).fetchall()
+
+    history_map: dict[str, list[str]] = {}
+    for row in history_rows:
+        history_map.setdefault(row["donneur_id"], []).append(row["beneficiaire_id"])
+
+    return exclusions_map, history_map
+
+
 def get_lutins(db_path: Path | str, active_only: bool = True) -> dict[str, dict[str, Any]]:
     """Récupère l'ensemble des lutins avec leurs exclusions et leur historique."""
     conn = get_db_connection(db_path)
@@ -182,19 +216,7 @@ def get_lutins(db_path: Path | str, active_only: bool = True) -> dict[str, dict[
         sql += " ORDER BY id;"
         lutins_rows = conn.execute(sql).fetchall()
 
-        exclusions_rows = conn.execute(
-            "SELECT lutin_id, excluded_lutin_id FROM exclusions ORDER BY excluded_lutin_id;"
-        ).fetchall()
-        exclusions_map: dict[str, list[str]] = {}
-        for row in exclusions_rows:
-            exclusions_map.setdefault(row["lutin_id"], []).append(row["excluded_lutin_id"])
-
-        history_rows = conn.execute(
-            "SELECT donneur_id, beneficiaire_id FROM attributions ORDER BY order_index ASC, id ASC;"
-        ).fetchall()
-        history_map: dict[str, list[str]] = {}
-        for row in history_rows:
-            history_map.setdefault(row["donneur_id"], []).append(row["beneficiaire_id"])
+        exclusions_map, history_map = _load_exclusions_and_history(conn)
 
         result: dict[str, dict[str, Any]] = {}
         for row in lutins_rows:
@@ -281,5 +303,108 @@ def get_edition_status(db_path: Path | str, year: int) -> str | None:
         if not row:
             return None
         return str(row["status"])
+    finally:
+        conn.close()
+
+
+def set_edition_status(db_path: Path | str, year: int, status: str) -> None:
+    """Met à jour le statut d'une édition ('draft', 'drawn', 'revealed')."""
+    conn = get_db_connection(db_path)
+    try:
+        with conn:
+            conn.execute(
+                """
+                INSERT INTO editions (year, status)
+                VALUES (?, ?)
+                ON CONFLICT(year) DO UPDATE SET status = excluded.status;
+                """,
+                (year, status),
+            )
+    finally:
+        conn.close()
+
+
+def get_confirmed_lutins(db_path: Path | str, year: int) -> dict[str, dict[str, Any]]:
+    """Récupère les Lutins actifs ayant confirmé leur présence pour une édition donnée."""
+    conn = get_db_connection(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT l.id, l.fullname, l.email
+            FROM lutins l
+            JOIN presences p ON l.id = p.lutin_id
+            WHERE l.is_active = 1
+              AND p.year = ?
+              AND p.present = 1
+            ORDER BY l.id;
+            """,
+            (year,),
+        ).fetchall()
+
+        exclusions_map, history_map = _load_exclusions_and_history(conn, exclude_year=year)
+
+        result: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            lutin_id = row["id"]
+            result[lutin_id] = {
+                "fullname": row["fullname"],
+                "email": row["email"],
+                "exclude": exclusions_map.get(lutin_id, []),
+                "history": history_map.get(lutin_id, []),
+            }
+        return result
+    finally:
+        conn.close()
+
+
+def save_attributions(db_path: Path | str, year: int, attributions_map: dict[str, str]) -> None:
+    """Enregistre de façon sécurisée et transactionnelle les attributions pour une édition."""
+    conn = get_db_connection(db_path)
+    try:
+        with conn:
+            # 1. Obtenir pour chaque donneur le prochain index d'ordre
+            for donneur_id, beneficiaire_id in attributions_map.items():
+                cur = conn.execute(
+                    "SELECT COALESCE(MAX(order_index), -1) + 1 FROM attributions WHERE donneur_id = ?;",
+                    (donneur_id,),
+                )
+                next_order_index = cur.fetchone()[0]
+
+                # Supprimer une attribution existante pour cette année et ce donneur si elle existe déjà
+                conn.execute(
+                    "DELETE FROM attributions WHERE donneur_id = ? AND year = ?;",
+                    (donneur_id, year),
+                )
+
+                conn.execute(
+                    """
+                    INSERT INTO attributions (donneur_id, beneficiaire_id, year, order_index)
+                    VALUES (?, ?, ?, ?);
+                    """,
+                    (donneur_id, beneficiaire_id, year, next_order_index),
+                )
+
+            # 2. Marquer le statut de l'édition comme 'drawn'
+            conn.execute(
+                """
+                INSERT INTO editions (year, status)
+                VALUES (?, 'drawn')
+                ON CONFLICT(year) DO UPDATE SET status = 'drawn';
+                """,
+                (year,),
+            )
+    finally:
+        conn.close()
+
+
+def get_attributions(db_path: Path | str, year: int) -> dict[str, str]:
+    """Récupère le dictionnaire des attributions {donneur_id: beneficiaire_id} pour une édition."""
+    conn = get_db_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT donneur_id, beneficiaire_id FROM attributions WHERE year = ? ORDER BY donneur_id;",
+            (year,),
+        ).fetchall()
+        return {row["donneur_id"]: row["beneficiaire_id"] for row in rows}
     finally:
         conn.close()
