@@ -45,12 +45,13 @@ CREATE TABLE IF NOT EXISTS presences (
 CREATE TABLE IF NOT EXISTS scores_defi (
     lutin_id TEXT NOT NULL REFERENCES lutins(id) ON DELETE CASCADE,
     year INTEGER NOT NULL REFERENCES editions(year) ON DELETE CASCADE,
+    manche_id INTEGER NOT NULL DEFAULT 1,
     pseudo_lugeur TEXT NOT NULL,
     started_at TIMESTAMP,
     solved BOOLEAN NOT NULL DEFAULT 0,
     time_seconds REAL,
     completed_at TIMESTAMP,
-    PRIMARY KEY (lutin_id, year)
+    PRIMARY KEY (lutin_id, year, manche_id)
 );
 
 CREATE TABLE IF NOT EXISTS attributions (
@@ -78,10 +79,61 @@ def init_db(db_path: Path | str) -> sqlite3.Connection:
     conn = get_db_connection(path)
     with conn:
         conn.executescript(SCHEMA_SQL)
-        # Migration automatique idempotente des colonnes ajoutées
-        cols = [c[1] for c in conn.execute("PRAGMA table_info(scores_defi);").fetchall()]
-        if "started_at" not in cols:
-            conn.execute("ALTER TABLE scores_defi ADD COLUMN started_at TIMESTAMP;")
+        table_info = conn.execute("PRAGMA table_info(scores_defi);").fetchall()
+        if table_info:
+            cols = [c[1] for c in table_info]
+            pk_cols = {c[1] for c in table_info if c[5] > 0}
+            if "started_at" not in cols:
+                conn.execute("ALTER TABLE scores_defi ADD COLUMN started_at TIMESTAMP;")
+            if "manche_id" not in pk_cols:
+                # Migration de l'ancienne table vers la clé composite (lutin_id, year, manche_id)
+                conn.execute("ALTER TABLE scores_defi RENAME TO _scores_defi_old;")
+                conn.execute("""
+                    CREATE TABLE scores_defi (
+                        lutin_id TEXT NOT NULL REFERENCES lutins(id) ON DELETE CASCADE,
+                        year INTEGER NOT NULL REFERENCES editions(year) ON DELETE CASCADE,
+                        manche_id INTEGER NOT NULL DEFAULT 1,
+                        pseudo_lugeur TEXT NOT NULL,
+                        started_at TIMESTAMP,
+                        solved BOOLEAN NOT NULL DEFAULT 0,
+                        time_seconds REAL,
+                        completed_at TIMESTAMP,
+                        PRIMARY KEY (lutin_id, year, manche_id)
+                    );
+                """)
+                old_cols = [c[1] for c in conn.execute("PRAGMA table_info(_scores_defi_old);").fetchall()]
+                if "manche_id" in old_cols and "started_at" in old_cols:
+                    conn.execute("""
+                        INSERT INTO scores_defi (
+                            lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at
+                        )
+                        SELECT
+                            lutin_id, year, COALESCE(manche_id, 1), pseudo_lugeur, started_at,
+                            solved, time_seconds, completed_at
+                        FROM _scores_defi_old;
+                    """)
+                elif "started_at" in old_cols:
+                    conn.execute("""
+                        INSERT INTO scores_defi (
+                            lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at
+                        )
+                        SELECT
+                            lutin_id, year, 1, pseudo_lugeur, started_at,
+                            solved, time_seconds, completed_at
+                        FROM _scores_defi_old;
+                    """)
+                else:
+                    conn.execute("""
+                        INSERT INTO scores_defi (
+                            lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at
+                        )
+                        SELECT
+                            lutin_id, year, 1, pseudo_lugeur, NULL,
+                            solved, time_seconds, completed_at
+                        FROM _scores_defi_old;
+                    """)
+                conn.execute("DROP TABLE _scores_defi_old;")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_scores_defi_year_manche ON scores_defi(year, manche_id);")
     return conn
 
 
@@ -443,14 +495,14 @@ def get_beneficiaire_for_lutin(
         conn.close()
 
 
-def _get_score_entry(conn: Any, lutin_id: str, year: int) -> dict[str, Any]:
+def _get_score_entry(conn: Any, lutin_id: str, year: int, manche_id: int = 1) -> dict[str, Any]:
     row = conn.execute(
         """
-        SELECT lutin_id, year, pseudo_lugeur, started_at, solved, time_seconds, completed_at
+        SELECT lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at
         FROM scores_defi
-        WHERE lutin_id = ? AND year = ?;
+        WHERE lutin_id = ? AND year = ? AND manche_id = ?;
         """,
-        (lutin_id, year),
+        (lutin_id, year, manche_id),
     ).fetchone()
     return dict(row) if row else {}
 
@@ -460,19 +512,20 @@ def get_or_create_score_defi(
     lutin_id: str,
     year: int,
     pseudo_lugeur: str,
+    manche_id: int = 1,
 ) -> dict[str, Any]:
-    """Récupère ou initialise la ligne score_defi pour un Lutin et une édition."""
+    """Récupère ou initialise la ligne score_defi pour un Lutin, une édition et une manche."""
     conn = get_db_connection(db_path)
     try:
         with conn:
             conn.execute(
                 """
-                INSERT OR IGNORE INTO scores_defi (lutin_id, year, pseudo_lugeur, solved)
-                VALUES (?, ?, ?, 0);
+                INSERT OR IGNORE INTO scores_defi (lutin_id, year, manche_id, pseudo_lugeur, solved)
+                VALUES (?, ?, ?, ?, 0);
                 """,
-                (lutin_id, year, pseudo_lugeur),
+                (lutin_id, year, manche_id, pseudo_lugeur),
             )
-            return _get_score_entry(conn, lutin_id, year)
+            return _get_score_entry(conn, lutin_id, year, manche_id=manche_id)
     finally:
         conn.close()
 
@@ -481,25 +534,30 @@ def start_score_defi(
     db_path: Path | str,
     lutin_id: str,
     year: int,
+    manche_id: int = 1,
 ) -> dict[str, Any]:
-    """Démarre le chronomètre du Défi de la luge si non déjà démarré ou résolu."""
+    """Démarre le chronomètre du Défi du lutin pour une manche donnée si non déjà démarré ou résolu."""
     conn = get_db_connection(db_path)
     try:
         with conn:
             row = conn.execute(
-                "SELECT started_at, solved, time_seconds FROM scores_defi WHERE lutin_id = ? AND year = ?;",
-                (lutin_id, year),
+                """
+                SELECT started_at, solved, time_seconds
+                FROM scores_defi
+                WHERE lutin_id = ? AND year = ? AND manche_id = ?;
+                """,
+                (lutin_id, year, manche_id),
             ).fetchone()
             if row and not row["solved"] and row["started_at"] is None:
                 conn.execute(
                     """
                     UPDATE scores_defi
                     SET started_at = CURRENT_TIMESTAMP
-                    WHERE lutin_id = ? AND year = ?;
+                    WHERE lutin_id = ? AND year = ? AND manche_id = ?;
                     """,
-                    (lutin_id, year),
+                    (lutin_id, year, manche_id),
                 )
-            return _get_score_entry(conn, lutin_id, year)
+            return _get_score_entry(conn, lutin_id, year, manche_id=manche_id)
     finally:
         conn.close()
 
@@ -509,14 +567,15 @@ def complete_score_defi(
     lutin_id: str,
     year: int,
     time_seconds: float,
+    manche_id: int = 1,
 ) -> dict[str, Any]:
-    """Scelle la complétion du Défi de la luge avec le temps officiel."""
+    """Scelle la complétion du Défi du lutin pour une manche avec le temps officiel."""
     conn = get_db_connection(db_path)
     try:
         with conn:
             row = conn.execute(
-                "SELECT solved FROM scores_defi WHERE lutin_id = ? AND year = ?;",
-                (lutin_id, year),
+                "SELECT solved FROM scores_defi WHERE lutin_id = ? AND year = ? AND manche_id = ?;",
+                (lutin_id, year, manche_id),
             ).fetchone()
             # Si déjà résolu, on ne modifie pas le temps (essai unique officiel)
             if row and not row["solved"]:
@@ -526,11 +585,11 @@ def complete_score_defi(
                     SET solved = 1,
                         time_seconds = ?,
                         completed_at = CURRENT_TIMESTAMP
-                    WHERE lutin_id = ? AND year = ?;
+                    WHERE lutin_id = ? AND year = ? AND manche_id = ?;
                     """,
-                    (time_seconds, lutin_id, year),
+                    (time_seconds, lutin_id, year, manche_id),
                 )
-            return _get_score_entry(conn, lutin_id, year)
+            return _get_score_entry(conn, lutin_id, year, manche_id=manche_id)
     finally:
         conn.close()
 
@@ -538,22 +597,37 @@ def complete_score_defi(
 def get_scores_classement(
     db_path: Path | str,
     year: int,
+    manche_id: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Récupère le Tableau des scores ordonné pour une édition."""
+    """Récupère le Tableau des scores ordonné pour une édition (filtré par manche si spécifié)."""
     conn = get_db_connection(db_path)
     try:
-        rows = conn.execute(
-            """
-            SELECT pseudo_lugeur, solved, time_seconds, completed_at
-            FROM scores_defi
-            WHERE year = ?
-            ORDER BY
-                CASE WHEN solved = 1 THEN 0 ELSE 1 END ASC,
-                time_seconds ASC,
-                completed_at ASC;
-            """,
-            (year,),
-        ).fetchall()
+        if manche_id is not None:
+            rows = conn.execute(
+                """
+                SELECT pseudo_lugeur, manche_id, solved, time_seconds, completed_at
+                FROM scores_defi
+                WHERE year = ? AND manche_id = ?
+                ORDER BY
+                    CASE WHEN solved = 1 THEN 0 ELSE 1 END ASC,
+                    time_seconds ASC,
+                    completed_at ASC;
+                """,
+                (year, manche_id),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT pseudo_lugeur, manche_id, solved, time_seconds, completed_at
+                FROM scores_defi
+                WHERE year = ?
+                ORDER BY
+                    CASE WHEN solved = 1 THEN 0 ELSE 1 END ASC,
+                    time_seconds ASC,
+                    completed_at ASC;
+                """,
+                (year,),
+            ).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()

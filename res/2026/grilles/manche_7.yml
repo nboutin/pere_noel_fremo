@@ -1,0 +1,32 @@
+id: 7
+title: 'Manche 7 : L''Atelier des Jouets'
+unlock_at: '2026-11-06 19:00:00'
+estimated_time: 2 à 5 minutes
+categories:
+  lutins:
+  - Barnabé
+  - Clémence
+  - Gaspard
+  luges:
+  - Étoile Rouge
+  - Comète Bleue
+  - Éclair Vert
+  friandises:
+  - Pain d'épices
+  - Canne de sucre
+  - Chocolat chaud
+indices:
+- Le pilote de la Comète Bleue adore le Chocolat chaud.
+- Barnabé ne conduit pas l'Étoile Rouge.
+- Celui qui apporte la Canne de sucre pilote l'Éclair Vert.
+- Clémence raffole du Pain d'épices.
+solution:
+  Barnabé:
+    luge: Comète Bleue
+    friandise: Chocolat chaud
+  Clémence:
+    luge: Étoile Rouge
+    friandise: Pain d'épices
+  Gaspard:
+    luge: Éclair Vert
+    friandise: Canne de sucre
