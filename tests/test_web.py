@@ -281,3 +281,82 @@ def test_scores_page_displays_championship_standings(client: TestClient, test_db
     assert "Tableau des scores" in resp.text
     assert "Renne Agile" in resp.text
     assert "32.4" in resp.text
+
+
+def test_espace_lutin_multi_manches_and_anti_cheat_ui(client: TestClient, test_db: Path) -> None:
+    from pere_noel_fremo.database import complete_score_defi, get_or_create_score_defi, set_lutin_presence
+
+    # Test avec l'édition 2025 (1 manche)
+    token = create_or_get_token(test_db, "fbonnet", 2025)
+    set_lutin_presence(test_db, "fbonnet", 2025, present=True)
+
+    page = client.get(f"/lutin/{token}")
+    assert page.status_code == 200
+
+    # 1. Calendrier des manches présent
+    assert "manche" in page.text.lower()
+    assert "manche-badge" in page.text
+    assert "Manche #1" in page.text
+
+    # 2. Rendu des indices via HTML5 Canvas (anti-OCR) et absence d'indices en clair dans le DOM
+    assert '<canvas id="clue-canvas"' in page.text
+    assert "anti-ocr" in page.text.lower()
+    # Garantie anti-triche : aucun texte d'indice en clair dans le code HTML de la page
+    assert "Barnabé ne conduit pas l'Étoile Rouge" not in page.text
+    assert "OBF_CLUES" in page.text
+
+    # 3. Fragmentation des indices par onglets (anti-screenshot global)
+    assert "clue-tab" in page.text
+    assert "tab-clue-0" in page.text
+
+    # 4. Protection CSS / JS : zone anti-triche et rideau d'urgence sur blur
+    assert 'class="anti-cheat-zone"' in page.text
+    assert 'oncontextmenu="return false;"' in page.text
+    assert 'id="emergency-curtain"' in page.text
+    assert "dismissEmergencyCurtain" in page.text
+
+    # 5. Profil championnat du lutin
+    assert "championnat" in page.text.lower()
+    assert "Points Grand Prix" in page.text
+    assert "Écart au leader" in page.text
+
+    # 6. Écran préparatoire de manche avec case à cocher explicite "Je suis prêt(e)"
+    assert 'id="check-ready"' in page.text
+    assert "Je suis prêt(e)" in page.text
+    assert 'id="btn-start-defi"' in page.text
+
+    # 7. Résolution et affichage du statut scellé
+    get_or_create_score_defi(test_db, "fbonnet", 2025, "Renne Agile", manche_id=1)
+    complete_score_defi(test_db, "fbonnet", 2025, time_seconds=42.5, manche_id=1)
+    page_m1_solved = client.get(f"/lutin/{token}?manche=1")
+    assert page_m1_solved.status_code == 200
+    assert "42.5" in page_m1_solved.text
+    assert "brillamment résolue" in page_m1_solved.text
+
+    # 8. Test avec l'édition 2026 (15 manches de championnat)
+    conn = init_db(test_db)
+    with conn:
+        conn.execute("INSERT OR IGNORE INTO editions (year, status) VALUES (2026, 'draft');")
+    conn.close()
+
+    token_2026 = create_or_get_token(test_db, "fbonnet", 2026)
+    set_lutin_presence(test_db, "fbonnet", 2026, present=True)
+
+    page_2026 = client.get(f"/lutin/{token_2026}")
+    assert page_2026.status_code == 200
+    assert "Calendrier des Manches (15)" in page_2026.text
+    assert "Manche #1" in page_2026.text
+    assert "Manche #2" in page_2026.text
+    assert "Manche #15" in page_2026.text
+
+    # Navigation vers Manche #2
+    page_2026_m2 = client.get(f"/lutin/{token_2026}?manche=2")
+    assert page_2026_m2.status_code == 200
+    assert "Manche #2" in page_2026_m2.text
+
+    # 9. Feuilles de style responsives mobile et desktop
+    css_resp = client.get("/static/style.css")
+    assert css_resp.status_code == 200
+    assert "@media (max-width: 640px)" in css_resp.text
+    assert ".clue-canvas" in css_resp.text
+    assert ".manches-grid" in css_resp.text

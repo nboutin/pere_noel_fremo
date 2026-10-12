@@ -329,3 +329,118 @@ button {
 .my-score-row {
   background-color: rgba(245, 158, 11, 0.15);
 }
+
+/* Anti-triche & Multi-manches */
+.anti-cheat-zone {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.clue-tabs-container {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.clue-tab {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-card-border);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clue-tab:hover {
+  opacity: 0.9;
+}
+
+.clue-tab.active {
+  background: var(--color-gold);
+  color: #000;
+}
+
+.clue-canvas {
+  width: 100%;
+  max-width: 650px;
+  height: auto;
+  aspect-ratio: 650 / 140;
+  border-radius: 8px;
+  border: 1px solid var(--color-gold);
+  background: #1e293b;
+  display: block;
+  margin: 0 auto;
+}
+
+.manches-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.manche-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem 0.5rem;
+  border-radius: 8px;
+  text-decoration: none;
+  border: 2px solid var(--color-card-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.manche-badge:hover {
+  transform: translateY(-2px);
+}
+
+.manche-badge.active-manche {
+  border-color: var(--color-gold);
+  background: rgba(245, 158, 11, 0.15);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+}
+
+#emergency-curtain {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  text-align: center;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  color: #fff;
+}
+
+/* Ergonomie responsive (écrans mobiles < 640px) */
+@media (max-width: 640px) {
+  .manches-grid {
+    grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
+    gap: 0.5rem;
+  }
+
+  .manche-badge {
+    padding: 0.5rem 0.3rem;
+    font-size: 0.8rem;
+  }
+
+  .clue-tab {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.8rem;
+  }
+
+  .clue-canvas {
+    aspect-ratio: 650 / 170;
+  }
+}

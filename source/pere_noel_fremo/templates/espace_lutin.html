@@ -7,12 +7,51 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+    <!-- Rideau de masquage d'urgence sur perte de focus (Anti-triche IA) -->
+    <div id="emergency-curtain">
+        <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔒</div>
+        <h2 style="color: var(--color-gold); margin-bottom: 0.5rem;">Épreuve suspendue : Perte de focus</h2>
+        <p style="max-width: 500px; padding: 0 1rem; color: #cbd5e1; line-height: 1.6;">
+            Pour garantir l'intégrité de l'épreuve et empêcher la triche (captures et assistances tierces),
+            l'affichage est masqué dès que la fenêtre perd le focus.
+        </p>
+        <button type="button" class="btn-present" style="margin-top: 1.5rem;" onclick="dismissEmergencyCurtain()">
+            Reprendre l'épreuve ❄️
+        </button>
+    </div>
+
     <div class="container">
         <header>
             <span class="badge-edition">Édition {{ edition }}</span>
             <h1>🎅 Père Noël de la Frémo 🎄</h1>
             <p>Bienvenue dans ton Espace Lutin, <strong>{{ lutin.fullname }}</strong> !</p>
         </header>
+
+        <!-- Statut Championnat du Lutin -->
+        <section class="card" id="card-championnat-lutin">
+            <h2>🏆 Mon statut dans le Championnat</h2>
+            <p>Suivi personnel de ton parcours dans le championnat du Défi du lutin :</p>
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap; justify-content: space-around; margin-top: 1rem; text-align: center;">
+                <div style="background: rgba(255, 255, 255, 0.05); padding: 1rem 1.5rem; border-radius: 8px; flex: 1; min-width: 140px; border: 1px solid var(--color-card-border);">
+                    <div style="font-size: 0.85rem; color: #94a3b8; text-transform: uppercase;">Rang actuel</div>
+                    <div style="font-size: 2rem; font-weight: bold; color: var(--color-gold); margin-top: 0.3rem;">
+                        {% if my_standing %}#{{ my_standing.rank }}{% else %}--{% endif %}
+                    </div>
+                </div>
+                <div style="background: rgba(255, 255, 255, 0.05); padding: 1rem 1.5rem; border-radius: 8px; flex: 1; min-width: 140px; border: 1px solid var(--color-card-border);">
+                    <div style="font-size: 0.85rem; color: #94a3b8; text-transform: uppercase;">Points Grand Prix</div>
+                    <div style="font-size: 2rem; font-weight: bold; color: #4ade80; margin-top: 0.3rem;">
+                        {% if my_standing %}{{ my_standing.total_points }} pts{% else %}0 pts{% endif %}
+                    </div>
+                </div>
+                <div style="background: rgba(255, 255, 255, 0.05); padding: 1rem 1.5rem; border-radius: 8px; flex: 1; min-width: 140px; border: 1px solid var(--color-card-border);">
+                    <div style="font-size: 0.85rem; color: #94a3b8; text-transform: uppercase;">Écart au leader</div>
+                    <div style="font-size: 2rem; font-weight: bold; color: #fbbf24; margin-top: 0.3rem;">
+                        {% if my_standing and my_standing.rank == 1 %}👑 Leader{% elif gap_to_leader is not none and gap_to_leader > 0 %}-{{ gap_to_leader }} pts{% else %}--{% endif %}
+                    </div>
+                </div>
+            </div>
+        </section>
 
         <!-- 1. Confirmation de présence -->
         <section class="card" id="card-presence" data-presence="{% if presence is not none %}{{ 'true' if presence else 'false' }}{% else %}unknown{% endif %}">
@@ -69,64 +108,111 @@
             {% endif %}
         </section>
 
-        <!-- 3. Défi du lutin (Grille logique festive) -->
+        <!-- 3. Calendrier et Navigation des Manches -->
+        <section class="card" id="card-manches">
+            <h2>📅 Calendrier des Manches ({{ manches|length }})</h2>
+            <p style="font-size: 0.95rem; color: #cbd5e1;">Choisis une manche pour participer ou revoir tes performances :</p>
+            <div class="manches-grid">
+                {% for m in manches %}
+                    <a href="/lutin/{{ lutin.token }}?manche={{ m.id }}"
+                       class="manche-badge {% if m.id == active_manche_id %}active-manche{% endif %}">
+                        <span style="font-size: 0.85rem; font-weight: bold; color: var(--color-gold);">Manche #{{ m.id }}</span>
+                        <span style="font-size: 0.75rem; margin-top: 0.25rem;">
+                            {% if m.status_tag == 'resolue' %}
+                                <span style="color: #4ade80;">✅ Résolue</span>
+                            {% elif m.status_tag == 'disponible' %}
+                                <span style="color: #38bdf8;">🚀 Disponible</span>
+                            {% else %}
+                                <span style="color: #94a3b8;">🔒 Verrouillée</span>
+                            {% endif %}
+                        </span>
+                        {% if m.user_score and m.user_score.solved %}
+                            <span style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">{{ "%.1f"|format(m.user_score.time_seconds) }}s</span>
+                        {% endif %}
+                    </a>
+                {% endfor %}
+            </div>
+        </section>
+
+        <!-- 4. Défi du lutin (Grille logique festive & anti-triche) -->
         <section class="card" id="card-defi">
-            <h2>🧩 {{ grille.title or "Défi du lutin malin" }}</h2>
-            <p>{{ grille.description or "Résous la grille logique pour inscrire ton pseudo et tenter d'ouvrir ton cadeau en premier !" }}</p>
+            <h2>🧩 {{ active_manche.title or ("Manche #" ~ active_manche_id) }}</h2>
+            <p>{{ active_manche.description or "Résous la grille logique pour inscrire ton pseudo et tenter d'ouvrir ton cadeau en premier !" }}</p>
             <p>Ton Pseudo de lutin officiel : <strong style="color: var(--color-gold);">{{ pseudo_lugeur }}</strong></p>
 
             {% if not presence %}
                 <div class="presence-status status-unknown">
                     ⚠️ Confirme d'abord ta présence ci-dessus pour accéder au Défi du lutin !
                 </div>
+            {% elif not active_manche.is_unlocked %}
+                <div class="presence-status status-unknown" style="border-color: #64748b; color: #94a3b8;">
+                    🔒 Cette manche est encore verrouillée. Rendez-vous le {{ active_manche.unlock_at }} !
+                </div>
             {% else %}
                 {% if score_info.solved %}
                     <div class="presence-status status-present">
-                        🎉 Défi brillamment résolu en <strong>{{ "%.1f"|format(score_info.time_seconds) }} s</strong> ! Ton chrono est scellé.
+                        🎉 Manche #{{ active_manche_id }} brillamment résolue en <strong>{{ "%.1f"|format(score_info.time_seconds) }} s</strong> ! Ton chrono est scellé.
                     </div>
                 {% else %}
-                    <!-- Encart d'avertissement et préparation avant lancement -->
+                    <!-- Écran préparatoire avant lancement -->
                     <div id="defi-start-box" style="{% if score_info.started_at %}display:none;{% endif %} margin: 1.5rem 0; padding: 1.2rem; background: rgba(212, 175, 55, 0.08); border: 1px solid var(--color-gold); border-radius: 8px;">
-                        <h3 style="margin-top: 0; color: var(--color-gold);">⏱️ Prêt(e) pour le chronomètre ?</h3>
+                        <h3 style="margin-top: 0; color: var(--color-gold);">⏱️ Prêt(e) pour le chronomètre de la Manche #{{ active_manche_id }} ?</h3>
                         <p style="margin-bottom: 0.8rem;">
                             <strong>Règles de l'épreuve :</strong>
                         </p>
                         <ul style="margin: 0 0 1rem 1.2rem; line-height: 1.5;">
                             <li>Le jeu est <strong>chronométré au dixième de seconde</strong> dès que tu cliques sur le bouton de départ.</li>
                             <li>⚠️ <strong>Une seule et unique tentative officielle !</strong> Une fois la grille validée, ton temps sera définitivement scellé.</li>
-                            <li>⏱️ <strong>Temps estimé :</strong> {{ grille.estimated_time or "2 à 5 minutes" }}.</li>
-                            <li>La grille et les indices apparaîtront dès le départ du chronomètre.</li>
+                            <li>⏱️ <strong>Temps estimé :</strong> {{ active_manche.estimated_time or "2 à 5 minutes" }}.</li>
+                            <li>🛡️ <strong>Mesures anti-triche :</strong> les indices sont fragmentés par onglets et affichés sur toile graphique. Quitter la fenêtre déclenchera le rideau d'urgence.</li>
                         </ul>
 
                         <div style="margin: 1.2rem 0; padding: 0.8rem; background: rgba(0, 0, 0, 0.2); border-radius: 6px;">
                             <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; font-weight: 500;">
                                 <input type="checkbox" id="check-ready" style="width: 1.2rem; height: 1.2rem; accent-color: var(--color-gold);" onchange="toggleStartButton()">
-                                <span>J'ai lu les consignes, je suis bien installé(e) et prêt(e) à relever le défi !</span>
+                                <span>Je suis prêt(e) : j'ai lu les consignes et je souhaite relever le défi officiel !</span>
                             </label>
                         </div>
 
                         <div style="text-align: center; margin-top: 1rem;">
                             <button type="button" id="btn-start-defi" class="btn-present" style="opacity: 0.5; cursor: not-allowed;" disabled onclick="startDefi()">
-                                🚀 Lancer mon chrono et afficher la grille !
+                                🚀 Lancer mon chrono et afficher la Manche #{{ active_manche_id }} !
                             </button>
                         </div>
                     </div>
 
-                    <!-- Zone de jeu (indices et grille masqués avant le démarrage) -->
-                    <div id="defi-game-box" style="{% if not score_info.started_at %}display:none;{% endif %}">
+                    <!-- Zone de jeu anti-triche (masquée avant le démarrage) -->
+                    <div id="defi-game-box" class="anti-cheat-zone" oncontextmenu="return false;" style="{% if not score_info.started_at %}display:none;{% endif %}">
                         <div style="text-align: right; font-family: monospace; color: var(--color-gold); font-size: 1.1rem; margin-bottom: 0.5rem;">
                             ⏱️ Temps écoulé : <span id="timer-display">0.0</span>s
                         </div>
 
-                        <h3>Indices de l'énigme :</h3>
-                        <p style="font-size: 0.9rem; color: #cbd5e1; margin-bottom: 0.6rem;">💡 Clique sur un indice pour le barrer une fois déduit.</p>
-                        <ul class="indices-list">
-                            {% for indice in grille.indices %}
-                                <li class="indice-item" onclick="this.classList.toggle('checked')">
-                                    {{ indice }}
-                                </li>
+                        <h3>Indices de l'énigme (Visualisation fragmentée) :</h3>
+                        <p style="font-size: 0.85rem; color: #cbd5e1; margin-bottom: 0.6rem;">💡 Sélectionne un onglet pour afficher l'indice sur la toile anti-OCR. Tu peux marquer les indices déjà déduits.</p>
+
+                        <!-- Onglets de fragmentation des indices (sans texte brut dans le DOM) -->
+                        <div class="clue-tabs-container">
+                            {% for i in range(indices_count) %}
+                                <button type="button"
+                                        id="tab-clue-{{ i }}"
+                                        class="clue-tab {% if i == 0 %}active{% endif %}"
+                                        onclick="selectClueTab({{ i }})">
+                                    Indice {{ i + 1 }}
+                                </button>
                             {% endfor %}
-                        </ul>
+                        </div>
+
+                        <!-- Canvas graphique anti-OCR avec filigrane bruité -->
+                        <div style="position: relative; margin-bottom: 0.8rem; text-align: center;">
+                            <canvas id="clue-canvas" class="clue-canvas" width="650" height="140"></canvas>
+                            <div style="margin-top: 0.4rem; display: flex; justify-content: space-between; align-items: center; max-width: 650px; margin-left: auto; margin-right: auto;">
+                                <label style="font-size: 0.85rem; color: #cbd5e1; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                                    <input type="checkbox" id="check-clue-deduced" onchange="toggleCurrentClueDeduce()" style="accent-color: var(--color-gold);">
+                                    <span>Barrer / Marquer cet indice comme déduit</span>
+                                </label>
+                                <span style="font-size: 0.75rem; color: #94a3b8;">🛡️ Rendu sécurisé anti-OCR</span>
+                            </div>
+                        </div>
 
                         <h3>Associe chaque Lutin à sa luge et sa friandise :</h3>
                         <div class="grid-container">
@@ -139,13 +225,13 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for lutin_name in grille.categories.lutins %}
+                                    {% for lutin_name in active_manche.categories.lutins %}
                                         <tr>
                                             <td><strong>{{ lutin_name }}</strong></td>
                                             <td>
                                                 <select id="select-luge-{{ lutin_name }}" class="logic-select">
                                                     <option value="">-- Choisir la luge --</option>
-                                                    {% for luge in grille.categories.luges %}
+                                                    {% for luge in active_manche.categories.luges %}
                                                         <option value="{{ luge }}">{{ luge }}</option>
                                                     {% endfor %}
                                                 </select>
@@ -153,7 +239,7 @@
                                             <td>
                                                 <select id="select-friandise-{{ lutin_name }}" class="logic-select">
                                                     <option value="">-- Choisir la friandise --</option>
-                                                    {% for friandise in grille.categories.friandises %}
+                                                    {% for friandise in active_manche.categories.friandises %}
                                                         <option value="{{ friandise }}">{{ friandise }}</option>
                                                     {% endfor %}
                                                 </select>
@@ -166,7 +252,7 @@
 
                         <div style="text-align: center; margin-top: 1rem;">
                             <button type="button" class="btn-present" onclick="submitDefi()">
-                                🏁 Valider ma grille !
+                                🏁 Valider ma grille de la Manche #{{ active_manche_id }} !
                             </button>
                         </div>
                     </div>
@@ -174,9 +260,9 @@
             {% endif %}
         </section>
 
-        <!-- 4. Tableau des scores -->
+        <!-- 5. Tableau des scores du Championnat -->
         <section class="card">
-            <h2>🏆 Tableau des scores</h2>
+            <h2>🏆 Classement Général du Championnat</h2>
             <p>Classement en direct de l'édition {{ edition }} :</p>
             {% if classement %}
                 <table class="scores-table">
@@ -184,35 +270,42 @@
                         <tr>
                             <th>Rang</th>
                             <th>Pseudo de lutin</th>
-                            <th>Statut</th>
-                            <th>Temps</th>
+                            <th>Points</th>
+                            <th>Manches</th>
+                            <th>Temps total</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for entry in classement %}
-                            <tr class="{% if entry.pseudo_lugeur == pseudo_lugeur %}my-score-row{% endif %}">
+                            {% set current_rank = entry.rank if (entry.rank is defined and entry.rank is not none) else loop.index %}
+                            <tr class="{% if entry.pseudo_lugeur == pseudo_lugeur or entry.pseudo_lutin == pseudo_lugeur %}my-score-row{% endif %}">
                                 <td class="rank-col">
-                                    {% if loop.index == 1 %}🥇
-                                    {% elif loop.index == 2 %}🥈
-                                    {% elif loop.index == 3 %}🥉
-                                    {% else %}#{{ loop.index }}
+                                    {% if current_rank == 1 %}🥇
+                                    {% elif current_rank == 2 %}🥈
+                                    {% elif current_rank == 3 %}🥉
+                                    {% else %}#{{ current_rank }}
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {{ entry.pseudo_lugeur }}
-                                    {% if entry.pseudo_lugeur == pseudo_lugeur %}
+                                    {{ entry.pseudo_lutin or entry.pseudo_lugeur }}
+                                    {% if entry.pseudo_lugeur == pseudo_lugeur or entry.pseudo_lutin == pseudo_lugeur %}
                                         <span class="badge-you">(Toi)</span>
                                     {% endif %}
                                 </td>
+                                <td style="font-weight: bold; color: var(--color-gold);">
+                                    {% if entry.total_points is defined %}{{ entry.total_points }} pts{% else %}0 pts{% endif %}
+                                </td>
                                 <td>
-                                    {% if entry.solved %}
-                                        <span class="badge-solved">Résolu ✅</span>
-                                    {% else %}
-                                        <span class="badge-pending">En cours ⏳</span>
+                                    {% if entry.manches_resolved_count is defined %}{{ entry.manches_resolved_count }} / {{ manches|length }}
+                                    {% elif entry.manches_solved is defined %}{{ entry.manches_solved }} / {{ manches|length }}
+                                    {% elif entry.solved %}1 / {{ manches|length }}
+                                    {% else %}0 / {{ manches|length }}
                                     {% endif %}
                                 </td>
                                 <td class="time-col">
-                                    {% if entry.time_seconds is not none %}
+                                    {% if entry.total_time_seconds is defined and entry.total_time_seconds is not none %}
+                                        {{ "%.1f"|format(entry.total_time_seconds) }} s
+                                    {% elif entry.time_seconds is defined and entry.time_seconds is not none %}
                                         {{ "%.1f"|format(entry.time_seconds) }} s
                                     {% else %}
                                         --
@@ -237,10 +330,25 @@
 
     <script>
         const TOKEN = "{{ lutin.token }}";
+        const ACTIVE_MANCHE_ID = {{ active_manche_id }};
         const IS_LOCKED = {{ 'true' if is_locked else 'false' }};
-        const LUTIN_NAMES = {{ grille.categories.lutins | tojson }};
+        const LUTIN_NAMES = {{ active_manche.categories.lutins | tojson }};
+
+        // Décodage client des indices obfuscés en base64 pour neutraliser le scraping HTML brut
+        const OBF_CLUES = {{ obf_clues | tojson }};
+        const CLUES = OBF_CLUES.map(b64 => {
+            try {
+                return decodeURIComponent(escape(atob(b64)));
+            } catch (e) {
+                return atob(b64);
+            }
+        });
+
         let isStarted = {{ 'true' if score_info.started_at else 'false' }};
         let isSolved = {{ 'true' if score_info.solved else 'false' }};
+        let isChallengeActive = isStarted && !isSolved;
+        let currentClueIndex = 0;
+        const deducedClues = new Set();
         let timerInterval = null;
         let startTime = Date.now();
 
@@ -253,6 +361,28 @@
             }, 3000);
         }
 
+        // --- Rideau de masquage d'urgence (Anti-triche focus loss) ---
+        window.addEventListener('blur', () => {
+            if (isChallengeActive) {
+                const curtain = document.getElementById("emergency-curtain");
+                if (curtain) {
+                    curtain.style.display = "flex";
+                }
+            }
+        });
+
+        window.addEventListener('focus', () => {
+            // Reprise possible au clic explicite
+        });
+
+        function dismissEmergencyCurtain() {
+            const curtain = document.getElementById("emergency-curtain");
+            if (curtain) {
+                curtain.style.display = "none";
+            }
+        }
+
+        // --- Confirmation de présence ---
         async function setPresence(val) {
             if (IS_LOCKED) {
                 showToast("Le tirage a été effectué, présence verrouillée.");
@@ -296,7 +426,7 @@
             }
         }
 
-        // --- Défi du lutin ---
+        // --- Défi du lutin : Démarrage & Minuteur ---
         function toggleStartButton() {
             const check = document.getElementById("check-ready");
             const btn = document.getElementById("btn-start-defi");
@@ -309,7 +439,7 @@
 
         async function startDefi() {
             try {
-                const res = await fetch(`/api/lutin/${TOKEN}/defi/start`, { method: 'POST' });
+                const res = await fetch(`/api/lutin/${TOKEN}/defi/${ACTIVE_MANCHE_ID}/start`, { method: 'POST' });
                 if (!res.ok) {
                     const err = await res.json();
                     showToast(err.detail || "Impossible de démarrer le défi.");
@@ -317,9 +447,11 @@
                 }
                 document.getElementById("defi-start-box").style.display = "none";
                 document.getElementById("defi-game-box").style.display = "block";
+                isChallengeActive = true;
                 startTime = Date.now();
                 startLocalTimer();
-                showToast("Chronomètre lancé ! ⏱️");
+                selectClueTab(0);
+                showToast(`Chronomètre Manche #${ACTIVE_MANCHE_ID} lancé ! ⏱️`);
             } catch (e) {
                 showToast("Erreur de connexion.");
             }
@@ -334,6 +466,130 @@
             }, 100);
         }
 
+        // --- Rendu HTML5 Canvas des indices (Anti-OCR) & Fragmentation ---
+        function renderClueCanvas(index) {
+            const canvas = document.getElementById("clue-canvas");
+            if (!canvas) return;
+            const ctx = canvas.getContext("2d");
+            const w = canvas.width;
+            const h = canvas.height;
+
+            // Fond sombre
+            ctx.fillStyle = "#1e293b";
+            ctx.fillRect(0, 0, w, h);
+
+            // Bruit de fond anti-OCR : flocons et particules semi-transparentes
+            for (let i = 0; i < 35; i++) {
+                ctx.fillStyle = (i % 2 === 0) ? "rgba(255, 255, 255, 0.07)" : "rgba(212, 175, 55, 0.08)";
+                ctx.beginPath();
+                const rx = ((index * 37 + i * 23) % w);
+                const ry = ((index * 19 + i * 41) % h);
+                const r = (i % 4) + 1.5;
+                ctx.arc(rx, ry, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Filigrane diagonal discret
+            ctx.save();
+            ctx.font = "bold 18px sans-serif";
+            ctx.fillStyle = "rgba(212, 175, 55, 0.06)";
+            ctx.rotate(-0.06);
+            ctx.fillText(`❄️ PÈRE NOËL FRÉMO • MANCHE ${ACTIVE_MANCHE_ID} • INDICE ${index + 1} ❄️`, 30, 75);
+            ctx.restore();
+
+            const text = CLUES[index] || "Aucun indice";
+            const isDeduced = deducedClues.has(index);
+
+            // Style du texte
+            ctx.font = "600 16px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+            ctx.fillStyle = isDeduced ? "#64748b" : "#f8fafc";
+            ctx.textAlign = "left";
+            ctx.textBaseline = "middle";
+
+            // Découpage du texte multi-lignes
+            const words = text.split(" ");
+            const lines = [];
+            let currentLine = "";
+            const maxWidth = w - 60;
+
+            for (let i = 0; i < words.length; i++) {
+                const testLine = currentLine ? (currentLine + " " + words[i]) : words[i];
+                const metrics = ctx.measureText(testLine);
+                if (metrics.width > maxWidth && currentLine) {
+                    lines.push(currentLine);
+                    currentLine = words[i];
+                } else {
+                    currentLine = testLine;
+                }
+            }
+            if (currentLine) lines.push(currentLine);
+
+            const lineHeight = 26;
+            const startY = (h - (lines.length - 1) * lineHeight) / 2;
+
+            lines.forEach((line, i) => {
+                const y = startY + (i * lineHeight);
+                ctx.fillText(line, 30, y);
+
+                // Si barré/déduit
+                if (isDeduced) {
+                    const lineWidth = ctx.measureText(line).width;
+                    ctx.strokeStyle = "rgba(239, 68, 68, 0.7)";
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(28, y);
+                    ctx.lineTo(32 + lineWidth, y);
+                    ctx.stroke();
+                }
+            });
+
+            // Surimpression subtile de perturbations légères sur le texte
+            for (let i = 0; i < 15; i++) {
+                ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+                ctx.beginPath();
+                const sx = ((index * 53 + i * 47) % w);
+                const sy = ((index * 31 + i * 29) % h);
+                ctx.arc(sx, sy, 1.2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function selectClueTab(index) {
+            currentClueIndex = index;
+            CLUES.forEach((_, i) => {
+                const tab = document.getElementById(`tab-clue-${i}`);
+                if (tab) {
+                    if (i === index) {
+                        tab.classList.add("active");
+                    } else {
+                        tab.classList.remove("active");
+                    }
+                }
+            });
+
+            const check = document.getElementById("check-clue-deduced");
+            if (check) {
+                check.checked = deducedClues.has(index);
+            }
+
+            renderClueCanvas(index);
+        }
+
+        function toggleCurrentClueDeduce() {
+            const check = document.getElementById("check-clue-deduced");
+            if (check && check.checked) {
+                deducedClues.add(currentClueIndex);
+                const tab = document.getElementById(`tab-clue-${currentClueIndex}`);
+                if (tab) tab.innerHTML = `Indice ${currentClueIndex + 1} <s>✓</s>`;
+            } else {
+                deducedClues.delete(currentClueIndex);
+                const tab = document.getElementById(`tab-clue-${currentClueIndex}`);
+                if (tab) tab.innerHTML = `Indice ${currentClueIndex + 1}`;
+            }
+            selectClueTab(currentClueIndex);
+        }
+
+        // --- Soumission du Défi ---
         async function submitDefi() {
             const solution = {};
             for (const name of LUTIN_NAMES) {
@@ -347,15 +603,16 @@
             }
 
             try {
-                const res = await fetch(`/api/lutin/${TOKEN}/defi/solve`, {
+                const res = await fetch(`/api/lutin/${TOKEN}/defi/${ACTIVE_MANCHE_ID}/solve`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ solution: solution })
                 });
                 const data = await res.json();
                 if (res.ok && data.solved) {
+                    isChallengeActive = false;
                     if (timerInterval) clearInterval(timerInterval);
-                    showToast(`Bravo ! Défi réussi en ${data.time_seconds}s 🏆`);
+                    showToast(`Bravo ! Manche #${ACTIVE_MANCHE_ID} réussie en ${data.time_seconds}s 🏆`);
                     setTimeout(() => location.reload(), 1500);
                 } else {
                     showToast(data.detail || "La solution comporte des erreurs !");
@@ -374,18 +631,15 @@
             const w = canvas.width;
             const h = canvas.height;
 
-            // Vérifier si déjà gratté dans localStorage
             const storageKey = `scratched_${TOKEN}`;
             if (localStorage.getItem(storageKey) === "true") {
                 canvas.style.display = "none";
                 return;
             }
 
-            // Dessiner le calque à gratter
             ctx.fillStyle = "#cbd5e1";
             ctx.fillRect(0, 0, w, h);
 
-            // Motif festif
             ctx.fillStyle = "#94a3b8";
             ctx.font = "bold 16px sans-serif";
             ctx.textAlign = "center";
@@ -403,7 +657,6 @@
                 ctx.fill();
                 scratchedPixels += 1;
 
-                // Après un certain montant de grattage, on révèle complètement
                 if (scratchedPixels > 45) {
                     canvas.style.transition = "opacity 0.6s ease";
                     canvas.style.opacity = "0";
@@ -449,6 +702,7 @@
             initScratchCard();
             if (isStarted && !isSolved) {
                 startLocalTimer();
+                renderClueCanvas(0);
             }
         });
     </script>

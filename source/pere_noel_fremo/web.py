@@ -1,3 +1,4 @@
+import base64
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -75,7 +76,7 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
         )
 
     @app.get("/lutin/{token}", response_class=HTMLResponse)
-    async def get_espace_lutin(request: Request, token: str) -> Any:
+    async def get_espace_lutin(request: Request, token: str, manche: int | None = None) -> Any:
         lutin_info = get_lutin_by_token(db_path, token)
         if not lutin_info:
             return templates.TemplateResponse(
@@ -90,18 +91,64 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
         status = get_edition_status(db_path, year) or "draft"
         is_locked = status in ("drawn", "revealed")
 
-        # Pseudo et score du Défi de la luge
         pseudo = generate_pseudo_lugeur(lutin_id, year)
-        score_info = get_or_create_score_defi(db_path, lutin_id, year, pseudo)
-        grille = get_or_load_grille(year)
+
+        # 1. Calendrier des manches et statuts pour ce lutin
+        all_manches = get_all_manches(year=year, only_unlocked=False)
+        for m in all_manches:
+            m_id = int(m["id"])
+            m_score = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=m_id)
+            m["user_score"] = m_score
+            m["is_solved"] = bool(m_score.get("solved"))
+            if m["is_solved"]:
+                m["status_tag"] = "resolue"
+            elif m.get("is_unlocked"):
+                m["status_tag"] = "disponible"
+            else:
+                m["status_tag"] = "verrouillee"
+
+        # 2. Détermination de la manche active
+        active_manche_id = 1
+        if manche is not None and any(m["id"] == manche for m in all_manches):
+            active_manche_id = manche
+        else:
+            # Sélectionner en priorité la première manche disponible non résolue
+            dispo = next((m["id"] for m in all_manches if m["status_tag"] == "disponible"), None)
+            if dispo is not None:
+                active_manche_id = dispo
+            elif all_manches:
+                active_manche_id = all_manches[0]["id"]
+
+        active_manche = get_manche(year=year, manche_id=active_manche_id)
+        if active_manche is None:
+            active_manche = get_or_load_grille(year)
+
+        active_score = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=active_manche_id)
+
+        # 3. Profil championnat et classement
+        standings = calculate_championship_standings(db_path, year)
+        my_standing = next(
+            (
+                entry
+                for entry in standings
+                if entry.get("pseudo_lutin") == pseudo or entry.get("pseudo_lugeur") == pseudo
+            ),
+            None,
+        )
+        leader_points = standings[0]["total_points"] if standings else 0
+        my_points = my_standing["total_points"] if my_standing else 0
+        gap_to_leader = max(0, leader_points - my_points) if my_standing else None
+
+        # Obfuscation anti-scraping des indices pour garantir l'absence de texte brut dans le DOM HTML
+        raw_indices = list(active_manche.get("indices") or [])
+        obf_clues = [base64.b64encode(idx.encode("utf-8")).decode("ascii") for idx in raw_indices]
 
         # Bénéficiaire pour la Carte à gratter (si tirage scellé)
         beneficiaire = None
         if status in ("drawn", "revealed"):
             beneficiaire = get_beneficiaire_for_lutin(db_path, lutin_id, year)
 
-        # Tableau des scores pour l'édition
-        classement = get_scores_classement(db_path, year)
+        classement = standings if standings else get_scores_classement(db_path, year)
 
         return templates.TemplateResponse(
             request=request,
@@ -112,9 +159,18 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
                 "presence": presence,
                 "is_locked": is_locked,
                 "status": status,
-                "score_info": score_info,
+                "score_info": active_score,
                 "pseudo_lugeur": pseudo,
-                "grille": grille,
+                "pseudo_lutin": pseudo,
+                "grille": active_manche,
+                "active_manche": active_manche,
+                "active_manche_id": active_manche_id,
+                "obf_clues": obf_clues,
+                "indices_count": len(raw_indices),
+                "manches": all_manches,
+                "standings": standings,
+                "my_standing": my_standing,
+                "gap_to_leader": gap_to_leader,
                 "beneficiaire": beneficiaire,
                 "classement": classement,
             },
