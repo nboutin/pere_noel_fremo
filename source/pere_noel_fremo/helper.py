@@ -83,13 +83,19 @@ def load_credentials() -> Credentials:
     if os.path.exists(TOKEN_PATH):
         creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
     if not creds or not creds.valid:
+        refreshed = False
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, SCOPES)
+            try:
+                creds.refresh(Request())
+                refreshed = bool(creds.valid)
+            except Exception as e:
+                logger.warning(f"Impossible de rafraîchir le jeton expiré ({e}), ré-authentification requise.")
+        if not refreshed:
+            flow = InstalledAppFlow.from_client_secrets_file(str(CREDENTIALS_PATH), SCOPES)
             creds = flow.run_local_server(port=0)
-        with open(TOKEN_PATH, "w", encoding="utf-8") as token:
-            token.write(creds.to_json())
+        if creds:
+            with open(TOKEN_PATH, "w", encoding="utf-8") as token:
+                token.write(creds.to_json())
     return cast(Credentials, creds)
 
 
