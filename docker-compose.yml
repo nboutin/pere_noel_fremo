@@ -1,0 +1,13 @@
+services:
+  pere_noel_fremo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pere_noel_fremo
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./res:/app/res
+    environment:
+      - PYTHONUNBUFFERED=1
