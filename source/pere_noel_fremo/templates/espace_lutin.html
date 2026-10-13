@@ -351,6 +351,13 @@
         const deducedClues = new Set();
         let timerInterval = null;
         let startTime = Date.now();
+        const serverStartedAt = "{{ score_info.started_at or '' }}";
+        if (serverStartedAt && !isSolved) {
+            const parsed = Date.parse(serverStartedAt.includes('T') ? serverStartedAt : serverStartedAt.replace(' ', 'T') + 'Z');
+            if (!isNaN(parsed)) {
+                startTime = parsed;
+            }
+        }
 
         function showToast(msg) {
             const toast = document.getElementById("toast");
