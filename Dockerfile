@@ -2,7 +2,8 @@ FROM python:3.12-slim
 
 # Force le flush stdout et désactive la création de fichiers .pyc
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    FREMO_RES_DIR=/app/res
 
 WORKDIR /app
 

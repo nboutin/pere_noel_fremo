@@ -1,4 +1,5 @@
 import base64
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -35,7 +36,10 @@ from .tokens import get_lutin_by_token
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = PACKAGE_ROOT.parent.parent
-DEFAULT_DB_PATH = PROJECT_ROOT / "res" / "fremo.db"
+DEFAULT_RES_DIR = Path(
+    os.environ.get("FREMO_RES_DIR", "/app/res" if Path("/app/res").exists() else PROJECT_ROOT / "res")
+)
+DEFAULT_DB_PATH = DEFAULT_RES_DIR / "fremo.db"
 TEMPLATES_DIR = PACKAGE_ROOT / "templates"
 STATIC_DIR = PACKAGE_ROOT / "static"
 

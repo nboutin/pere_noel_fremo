@@ -1,4 +1,5 @@
 import hashlib
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -6,7 +7,7 @@ from typing import Any
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-RES_DIR = PROJECT_ROOT / "res"
+RES_DIR = Path(os.environ.get("FREMO_RES_DIR", "/app/res" if Path("/app/res").exists() else PROJECT_ROOT / "res"))
 
 ADJECTIFS_FESTIFS = [
     "Givré",

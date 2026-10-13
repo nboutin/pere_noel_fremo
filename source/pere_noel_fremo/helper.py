@@ -4,6 +4,7 @@
 import base64
 import logging
 import logging.handlers
+import os
 import os.path
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
@@ -19,8 +20,20 @@ from googleapiclient.discovery import build
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-RES_DIR = PROJECT_ROOT / "res"
-LOGS_DIR = PROJECT_ROOT / "logs"
+
+
+def resolve_res_dir() -> Path:
+    env_dir = os.environ.get("FREMO_RES_DIR")
+    if env_dir:
+        return Path(env_dir)
+    app_res = Path("/app/res")
+    if app_res.exists():
+        return app_res
+    return PROJECT_ROOT / "res"
+
+
+RES_DIR = resolve_res_dir()
+LOGS_DIR = Path(os.environ.get("FREMO_LOGS_DIR", "/app/logs" if Path("/app/logs").exists() else PROJECT_ROOT / "logs"))
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.compose"]
 TOKEN_PATH = RES_DIR / "token.json"  # nosec B105

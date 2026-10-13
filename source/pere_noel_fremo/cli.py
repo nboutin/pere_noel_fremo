@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -6,7 +7,7 @@ from .annonce import send_annonces
 from .database import import_yaml_data
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-RES_DIR = PROJECT_ROOT / "res"
+RES_DIR = Path(os.environ.get("FREMO_RES_DIR", "/app/res" if Path("/app/res").exists() else PROJECT_ROOT / "res"))
 DEFAULT_DB_PATH = RES_DIR / "fremo.db"
 DEFAULT_DATA_IN = RES_DIR / "2025" / "data_in.yml"
 DEFAULT_SECURE_DATA = RES_DIR / "secure_data.yml"

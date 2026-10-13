@@ -11,3 +11,4 @@ services:
       - ./res:/app/res
     environment:
       - PYTHONUNBUFFERED=1
+      - FREMO_RES_DIR=/app/res
