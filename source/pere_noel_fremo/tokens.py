@@ -12,7 +12,8 @@ def generate_magic_token() -> str:
 
 def build_lien_magique_url(base_url: str, token: str) -> str:
     """Construit l'URL complète du Lien magique à partir de l'URL racine et du jeton."""
-    return f"{base_url.rstrip('/')}/lutin/{token}"
+    clean_base = base_url.strip().rstrip("/")
+    return f"{clean_base}/lutin/{token.strip()}"
 
 
 # Alias de compatibilité

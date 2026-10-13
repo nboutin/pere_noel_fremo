@@ -1,0 +1,16 @@
+---
+sender_email: leperenoeldelafremo@gmail.com
+sender_pwd: secret_app_password
+base_url: https://homelab.tail7d8b91.ts.net:10000
+
+receiver_test: test@example.com
+personnes_test:
+  organizer:
+    email: test@example.com
+
+personnes:
+  lutin1:
+    email: lutin1@example.com
+  lutin2:
+    email: lutin2@example.com
+...

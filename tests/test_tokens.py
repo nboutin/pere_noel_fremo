@@ -25,6 +25,15 @@ def test_build_lien_magique_url_strips_trailing_slash() -> None:
     token = "xyz123"
     assert build_lien_magique_url("https://noel.fremo.fr", token) == "https://noel.fremo.fr/lutin/xyz123"
     assert build_lien_magique_url("https://noel.fremo.fr/", token) == "https://noel.fremo.fr/lutin/xyz123"
+    # Port support (Tailscale Funnel :10000)
+    assert (
+        build_lien_magique_url("https://homelab.tail7d8b91.ts.net:10000", token)
+        == "https://homelab.tail7d8b91.ts.net:10000/lutin/xyz123"
+    )
+    assert (
+        build_lien_magique_url(" https://homelab.tail7d8b91.ts.net:10000/ ", "  xyz123  ")
+        == "https://homelab.tail7d8b91.ts.net:10000/lutin/xyz123"
+    )
     # Alias compatibility
     assert build_magic_url("https://noel.fremo.fr", token) == "https://noel.fremo.fr/lutin/xyz123"
 

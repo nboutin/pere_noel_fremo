@@ -126,3 +126,39 @@ def test_send_annonces_dry_run_does_not_send_emails(tmp_path: Path) -> None:
         )
         assert stats["sent"] == 1
         mock_send.assert_not_called()
+
+
+def test_send_annonces_with_port_in_base_url(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+
+    data_in_path = tmp_path / "data_in.yml"
+    secure_data_path = tmp_path / "secure_data.yml"
+
+    sample_data: dict[str, Any] = {
+        "lutin_1": {"fullname": "Lutin Un", "email": None, "exclude": [], "history": []},
+    }
+    sample_secure = {
+        "sender_email": "pere.noel@fremo.org",
+        "base_url": "https://homelab.tail7d8b91.ts.net:10000",
+        "personnes": {
+            "lutin_1": {"email": "lutin1@fremo.org"},
+        },
+    }
+
+    with open(data_in_path, "w", encoding="utf-8") as f:
+        yaml.dump(sample_data, f)
+    with open(secure_data_path, "w", encoding="utf-8") as f:
+        yaml.dump(sample_secure, f)
+
+    import_yaml_data(db_path, data_in_path, secure_data_path)
+
+    with patch("pere_noel_fremo.helper.gmail_send_email") as mock_send:
+        stats = send_annonces(
+            db_path=db_path,
+            secure_data_path=secure_data_path,
+            year=2026,
+        )
+        assert stats["sent"] == 1
+        call_body = mock_send.call_args.kwargs["body"]
+        assert "https://homelab.tail7d8b91.ts.net:10000/lutin/" in call_body
