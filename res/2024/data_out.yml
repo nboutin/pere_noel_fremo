@@ -29,7 +29,7 @@ amoget:
   - sletellier
   - scarre
   - ccarre
-  - mdenis
+  - cpelini
 atranchant:
   email: null
   exclude:
@@ -60,7 +60,6 @@ bamy:
   - atranchant
   - qdittiere
   - pplumegeau
-  - fleduff
 cboutillon:
   email: null
   exclude:
@@ -75,7 +74,7 @@ cboutillon:
   - mroudet
   - ccarre
   - schouteau
-  - lcivel
+  - cmouret
 ccarre:
   email: null
   exclude:
@@ -105,7 +104,7 @@ cmoget:
   - cmouret
   - mberthet
   - bamy
-  - cpiffeteau
+  - cboutillon
 cmouret:
   email: null
   exclude:
@@ -121,7 +120,7 @@ cmouret:
   - amoget
   - mdenis
   - sletellier
-  - cboutillon
+  - jdenis
 cpelini:
   email: null
   exclude:
@@ -134,7 +133,7 @@ cpelini:
   - pplumegeau
   - cboutillon
   - sbentabet
-  - nboutin
+  - ccarre
 cpiffeteau:
   email: null
   exclude:
@@ -148,7 +147,7 @@ cpiffeteau:
   - mdenis
   - nboutin
   - aboinet
-  - cmouret
+  - fleduff
 fleduff:
   email: null
   exclude:
@@ -193,7 +192,7 @@ jdenis:
   - fxduret
   - aboinet
   - cmouret
-  - scarre
+  - cpiffeteau
 lcivel:
   email: null
   exclude:
@@ -208,7 +207,7 @@ lcivel:
   - cpelini
   - cmouret
   - cpiffeteau
-  - tmoro
+  - sbentabet
 mberthet:
   email: null
   exclude:
@@ -223,7 +222,7 @@ mberthet:
   - nboutin
   - cpelini
   - mroudet
-  - jdenis
+  - mdenis
 mdenis:
   email: null
   exclude:
@@ -238,7 +237,7 @@ mdenis:
   - scarre
   - fxduret
   - amoget
-  - atranchant
+  - sletellier
 mroudet:
   email: null
   exclude:
@@ -253,7 +252,7 @@ mroudet:
   - cboutillon
   - atranchant
   - qdittiere
-  - ccarre
+  - nboutin
 nboutin:
   email: null
   exclude:
@@ -284,7 +283,7 @@ pplumegeau:
   - cmoget
   - mroudet
   - nboutin
-  - sbentabet
+  - mberthet
 qdittiere:
   email: null
   exclude:
@@ -311,7 +310,7 @@ sbentabet:
   - qdittiere
   - jdenis
   - cboutillon
-  - cpelini
+  - atranchant
 scarre:
   email: null
   exclude:
@@ -326,7 +325,7 @@ scarre:
   - cpiffeteau
   - sbentabet
   - mberthet
-  - bamy
+  - lcivel
 schouteau:
   email: null
   exclude:
@@ -339,7 +338,7 @@ schouteau:
   - cmoget
   - atranchant
   - lcivel
-  - mberthet
+  - scarre
 sletellier:
   email: null
   exclude:
@@ -368,4 +367,3 @@ tmoro:
   - ccarre
   - amoget
   - mdenis
-  - sletellier

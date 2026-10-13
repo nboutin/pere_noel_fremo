@@ -1,0 +1,32 @@
+id: 14
+title: 'Manche 14 : La Veillée des Rennes'
+unlock_at: '2026-11-30 19:00:00'
+estimated_time: 2 à 5 minutes
+categories:
+  lutins:
+  - Léon
+  - Maya
+  - Noé
+  bonnets:
+  - Vert Sapin
+  - Rouge à Pompon
+  - Bleu Nuit
+  cadeaux:
+  - Livre de contes
+  - Poupée de chiffon
+  - Train en bois
+indices:
+- Léon porte le bonnet Vert Sapin.
+- Le porteur du bonnet Bleu Nuit offre le Train en bois.
+- Noé ne porte pas le bonnet Rouge à Pompon.
+- Maya n'offre pas le Livre de contes.
+solution:
+  Léon:
+    bonnet: Vert Sapin
+    cadeau: Livre de contes
+  Maya:
+    bonnet: Rouge à Pompon
+    cadeau: Poupée de chiffon
+  Noé:
+    bonnet: Bleu Nuit
+    cadeau: Train en bois

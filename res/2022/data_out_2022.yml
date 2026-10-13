@@ -70,7 +70,7 @@ ccarre:
   email: null
   exclude:
   - scarre
-  fullname: Claire Carré
+  fullname: Claire CarrÃ©
   history:
   - atranchant
   - amoget
@@ -97,7 +97,7 @@ cmouret:
   exclude:
   - atranchant
   - nboutin
-  fullname: Clémence Mouret
+  fullname: ClÃ©mence Mouret
   history:
   - lcivel
   - ccarre
@@ -121,7 +121,7 @@ cpiffeteau:
   email: null
   exclude:
   - pplumegeau
-  fullname: Célina Piffeteau
+  fullname: CÃ©lina Piffeteau
   history:
   - cmoget
   - mberthet
@@ -274,7 +274,7 @@ scarre:
   email: null
   exclude:
   - ccarre
-  fullname: Sylvain Carré
+  fullname: Sylvain CarrÃ©
   history:
   - aboinet
   - nboutin

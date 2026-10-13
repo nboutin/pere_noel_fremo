@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pere-noel-fremo"
+version = "1.5.0"
+description = "Tirage au sort et annonces pour le Père Noël secret de la Frémo"
+requires-python = ">=3.10"
+dependencies = [
+    "pyyaml",
+    "google-api-python-client",
+    "google-auth-httplib2",
+    "google-auth-oauthlib",
+    "fastapi",
+    "uvicorn",
+    "jinja2",
+]
+
+[project.scripts]
+pere-noel = "pere_noel_fremo.cli:main"
+pere-noel-tossing = "pere_noel_fremo.email_tossing:main"
+pere-noel-annonce = "pere_noel_fremo.email_annonce:main"
+
+
+[tool.setuptools.packages.find]
+where = ["source"]
+
+[tool.setuptools.package-data]
+pere_noel_fremo = ["templates/*", "static/*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+    "PIE",  # flake8-pie
+]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+ignore_missing_imports = true
+mypy_path = "source"
+
+[tool.bandit]
+exclude_dirs = [".venv", "poc"]
+skips = ["B311"] # B311: pseudo-random generators suitable for non-cryptographic secret santa tossing

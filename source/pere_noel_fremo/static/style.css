@@ -1,0 +1,490 @@
+:root {
+  --color-bg: #0f172a;
+  --color-card: #1e293b;
+  --color-card-border: #334155;
+  --color-text: #f8fafc;
+  --color-text-muted: #94a3b8;
+  --color-primary: #dc2626;
+  --color-primary-hover: #b91c1c;
+  --color-accent: #16a34a;
+  --color-gold: #f59e0b;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.5;
+  padding: 1.5rem 1rem;
+  display: flex;
+  justify-content: center;
+}
+
+.container {
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+header {
+  text-align: center;
+  padding: 1rem 0;
+}
+
+header h1 {
+  font-size: 1.75rem;
+  color: var(--color-gold);
+  margin-bottom: 0.5rem;
+}
+
+.badge-edition {
+  display: inline-block;
+  background-color: var(--color-primary);
+  color: #fff;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+
+.card {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-card-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+}
+
+.card h2 {
+  font-size: 1.25rem;
+  margin-bottom: 0.75rem;
+  color: #fff;
+}
+
+.card p {
+  color: var(--color-text-muted);
+  margin-bottom: 1rem;
+}
+
+.presence-status {
+  padding: 0.75rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-weight: 500;
+  text-align: center;
+}
+
+.status-present {
+  background-color: rgba(22, 163, 74, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(22, 163, 74, 0.4);
+}
+
+.status-absent {
+  background-color: rgba(220, 38, 38, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(220, 38, 38, 0.4);
+}
+
+.status-unknown {
+  background-color: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.btn-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-present {
+  background-color: var(--color-accent);
+  color: white;
+}
+
+.btn-present:hover {
+  background-color: #15803d;
+}
+
+.btn-absent {
+  background-color: #475569;
+  color: white;
+}
+
+.btn-absent:hover {
+  background-color: #334155;
+}
+
+.btn-selected {
+  outline: 3px solid var(--color-gold);
+}
+
+.btn-abandon {
+  background-color: transparent;
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+}
+
+.btn-abandon:hover {
+  background-color: rgba(239, 68, 68, 0.15);
+  border-color: #f87171;
+}
+
+.teaser {
+  opacity: 0.75;
+  border-style: dashed;
+}
+
+.error-card {
+  text-align: center;
+  padding: 3rem 1.5rem;
+}
+
+.error-code {
+  font-size: 4rem;
+  font-weight: 800;
+  color: var(--color-primary);
+  line-height: 1;
+  margin-bottom: 1rem;
+}
+
+.toast {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #1e293b;
+  border: 1px solid var(--color-gold);
+  color: #fff;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  display: none;
+  z-index: 1000;
+}
+
+/* Grille logique et Défi */
+.grid-container {
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.logic-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: center;
+}
+
+.logic-table th, .logic-table td {
+  border: 1px solid var(--color-card-border);
+  padding: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.logic-table th {
+  background-color: #0f172a;
+  color: var(--color-gold);
+}
+
+.logic-select {
+  background-color: #0f172a;
+  color: #fff;
+  border: 1px solid var(--color-card-border);
+  padding: 0.4rem;
+  border-radius: 6px;
+  width: 100%;
+}
+
+.indices-list {
+  list-style: none;
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.indice-item {
+  background-color: #0f172a;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border-left: 3px solid var(--color-gold);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.indice-item.checked {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+/* Carte à gratter */
+.scratch-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  height: 190px;
+  margin: 1.5rem auto;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+
+.scratch-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #7f1d1d, #991b1b);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  text-align: center;
+  padding: 0.8rem;
+}
+
+.scratch-content h3 {
+  font-size: 0.9rem;
+  color: var(--color-gold);
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.scratch-content .beneficiaire-name {
+  font-size: clamp(2.3rem, 7vw, 3.2rem);
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 3px 8px rgba(0, 0, 0, 0.6), 0 0 16px rgba(212, 175, 55, 0.35);
+  letter-spacing: 0.5px;
+  line-height: 1.15;
+  max-width: 95%;
+  word-wrap: break-word;
+}
+
+.scratch-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.btn-re-scratch {
+  background: rgba(212, 175, 55, 0.12);
+  color: var(--color-gold);
+  border: 1px solid var(--color-gold);
+  border-radius: 20px;
+  padding: 0.55rem 1.3rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.25s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.btn-re-scratch:hover {
+  background: var(--color-gold);
+  color: #0f172a;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(212, 175, 55, 0.4);
+}
+
+.btn-re-scratch:active {
+  transform: translateY(0);
+}
+
+/* Tableau des scores */
+.scores-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.scores-table th, .scores-table td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--color-card-border);
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.scores-table th {
+  color: var(--color-gold);
+}
+
+.rank-col {
+  width: 15%;
+  text-align: center;
+  font-weight: bold;
+}
+
+.time-col {
+  width: 25%;
+  text-align: right;
+  font-family: monospace;
+  font-weight: bold;
+}
+
+.badge-you {
+  background-color: var(--color-primary);
+  color: #fff;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  margin-left: 0.4rem;
+}
+
+.badge-solved {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.badge-pending {
+  color: #fbbf24;
+}
+
+.my-score-row {
+  background-color: rgba(245, 158, 11, 0.15);
+}
+
+/* Anti-triche & Multi-manches */
+.anti-cheat-zone {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.clue-tabs-container {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.clue-tab {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-card-border);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clue-tab:hover {
+  opacity: 0.9;
+}
+
+.clue-tab.active {
+  background: var(--color-gold);
+  color: #000;
+}
+
+.clue-canvas {
+  width: 100%;
+  max-width: 650px;
+  height: auto;
+  aspect-ratio: 650 / 140;
+  border-radius: 8px;
+  border: 1px solid var(--color-gold);
+  background: #1e293b;
+  display: block;
+  margin: 0 auto;
+}
+
+.manches-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.manche-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem 0.5rem;
+  border-radius: 8px;
+  text-decoration: none;
+  border: 2px solid var(--color-card-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.manche-badge:hover {
+  transform: translateY(-2px);
+}
+
+.manche-badge.active-manche {
+  border-color: var(--color-gold);
+  background: rgba(245, 158, 11, 0.15);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+}
+
+#emergency-curtain {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  text-align: center;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  color: #fff;
+}
+
+/* Ergonomie responsive (écrans mobiles < 640px) */
+@media (max-width: 640px) {
+  .manches-grid {
+    grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
+    gap: 0.5rem;
+  }
+
+  .manche-badge {
+    padding: 0.5rem 0.3rem;
+    font-size: 0.8rem;
+  }
+
+  .clue-tab {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.8rem;
+  }
+
+  .clue-canvas {
+    aspect-ratio: 650 / 170;
+  }
+}

@@ -1,0 +1,32 @@
+id: 6
+title: 'Manche 6 : La Forêt des Sapins'
+unlock_at: '2026-11-02 19:00:00'
+estimated_time: 2 à 5 minutes
+categories:
+  lutins:
+  - Albane
+  - Basile
+  - Céleste
+  instruments:
+  - Clochette
+  - Tambour
+  - Flûte
+  boissons:
+  - Lait chaud
+  - Jus de pomme cannelle
+  - Tisane polaire
+indices:
+- Basile joue de la Clochette.
+- Le joueur de Flûte boit du Lait chaud.
+- Albane ne boit pas de Tisane polaire.
+- Céleste ne joue pas du Tambour.
+solution:
+  Albane:
+    instrument: Tambour
+    boisson: Jus de pomme cannelle
+  Basile:
+    instrument: Clochette
+    boisson: Tisane polaire
+  Céleste:
+    instrument: Flûte
+    boisson: Lait chaud

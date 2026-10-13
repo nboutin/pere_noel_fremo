@@ -1,10 +1,19 @@
 # Files
 secure_data.yml
+**/secure_data.yml
 credentials.json
 token.json
 *.log
+*.db
+
 
 # Folder
 __pycache__
 .venv/
 res/*.json
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+logs/
