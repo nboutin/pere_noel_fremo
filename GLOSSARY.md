@@ -32,6 +32,15 @@ _Avoid_: Blacklist, restriction, veto
 Liste exhaustive et permanente de tous les Bénéficiaires précédemment reçus par un Donneur, interdisant définitivement leur réattribution dans les éditions futures.
 _Avoid_: Antécédents, mémoire, historique glissant
 
+**Édition**:
+Itération annuelle du Père Noël secret désignée par son millésime (`year`), progressant à travers un cycle d'états (`draft` -> `announced` -> `drawn` -> `revealed`).
+_Avoid_: Campagne, saison, tournoi, session
+
+**Attribution millésimée**:
+Association immuable entre un Donneur et son Bénéficiaire scellée pour une Édition précise (`year`), historiquement issue d'un tirage au sort annuel.
+_Avoid_: Paire, matching, assignation, record
+
+
 **Absent**:
 Lutin répertorié dans la base mais exclu de la participation pour l'édition courante.
 _Avoid_: Désinscrit, ignoré, skipped

@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 import yaml
 from pere_noel_fremo.database import (
+    backfill_historical_attributions,
     complete_score_defi,
     get_attributions,
     get_beneficiaire_for_lutin,
@@ -360,3 +361,33 @@ def test_scores_defi_schema_migration_idempotent(tmp_path: Path) -> None:
     conn_again.close()
     scores_all = get_scores_classement(db_path, 2026)
     assert len(scores_all) == 2
+
+
+def test_backfill_historical_attributions_idempotent(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo.db"
+    res_dir = Path("res")
+
+    init_db(db_path)
+    # Exécuter le backfill
+    res1 = backfill_historical_attributions(db_path, res_dir=res_dir, purge_2026=True)
+    assert res1["attributions"] == 233
+    assert res1["editions"] == 11
+
+    # Vérifier l'état en base
+    import sqlite3
+
+    conn = sqlite3.connect(str(db_path))
+    null_years = conn.execute("SELECT count(*) FROM attributions WHERE year IS NULL;").fetchone()[0]
+    y2026_count = conn.execute("SELECT count(*) FROM attributions WHERE year = 2026;").fetchone()[0]
+    total_attributions = conn.execute("SELECT count(*) FROM attributions;").fetchone()[0]
+    edition_2026_status = conn.execute("SELECT status FROM editions WHERE year = 2026;").fetchone()[0]
+    conn.close()
+
+    assert null_years == 0
+    assert y2026_count == 0
+    assert total_attributions == 233
+    assert edition_2026_status == "announced"
+
+    # Vérification de l'idempotence
+    res2 = backfill_historical_attributions(db_path, res_dir=res_dir, purge_2026=True)
+    assert res2["attributions"] == 233

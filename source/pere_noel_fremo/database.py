@@ -594,6 +594,36 @@ def complete_score_defi(
         conn.close()
 
 
+def abandon_score_defi(
+    db_path: Path | str,
+    lutin_id: str,
+    year: int,
+    manche_id: int = 1,
+) -> dict[str, Any]:
+    """Scelle l'abandon d'une manche du Défi du lutin : chrono arrêté, tentative scellée."""
+    conn = get_db_connection(db_path)
+    try:
+        with conn:
+            row = conn.execute(
+                "SELECT solved, completed_at FROM scores_defi WHERE lutin_id = ? AND year = ? AND manche_id = ?;",
+                (lutin_id, year, manche_id),
+            ).fetchone()
+            if row and not row["solved"] and row["completed_at"] is None:
+                conn.execute(
+                    """
+                    UPDATE scores_defi
+                    SET solved = 0,
+                        time_seconds = NULL,
+                        completed_at = CURRENT_TIMESTAMP
+                    WHERE lutin_id = ? AND year = ? AND manche_id = ?;
+                    """,
+                    (lutin_id, year, manche_id),
+                )
+            return _get_score_entry(conn, lutin_id, year, manche_id=manche_id)
+    finally:
+        conn.close()
+
+
 def get_scores_classement(
     db_path: Path | str,
     year: int,
@@ -641,5 +671,174 @@ def get_latest_edition_year(db_path: Path | str) -> int:
         if row and row["max_year"] is not None:
             return int(row["max_year"])
         return 2026
+    finally:
+        conn.close()
+
+
+def compute_historical_attributions_map(
+    res_dir: Path | str,
+) -> tuple[set[int], dict[str, list[tuple[str, int, int]]]]:
+    """Reconstitue la cartographie exacte des attributions historiques millésimées (2014-2025).
+
+    Retourne:
+        - editions: L'ensemble des millésimes concernés (2014..2025).
+        - user_attributions: Dictionnaire associant chaque donneur_id à la liste de ses
+          attributions sous la forme (beneficiaire_id, year, order_index).
+    """
+    root = Path(res_dir)
+
+    def _load_yaml(p: Path) -> Any:
+        if not p.exists():
+            return {}
+        with open(p, encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+
+    d25_in = _load_yaml(root / "2025" / "data_in.yml")
+    d25_out = _load_yaml(root / "2025" / "data_out.yml")
+    d24_in = _load_yaml(root / "2024" / "data_in.yml")
+    d24_out = _load_yaml(root / "2024" / "data_out.yml")
+    d23_in = _load_yaml(root / "2023" / "2023_data_in.yml")
+    d23_out = _load_yaml(root / "2023" / "2023_data_out.yml")
+    d22_in = _load_yaml(root / "2022" / "data_in_2022.yml")
+    d22_out = _load_yaml(root / "2022" / "data_out_2022.yml")
+    d21_in = _load_yaml(root / "__bk" / "data_2021.yml")
+    d21_out = _load_yaml(root / "__bk" / "data_export_2021.yml")
+    data_19_raw = _load_yaml(root / "__bk" / "data.yml") or []
+    d19_out = {item["id"]: item.get("history", []) for item in data_19_raw}
+    data_18_raw = _load_yaml(root / "__bk" / "data_2018.yml") or []
+    d18_in = {item["id"]: item.get("history", []) for item in data_18_raw}
+
+    known_pairs: dict[tuple[str, str], int] = {}
+    for u, d in d25_out.items():
+        if len(d.get("history", [])) > len(d25_in.get(u, {}).get("history", [])):
+            known_pairs[(u, d["history"][-1])] = 2025
+    for u, d in d24_out.items():
+        if len(d.get("history", [])) > len(d24_in.get(u, {}).get("history", [])):
+            known_pairs[(u, d["history"][-1])] = 2024
+    for u, d in d23_out.items():
+        if len(d.get("history", [])) > len(d23_in.get(u, {}).get("history", [])):
+            known_pairs[(u, d["history"][-1])] = 2023
+    for u, d in d22_out.items():
+        if len(d.get("history", [])) > len(d22_in.get(u, {}).get("history", [])):
+            known_pairs[(u, d["history"][-1])] = 2022
+    for u, d in d21_out.items():
+        if len(d.get("history", [])) > len(d21_in.get(u, {}).get("history", [])):
+            known_pairs[(u, d["history"][-1])] = 2021
+    for u, h in d19_out.items():
+        h_prev = d18_in.get(u, [])
+        if len(h) > len(h_prev):
+            known_pairs[(u, h[-1])] = 2019
+
+    editions: set[int] = set()
+    user_attributions: dict[str, list[tuple[str, int, int]]] = {}
+
+    for u, udata in sorted(d25_out.items()):
+        h = udata.get("history", [])
+        user_entries: list[tuple[str, int, int]] = []
+        user_years: list[int | None] = [None] * len(h)
+
+        for idx, b in enumerate(h):
+            if (u, b) in known_pairs:
+                user_years[idx] = known_pairs[(u, b)]
+            elif u == "jdenis" and b == "scarrea" and ("jdenis", "scarre") in known_pairs:
+                user_years[idx] = known_pairs[("jdenis", "scarre")]
+
+        for idx in range(len(h)):
+            if user_years[idx] is None:
+                if u == "cmouret" and idx == 3 and h[idx] == "aboinet":
+                    user_years[idx] = 2018
+                elif u in ("fleduff", "schouteau") and idx < 4:
+                    user_years[idx] = 2015 + idx
+                elif u == "tmoro" and idx == 0:
+                    user_years[idx] = 2018
+                elif u == "jdenis" and idx == 1:
+                    user_years[idx] = 2015
+                else:
+                    init_len = len(d18_in.get(u, []))
+                    user_years[idx] = 2017 - (init_len - 1 - idx)
+
+        for idx, b in enumerate(h):
+            norm_b = "scarre" if b == "scarrea" else b
+            yr = user_years[idx]
+            if yr is None:
+                raise ValueError(f"Year is None for {u} -> {b} at index {idx}")
+            editions.add(yr)
+            user_entries.append((norm_b, yr, idx))
+
+        user_attributions[u] = user_entries
+
+    return editions, user_attributions
+
+
+def backfill_historical_attributions(
+    db_path: Path | str,
+    res_dir: Path | str | None = None,
+    purge_2026: bool = True,
+) -> dict[str, int]:
+    """Reconstitue et scelle l'historique des attributions millésimées (2014-2025).
+
+    - Crée les éditions 2014..2025 avec le statut 'drawn'.
+    - Si purge_2026 est True, purge les attributions 2026 et repasse l'édition 2026 en 'announced'.
+    - Synchronise les attributions historiques avec leur millésime et leur index d'ordre.
+    - Normalise la coquille historique 'scarrea' en 'scarre'.
+    """
+    if res_dir is None:
+        p = Path(db_path)
+        res_dir = p.parent if p.parent.name == "res" or (p.parent / "2025").exists() else Path("res")
+
+    editions, user_attributions = compute_historical_attributions_map(res_dir)
+    conn = get_db_connection(db_path)
+    total_attributions = 0
+
+    try:
+        with conn:
+            for yr in sorted(editions):
+                conn.execute(
+                    "INSERT INTO editions (year, status) VALUES (?, 'drawn') ON CONFLICT(year) DO NOTHING;",
+                    (yr,),
+                )
+
+            if purge_2026:
+                conn.execute("DELETE FROM attributions WHERE year = 2026;")
+                conn.execute(
+                    """
+                    INSERT INTO editions (year, status) VALUES (2026, 'announced')
+                    ON CONFLICT(year) DO UPDATE SET status = 'announced';
+                    """
+                )
+
+            # Nettoyage des anciennes lignes sans millésime
+            conn.execute("DELETE FROM attributions WHERE year IS NULL;")
+
+            for donneur_id, items in user_attributions.items():
+                conn.execute(
+                    "INSERT OR IGNORE INTO lutins (id, fullname, email, is_active) VALUES (?, ?, NULL, 0);",
+                    (donneur_id, donneur_id),
+                )
+                for beneficiaire_id, yr, order_idx in items:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO lutins (id, fullname, email, is_active) VALUES (?, ?, NULL, 0);",
+                        (beneficiaire_id, beneficiaire_id),
+                    )
+                    conn.execute(
+                        """
+                        INSERT INTO attributions (donneur_id, beneficiaire_id, year, order_index)
+                        VALUES (?, ?, ?, ?)
+                        ON CONFLICT(donneur_id, beneficiaire_id, order_index) DO UPDATE SET
+                            year = excluded.year;
+                        """,
+                        (donneur_id, beneficiaire_id, yr, order_idx),
+                    )
+                    total_attributions += 1
+
+            # Nettoyage de l'identifiant fantôme 'scarrea'
+            conn.execute("DELETE FROM attributions WHERE beneficiaire_id = 'scarrea' OR donneur_id = 'scarrea';")
+            conn.execute("DELETE FROM exclusions WHERE lutin_id = 'scarrea' OR excluded_lutin_id = 'scarrea';")
+            conn.execute("DELETE FROM lutins WHERE id = 'scarrea';")
+
+        return {
+            "editions": len(editions),
+            "attributions": total_attributions,
+        }
     finally:
         conn.close()

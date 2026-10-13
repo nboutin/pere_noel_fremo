@@ -138,6 +138,17 @@ button {
   outline: 3px solid var(--color-gold);
 }
 
+.btn-abandon {
+  background-color: transparent;
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+}
+
+.btn-abandon:hover {
+  background-color: rgba(239, 68, 68, 0.15);
+  border-color: #f87171;
+}
+
 .teaser {
   opacity: 0.75;
   border-style: dashed;
@@ -230,12 +241,12 @@ button {
 .scratch-wrap {
   position: relative;
   width: 100%;
-  max-width: 380px;
-  height: 180px;
+  max-width: 420px;
+  height: 190px;
   margin: 1.5rem auto;
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
 }
 
 .scratch-content {
@@ -251,20 +262,26 @@ button {
   justify-content: center;
   color: #fff;
   text-align: center;
-  padding: 1rem;
+  padding: 0.8rem;
 }
 
 .scratch-content h3 {
-  font-size: 1rem;
+  font-size: 0.9rem;
   color: var(--color-gold);
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
 }
 
 .scratch-content .beneficiaire-name {
-  font-size: 1.5rem;
-  font-weight: 800;
+  font-size: clamp(2.3rem, 7vw, 3.2rem);
+  font-weight: 900;
   color: #fff;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  text-shadow: 0 3px 8px rgba(0, 0, 0, 0.6), 0 0 16px rgba(212, 175, 55, 0.35);
+  letter-spacing: 0.5px;
+  line-height: 1.15;
+  max-width: 95%;
+  word-wrap: break-word;
 }
 
 .scratch-canvas {
@@ -275,6 +292,33 @@ button {
   height: 100%;
   cursor: crosshair;
   touch-action: none;
+}
+
+.btn-re-scratch {
+  background: rgba(212, 175, 55, 0.12);
+  color: var(--color-gold);
+  border: 1px solid var(--color-gold);
+  border-radius: 20px;
+  padding: 0.55rem 1.3rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.25s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.btn-re-scratch:hover {
+  background: var(--color-gold);
+  color: #0f172a;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(212, 175, 55, 0.4);
+}
+
+.btn-re-scratch:active {
+  transform: translateY(0);
 }
 
 /* Tableau des scores */

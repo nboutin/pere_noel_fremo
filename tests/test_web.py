@@ -27,6 +27,12 @@ def client(test_db: Path) -> TestClient:
     return TestClient(app)
 
 
+def test_root_redirects_to_scores(client: TestClient) -> None:
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code in (302, 307)
+    assert response.headers["location"] == "/scores"
+
+
 def test_espace_lutin_get_valid_token(client: TestClient, test_db: Path) -> None:
     token = create_or_get_token(test_db, "fbonnet", 2025)
     response = client.get(f"/lutin/{token}")
@@ -182,10 +188,14 @@ def test_revelation_beneficiaire_carte_a_gratter(client: TestClient, test_db: Pa
     beneficiaire_data = resp_after_draw.json()
     assert beneficiaire_data["fullname"] == "Alice Lacroix"
 
-    # La page HTML contient maintenant la carte à gratter et le nom sous le canvas
+    # La page HTML contient maintenant la carte à gratter et le bouton revoir l'effet
     page_after_draw = client.get(f"/lutin/{token}")
     assert page_after_draw.status_code == 200
     assert "Alice Lacroix" in page_after_draw.text
+    assert '<canvas id="scratch-canvas"' in page_after_draw.text
+    assert "btn-re-scratch" in page_after_draw.text
+    assert "resetScratch" in page_after_draw.text
+    assert "paintScratchCover" in page_after_draw.text
 
 
 def test_defi_multi_manches_api_flow(client: TestClient, test_db: Path) -> None:
@@ -360,3 +370,43 @@ def test_espace_lutin_multi_manches_and_anti_cheat_ui(client: TestClient, test_d
     assert "@media (max-width: 640px)" in css_resp.text
     assert ".clue-canvas" in css_resp.text
     assert ".manches-grid" in css_resp.text
+
+
+def test_abandon_defi_flow(client: TestClient, test_db: Path) -> None:
+    token = create_or_get_token(test_db, "alacroix", 2025)
+    client.post(f"/api/lutin/{token}/presence", json={"present": True})
+
+    # Abandonner avant le démarrage doit échouer (400)
+    resp_bad = client.post(f"/api/lutin/{token}/defi/1/abandon")
+    assert resp_bad.status_code == 400
+    assert "démarré avant" in resp_bad.json()["detail"]
+
+    # Démarrage
+    resp_start = client.post(f"/api/lutin/{token}/defi/1/start")
+    assert resp_start.status_code == 200
+
+    # Abandon
+    resp_abandon = client.post(f"/api/lutin/{token}/defi/1/abandon")
+    assert resp_abandon.status_code == 200
+    assert resp_abandon.json()["abandoned"] is True
+
+    # Vérification que la page affiche le statut abandonné
+    page = client.get(f"/lutin/{token}?manche=1")
+    assert page.status_code == 200
+    assert "Tu as abandonné la Manche #1" in page.text
+    assert "🏳️ Abandonnée" in page.text
+    assert "let isCompleted = true;" in page.text
+    assert "let isChallengeActive = isStarted && !isCompleted;" in page.text
+
+    # Impossible de relancer la manche après abandon (essai unique officiel)
+    resp_restart = client.post(f"/api/lutin/{token}/defi/1/start")
+    assert resp_restart.status_code == 400
+    assert "abandonnée" in resp_restart.json()["detail"]
+
+    # Impossible de résoudre après abandon
+    resp_solve = client.post(
+        f"/api/lutin/{token}/defi/1/solve",
+        json={"solution": {}},
+    )
+    assert resp_solve.status_code == 400
+    assert "terminée" in resp_solve.json()["detail"]

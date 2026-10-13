@@ -4,12 +4,13 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from .database import (
+    abandon_score_defi,
     complete_score_defi,
     get_beneficiaire_for_lutin,
     get_edition_status,
@@ -56,6 +57,10 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
         app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+    @app.get("/", response_class=RedirectResponse)
+    async def get_root() -> RedirectResponse:
+        return RedirectResponse(url="/scores")
 
     @app.get("/scores", response_class=HTMLResponse)
     @app.get("/scores/{year}", response_class=HTMLResponse)
@@ -104,6 +109,8 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
             m["is_solved"] = bool(m_score.get("solved"))
             if m["is_solved"]:
                 m["status_tag"] = "resolue"
+            elif m_score.get("completed_at") is not None:
+                m["status_tag"] = "abandonnee"
             elif m.get("is_unlocked"):
                 m["status_tag"] = "disponible"
             else:
@@ -234,6 +241,11 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
                 status_code=400,
                 detail=f"La manche {manche_id} a déjà été résolue (essai unique officiel).",
             )
+        if score_entry.get("completed_at"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"La manche {manche_id} a été abandonnée (essai unique officiel).",
+            )
 
         updated = start_score_defi(db_path, lutin_id, year, manche_id=manche_id)
         return JSONResponse(
@@ -251,6 +263,15 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
         year = lutin_info["year"]
         lutin_id = lutin_info["id"]
 
+        pseudo = generate_pseudo_lugeur(lutin_id, year)
+        score_entry = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=manche_id)
+
+        if score_entry.get("completed_at"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"La manche {manche_id} est déjà terminée (essai unique officiel).",
+            )
+
         is_valid = validate_grille_solution(manche, payload.solution)
         if not is_valid:
             return JSONResponse(
@@ -258,10 +279,7 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
                 content={"ok": False, "solved": False, "detail": "La solution soumise comporte des erreurs."},
             )
 
-        pseudo = generate_pseudo_lugeur(lutin_id, year)
-        score_entry = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=manche_id)
         started_at_raw = score_entry.get("started_at")
-
         if not started_at_raw:
             raise HTTPException(
                 status_code=400,
@@ -290,6 +308,34 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
             }
         )
 
+    async def _handle_abandon_defi(token: str, manche_id: int = 1) -> JSONResponse:
+        lutin_info, _manche = _get_lutin_and_manche_or_raise(token, manche_id)
+        year = lutin_info["year"]
+        lutin_id = lutin_info["id"]
+
+        pseudo = generate_pseudo_lugeur(lutin_id, year)
+        score_entry = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=manche_id)
+        if score_entry.get("completed_at"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"La manche {manche_id} est déjà terminée (essai unique officiel).",
+            )
+        if not score_entry.get("started_at"):
+            raise HTTPException(
+                status_code=400,
+                detail="Le Défi du lutin doit être démarré avant de pouvoir être abandonné.",
+            )
+
+        updated = abandon_score_defi(db_path, lutin_id, year, manche_id=manche_id)
+        return JSONResponse(
+            {
+                "ok": True,
+                "manche_id": manche_id,
+                "abandoned": True,
+                "pseudo_lugeur": updated.get("pseudo_lugeur", pseudo),
+            }
+        )
+
     @app.post("/api/lutin/{token}/defi/start")
     async def start_defi(token: str) -> JSONResponse:
         return await _handle_start_defi(token=token, manche_id=1)
@@ -305,6 +351,14 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
     @app.post("/api/lutin/{token}/defi/{manche_id}/solve")
     async def solve_defi_manche(token: str, manche_id: int, payload: GrilleSolveRequest) -> JSONResponse:
         return await _handle_solve_defi(token=token, payload=payload, manche_id=manche_id)
+
+    @app.post("/api/lutin/{token}/defi/abandon")
+    async def abandon_defi(token: str) -> JSONResponse:
+        return await _handle_abandon_defi(token=token, manche_id=1)
+
+    @app.post("/api/lutin/{token}/defi/{manche_id}/abandon")
+    async def abandon_defi_manche(token: str, manche_id: int) -> JSONResponse:
+        return await _handle_abandon_defi(token=token, manche_id=manche_id)
 
     @app.get("/api/lutin/{token}/beneficiaire")
     async def get_beneficiaire(token: str) -> JSONResponse:
