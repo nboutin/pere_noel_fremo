@@ -46,7 +46,7 @@ Lutin répertorié dans la base mais exclu de la participation pour l'édition c
 _Avoid_: Désinscrit, ignoré, skipped
 
 **Annonce**:
-Courriel initial annonçant le lancement officiel de l'édition annuelle aux Lutins avant la réalisation du tirage.
+Courriel officiel lançant l'édition annuelle, transmettant à chaque Lutin son Lien magique pour accéder à son Espace Lutin, initier la Confirmation de présence et ouvrir le Défi du lutin avant la réalisation du Tirage au sort.
 _Avoid_: Teaser, invitation, notification
 
 **Lien magique**:

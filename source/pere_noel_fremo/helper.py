@@ -113,11 +113,11 @@ def create_message(
     msgText = MIMEText("This is the alternative plain text message.")
     msgAlternative.attach(msgText)
 
-    # We reference the image in the IMG SRC attribute by the ID we give it below
-    msgText = MIMEText('<img src="cid:image1"><br>' + body, "html")
-    msgAlternative.attach(msgText)
-
     if img_path:
+        # We reference the image in the IMG SRC attribute by the ID we give it below
+        msgText = MIMEText('<img src="cid:image1"><br>' + body, "html")
+        msgAlternative.attach(msgText)
+
         # This example assumes the image is in the current directory
         with open(img_path, "rb") as fp:
             msgImage = MIMEImage(fp.read())
@@ -125,6 +125,9 @@ def create_message(
         # Define the image's ID as referenced above
         msgImage.add_header("Content-ID", "<image1>")
         msg.attach(msgImage)
+    else:
+        msgText = MIMEText(body, "html")
+        msgAlternative.attach(msgText)
 
     # encoded message
     encoded_message = base64.urlsafe_b64encode(msg.as_bytes()).decode()

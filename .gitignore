@@ -17,3 +17,5 @@ build/
 .mypy_cache/
 .ruff_cache/
 logs/
+scratch/
+uv.lock
