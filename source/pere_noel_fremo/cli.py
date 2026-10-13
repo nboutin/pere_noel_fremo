@@ -112,6 +112,18 @@ def create_parser() -> argparse.ArgumentParser:
         default=[],
         help="Alias de compatibilité pour --absent",
     )
+    annonce_parser.add_argument(
+        "--lutin",
+        action="append",
+        default=[],
+        help="Cible uniquement un identifiant de Lutin spécifique pour un envoi test (peut être répété)",
+    )
+    annonce_parser.add_argument(
+        "--override-email",
+        type=str,
+        default=None,
+        help="Redirige l'envoi de tous les courriels vers cette adresse de test",
+    )
 
     # Subcommand: serve
     serve_parser = subparsers.add_parser(
@@ -246,6 +258,8 @@ def handle_annonce(args: argparse.Namespace) -> int:
             dry_run=args.dry_run,
             no_email=args.no_email,
             absents=absents_list,
+            target_lutins=list(args.lutin) if args.lutin else None,
+            recipient_override=args.override_email,
         )
 
         if args.dry_run or args.no_email:

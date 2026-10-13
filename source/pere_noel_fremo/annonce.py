@@ -64,6 +64,8 @@ def send_annonces(
     no_email: bool = False,
     absents: list[str] | None = None,
     skip: list[str] | None = None,
+    target_lutins: list[str] | None = None,
+    recipient_override: str | None = None,
 ) -> dict[str, int]:
     """Exécute la campagne d'envoi de l'Annonce aux Lutins actifs et consigne l'état d'envoi en base."""
     secure_data: dict[str, Any] = {}
@@ -87,6 +89,8 @@ def send_annonces(
     if skip:
         absents_set.update(skip)
 
+    targets_set = set(target_lutins) if target_lutins else None
+
     lutins = get_lutins(db_path, active_only=True)
 
     sent_count = 0
@@ -94,6 +98,8 @@ def send_annonces(
     sans_email_count = 0
 
     for lutin_id, params in lutins.items():
+        if targets_set and lutin_id not in targets_set:
+            continue
         if lutin_id in absents_set:
             absent_count += 1
             continue
@@ -107,7 +113,7 @@ def send_annonces(
             year=year,
         )
 
-        to_addr = params.get("email")
+        to_addr = recipient_override or params.get("email")
         if not to_addr:
             sans_email_count += 1
             logger.warning(f"Lutin '{lutin_id}' n'a pas d'adresse courriel configurée.")
