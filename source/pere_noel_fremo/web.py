@@ -1,3 +1,5 @@
+import logging
+import re
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,6 +45,31 @@ from .tokens import get_lutin_by_token
 PACKAGE_ROOT = Path(__file__).resolve().parent
 TEMPLATES_DIR = PACKAGE_ROOT / "templates"
 STATIC_DIR = PACKAGE_ROOT / "static"
+
+TOKEN_MASK_PATTERN = re.compile(r"((?:/api)?/lutin/)[^/\s?#]+")
+
+
+def mask_token_in_text(text: str) -> str:
+    """Remplace les jetons d'accès dans les motifs /lutin/<token> et /api/lutin/<token> par ***."""
+    return TOKEN_MASK_PATTERN.sub(r"\g<1>***", text)
+
+
+class TokenMaskingFilter(logging.Filter):
+    """Filtre de journalisation masquant les jetons magiques dans les journaux uvicorn.access."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, str):
+            record.msg = mask_token_in_text(record.msg)
+        if record.args:
+            if isinstance(record.args, tuple):
+                record.args = tuple(mask_token_in_text(arg) if isinstance(arg, str) else arg for arg in record.args)
+            elif isinstance(record.args, list):
+                record.args = [mask_token_in_text(arg) if isinstance(arg, str) else arg for arg in record.args]
+            elif isinstance(record.args, dict):
+                record.args = {k: (mask_token_in_text(v) if isinstance(v, str) else v) for k, v in record.args.items()}
+            elif isinstance(record.args, str):
+                record.args = mask_token_in_text(record.args)
+        return True
 
 
 class PresenceRequest(BaseModel):

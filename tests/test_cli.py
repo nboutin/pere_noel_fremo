@@ -393,3 +393,109 @@ def test_cli_audit_tirage_command(tmp_path: Path, capsys: pytest.CaptureFixture[
     assert ret_audit == 0
     captured_audit = capsys.readouterr()
     assert "VALIDE" in captured_audit.out or "valid" in captured_audit.out.lower()
+
+
+def test_token_masking_filter_masks_tokens() -> None:
+    import logging
+
+    from pere_noel_fremo.web import TokenMaskingFilter
+
+    masking_filter = TokenMaskingFilter()
+
+    # Format direct en chaîne simple dans record.msg
+    record1 = logging.LogRecord(
+        name="uvicorn.access",
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg="GET /lutin/aBcD_1234-xyz987654321 HTTP/1.1",
+        args=(),
+        exc_info=None,
+    )
+    assert masking_filter.filter(record1) is True
+    assert record1.getMessage() == "GET /lutin/*** HTTP/1.1"
+
+    # Format direct API avec sous-ressource
+    record2 = logging.LogRecord(
+        name="uvicorn.access",
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg="POST /api/lutin/aBcD_1234-xyz987654321/presence HTTP/1.1",
+        args=(),
+        exc_info=None,
+    )
+    assert masking_filter.filter(record2) is True
+    assert record2.getMessage() == "POST /api/lutin/***/presence HTTP/1.1"
+
+    # Format uvicorn standard avec args tuple
+    record3 = logging.LogRecord(
+        name="uvicorn.access",
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg='%s - "%s %s HTTP/%s" %d',
+        args=("127.0.0.1:50000", "GET", "/lutin/aBcD_1234-xyz987654321", "1.1", 200),
+        exc_info=None,
+    )
+    assert masking_filter.filter(record3) is True
+    assert record3.getMessage() == '127.0.0.1:50000 - "GET /lutin/*** HTTP/1.1" 200'
+
+    # Format uvicorn standard avec args tuple pour endpoint API
+    record4 = logging.LogRecord(
+        name="uvicorn.access",
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg='%s - "%s %s HTTP/%s" %d',
+        args=("127.0.0.1:50000", "POST", "/api/lutin/aBcD_1234-xyz987654321/presence", "1.1", 200),
+        exc_info=None,
+    )
+    assert masking_filter.filter(record4) is True
+    assert record4.getMessage() == '127.0.0.1:50000 - "POST /api/lutin/***/presence HTTP/1.1" 200'
+
+    # Requête normale sans token : reste intacte
+    record_public = logging.LogRecord(
+        name="uvicorn.access",
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg='%s - "%s %s HTTP/%s" %d',
+        args=("127.0.0.1:50000", "GET", "/scores/2026", "1.1", 200),
+        exc_info=None,
+    )
+    assert masking_filter.filter(record_public) is True
+    assert record_public.getMessage() == '127.0.0.1:50000 - "GET /scores/2026 HTTP/1.1" 200'
+
+
+def test_cli_serve_installs_token_masking_filter(tmp_path: Path) -> None:
+    import logging
+    from unittest.mock import patch
+
+    from pere_noel_fremo.web import TokenMaskingFilter
+
+    db_path = tmp_path / "fremo.db"
+    access_logger = logging.getLogger("uvicorn.access")
+    # Retirer les filtres existants pour le test
+    initial_filters = list(access_logger.filters)
+    access_logger.filters.clear()
+
+    try:
+        with patch("uvicorn.run") as mock_uvicorn:
+            ret = main(
+                [
+                    "serve",
+                    "--db-path",
+                    str(db_path),
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    "8000",
+                ]
+            )
+            assert ret == 0
+            assert mock_uvicorn.call_count == 1
+            has_masking_filter = any(isinstance(f, TokenMaskingFilter) for f in access_logger.filters)
+            assert has_masking_filter is True
+    finally:
+        access_logger.filters = initial_filters

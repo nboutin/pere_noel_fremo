@@ -5,7 +5,9 @@ L'Espace Lutin doit être accessible en HTTPS public pour que les Lutins puissen
 
 ## Décision
 1. **Hébergement et orchestration** : L'Espace Lutin est déployé sous forme de conteneur Docker orchestré par Dockge dans `/opt/stacks/pere_noel_fremo` sur le Homelab.
-2. **Persistance et port local** : Le répertoire `res/` (contenant la base SQLite `res/fremo.db`) est monté en volume persistant. Le serveur web écoute sur le port `8000` de l'hôte (`8000:8000`).
-3. **Exposition publique (Tailscale Funnel)** : Le service est exposé publiquement sur Internet sans ouverture de port de box ni achat de domaine via Tailscale Funnel sur le port 10000 : `https://homelab.tail7d8b91.ts.net:10000`.
-4. **Base URL** : L'URL racine permanente configurée dans `res/secure_data.yml` pour forger les Liens magiques est fixée à `https://homelab.tail7d8b91.ts.net:10000`.
-5. **Centralisation de l'administration** : Les commandes CLI d'administration (`pere-noel annonce`, `pere-noel tirage`, audit) sont exécutées directement sur le Homelab accédant à `res/fremo.db`.
+2. **Persistance et port local durci (Loopback)** : Le répertoire `res/` (contenant la base SQLite `res/fremo.db`) est monté en volume persistant. Le port du conteneur est expressément lié à l'adresse de bouclage IPv4 de l'hôte (`127.0.0.1:8000:8000`), empêchant toute exposition directe non filtrée sur le réseau local physique.
+3. **Exécution sous utilisateur non privilégié** : Le conteneur ne s'exécute pas en `root`. Un utilisateur dédié non privilégié `lutin` (UID/GID 1000) possède les répertoires `/app/res` et `/app/logs` et exécute le processus FastAPI (`USER lutin`).
+4. **Masquage des jetons magiques dans les journaux d'accès** : Afin d'éviter la fuite de secrets dans les journaux d'accès HTTP (`uvicorn.access`), un filtre de journalisation (`TokenMaskingFilter`) est actif par défaut sur la commande `serve` pour obfusquer les motifs `/lutin/<token>` et `/api/lutin/<token>` en `/lutin/***` et `/api/lutin/***`.
+5. **Exposition publique (Tailscale Funnel)** : Le service est exposé publiquement sur Internet sans ouverture de port de box ni achat de domaine via Tailscale Funnel sur le port 10000 : `https://homelab.tail7d8b91.ts.net:10000` ciblant `127.0.0.1:8000`.
+6. **Base URL** : L'URL racine permanente configurée dans `res/secure_data.yml` pour forger les Liens magiques est fixée à `https://homelab.tail7d8b91.ts.net:10000`.
+7. **Centralisation de l'administration** : Les commandes CLI d'administration (`pere-noel annonce`, `pere-noel tirage`, audit) sont exécutées directement sur le Homelab accédant à `res/fremo.db`.

@@ -292,9 +292,14 @@ def handle_annonce(args: argparse.Namespace) -> int:
 
 
 def handle_serve(args: argparse.Namespace) -> int:
+    import logging
+
     import uvicorn
 
-    from .web import create_app
+    from .web import TokenMaskingFilter, create_app
+
+    access_logger = logging.getLogger("uvicorn.access")
+    access_logger.addFilter(TokenMaskingFilter())
 
     web_app = create_app(db_path=args.db_path)
     print(f"Démarrage de l'Espace Lutin sur http://{args.host}:{args.port} (DB: {args.db_path})")
@@ -373,6 +378,10 @@ if __name__ == "__main__":
 
 
 def __getattr__(name: str) -> Any:
+    if name == "TokenMaskingFilter":
+        from .web import TokenMaskingFilter
+
+        return TokenMaskingFilter
     if name == "RES_DIR":
         return resolve_res_dir()
     if name == "DEFAULT_DB_PATH":
