@@ -39,7 +39,7 @@
                             <!-- Étape 1 : Présence -->
                             <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; border-radius: 6px; padding: 16px; margin: 24px 0;">
                                 <h3 style="margin: 0 0 8px; color: #991b1b; font-size: 16px;">
-                                    📌 1. Confirme ta présence (Priorité absolue)
+                                    📌 1. Confirme ta présence
                                 </h3>
                                 <p style="margin: 0; font-size: 14px; color: #7f1d1d;">
                                     Pour que le traîneau soit équilibré, la participation au tirage au sort doit être confirmée avant le <strong>dimanche 1er novembre {year} à 23h59</strong>. Un simple clic sur ton Espace Lutin suffit pour valider ou décliner.
@@ -52,14 +52,14 @@
                                     🧩 2. Le Défi du lutin : Manche 1 déjà ouverte !
                                 </h3>
                                 <p style="margin: 0; font-size: 14px; color: #713f12;">
-                                    Le grand championnat de l'Avent est lancé ! Résous les grilles logiques au fil des semaines pour marquer des points au classement.
+                                    Le grand championnat des lutins est lancé ! Résous les grilles logiques au fil des semaines pour marquer des points au classement.
                                     <strong>Rappel du trophée suprême :</strong> le Lutin qui remportera le championnat aura le privilège d'ouvrir son cadeau en premier lors de la fête !
                                 </p>
                             </div>
 
                             <!-- Étape 3 : Le tirage à venir -->
                             <p style="font-size: 14px; color: #64748b; margin: 20px 0;">
-                                🎁 <em>Et le cadeau secret ?</em> Dès la clôture des confirmations de présence, le <strong>Tirage au sort</strong> sera effectué et une <strong>Carte à gratter</strong> virtuelle se débloquera sur ton Espace Lutin pour révéler ton Bénéficiaire (budget indicatif habituel : 15 à 20 €).
+                                🎁 <em>Et le cadeau secret ?</em> Dès la clôture des confirmations de présence, le <strong>Tirage au sort</strong> sera effectué et une <strong>Carte à gratter</strong> virtuelle se débloquera sur ton Espace Lutin pour révéler ton Bénéficiaire.
                             </p>
 
                             <!-- Bouton CTA Bulletproof -->
