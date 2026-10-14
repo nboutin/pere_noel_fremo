@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +10,6 @@ from pydantic import BaseModel
 from .config import default_db_path, resolve_res_dir
 from .database import (
     abandon_score_defi,
-    complete_score_defi,
     get_beneficiaire_for_lutin,
     get_edition_date_repas,
     get_edition_status,
@@ -20,16 +18,20 @@ from .database import (
     get_or_create_score_defi,
     get_scores_classement,
     init_db,
+    register_solve_attempt,
     set_lutin_presence,
     start_score_defi,
 )
 from .defi import (
+    MAX_ESSAIS_PAR_MANCHE,
+    PENALITE_ESSAI_FAUX_SECONDES,
     calculate_championship_standings,
     generate_pseudo_lugeur,
     get_all_manches,
     get_manche,
     get_or_load_grille,
     is_manche_unlocked,
+    is_solution_complete,
     validate_grille_solution,
 )
 from .helper import format_date_repas
@@ -327,40 +329,78 @@ def create_app(
                 detail=f"La manche {manche_id} est déjà terminée (essai unique officiel).",
             )
 
-        is_valid = validate_grille_solution(manche, payload.solution)
-        if not is_valid:
-            return JSONResponse(
-                status_code=400,
-                content={"ok": False, "solved": False, "detail": "La solution soumise comporte des erreurs."},
-            )
-
-        started_at_raw = score_entry.get("started_at")
-        if not started_at_raw:
+        if not score_entry.get("started_at"):
             raise HTTPException(
                 status_code=400,
                 detail="Le Défi du lutin doit être démarré avant d'être validé.",
             )
 
-        try:
-            start_time = datetime.strptime(str(started_at_raw), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-            now_utc = datetime.now(timezone.utc)
-            time_diff = (now_utc - start_time).total_seconds()
-            time_seconds = max(1.0, round(time_diff, 1))
-        except Exception:
-            raise HTTPException(
-                status_code=500,
-                detail="Erreur lors du calcul du temps de complétion.",
-            ) from None
+        # Seules les soumissions complètes mais erronées consomment un essai.
+        # Les requêtes incomplètes/malformées sont rejetées sans incrémenter attempts.
+        if not is_solution_complete(manche, payload.solution):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "ok": False,
+                    "solved": False,
+                    "detail": "La solution soumise est incomplète (tous les choix doivent être renseignés).",
+                },
+            )
 
-        updated = complete_score_defi(db_path, lutin_id, year, time_seconds=time_seconds, manche_id=manche_id)
+        is_valid = validate_grille_solution(manche, payload.solution)
+
+        result = register_solve_attempt(
+            db_path=db_path,
+            lutin_id=lutin_id,
+            year=year,
+            manche_id=manche_id,
+            is_valid=is_valid,
+            max_attempts=MAX_ESSAIS_PAR_MANCHE,
+            penalty_seconds=float(PENALITE_ESSAI_FAUX_SECONDES),
+        )
+
+        if result.get("already_completed"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"La manche {manche_id} est déjà terminée (essai unique officiel).",
+            )
+
+        if result.get("solved"):
+            return JSONResponse(
+                {
+                    "ok": True,
+                    "manche_id": manche_id,
+                    "solved": True,
+                    "attempts": result["attempts"],
+                    "time_seconds": result["time_seconds"],
+                    "pseudo_lugeur": pseudo,
+                }
+            )
+
+        attempts = int(result["attempts"])
+        essais_restants = int(result["essais_restants"])
+        sealed = bool(result.get("sealed", False))
+
+        if sealed:
+            detail = f"Nombre maximal d'essais atteint ({attempts}/{MAX_ESSAIS_PAR_MANCHE}). La manche est scellée."
+        else:
+            penalite_acc = int(attempts * PENALITE_ESSAI_FAUX_SECONDES)
+            detail = (
+                f"La solution soumise comporte des erreurs. "
+                f"Essais restants : {essais_restants}/{MAX_ESSAIS_PAR_MANCHE} "
+                f"(pénalité accumulée : +{penalite_acc}s)."
+            )
+
         return JSONResponse(
-            {
-                "ok": True,
-                "manche_id": manche_id,
-                "solved": True,
-                "time_seconds": updated.get("time_seconds"),
-                "pseudo_lugeur": updated.get("pseudo_lugeur", pseudo),
-            }
+            status_code=400,
+            content={
+                "ok": False,
+                "solved": False,
+                "attempts": attempts,
+                "essais_restants": essais_restants,
+                "penalite_secondes": PENALITE_ESSAI_FAUX_SECONDES,
+                "detail": detail,
+            },
         )
 
     async def _handle_abandon_defi(token: str, manche_id: int = 1) -> JSONResponse:

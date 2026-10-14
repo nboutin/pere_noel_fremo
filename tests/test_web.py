@@ -600,3 +600,237 @@ def test_defi_indices_resume_endpoint(client: TestClient, test_db: Path) -> None
 
     resp_after_abandon = client.get(f"/api/lutin/{token_abandon}/defi/1/indices")
     assert resp_after_abandon.status_code == 403
+
+
+def test_solve_defi_attempts_and_penalties_lifecycle(client: TestClient, test_db: Path) -> None:
+    from pere_noel_fremo.database import (
+        get_db_connection,
+        set_lutin_presence,
+    )
+    from pere_noel_fremo.defi import get_manche
+    from pere_noel_fremo.tokens import create_or_get_token
+
+    m1 = get_manche(2025, 1)
+    assert m1 is not None
+    sol_ok = m1["solution"]
+    # Solution erronée mais complète
+    sol_wrong = {
+        "Barnabé": {"luge": "Éclair Vert", "friandise": "Canne de sucre"},
+        "Clémence": {"luge": "Comète Bleue", "friandise": "Chocolat chaud"},
+        "Gaspard": {"luge": "Étoile Rouge", "friandise": "Pain d'épices"},
+    }
+
+    conn = get_db_connection(test_db)
+    with conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO lutins (id, fullname, email) VALUES ('jdupont', 'Jean Dupont', 'jd@fremo.org');"
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO lutins (id, fullname, email) VALUES ('mmartin', 'Marie Martin', 'mm@fremo.org');"
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO lutins (id, fullname, email) "
+            "VALUES ('plefebvre', 'Pierre Lefebvre', 'pl@fremo.org');"
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO lutins (id, fullname, email) VALUES ('cbernard', 'Claire Bernard', 'cb@fremo.org');"
+        )
+    conn.close()
+
+    # --- Cas 1 : 1 essai faux puis 1 juste -> attempts=2, time_seconds >= raw + 15 ---
+    token_1 = create_or_get_token(test_db, "jdupont", 2025)
+    set_lutin_presence(test_db, "jdupont", 2025, present=True)
+    client.post(f"/api/lutin/{token_1}/defi/1/start")
+
+    # Requête incomplète -> rejetée en 400 sans consommer d'essai
+    resp_inc = client.post(
+        f"/api/lutin/{token_1}/defi/1/solve",
+        json={"solution": {"Barnabé": {"luge": "Comète Bleue"}}},
+    )
+    assert resp_inc.status_code == 400
+    assert resp_inc.json()["solved"] is False
+    # Vérifier que attempts est toujours à 0
+    conn = get_db_connection(test_db)
+    row = conn.execute("SELECT attempts FROM scores_defi WHERE lutin_id = 'jdupont' AND manche_id = 1;").fetchone()
+    assert row["attempts"] == 0
+    conn.close()
+
+    # Essai 1 : faux complet
+    resp_wrong1 = client.post(
+        f"/api/lutin/{token_1}/defi/1/solve",
+        json={"solution": sol_wrong},
+    )
+    assert resp_wrong1.status_code == 400
+    d_w1 = resp_wrong1.json()
+    assert d_w1["solved"] is False
+    assert d_w1["attempts"] == 1
+    assert d_w1["essais_restants"] == 2
+    assert d_w1["penalite_secondes"] == 15
+
+    # Essai 2 : juste
+    resp_ok1 = client.post(
+        f"/api/lutin/{token_1}/defi/1/solve",
+        json={"solution": sol_ok},
+    )
+    assert resp_ok1.status_code == 200
+    d_ok1 = resp_ok1.json()
+    assert d_ok1["solved"] is True
+    assert d_ok1["attempts"] == 2
+    assert d_ok1["time_seconds"] >= 15.0
+
+    # --- Cas 2 : 2 essais faux puis 1 juste -> attempts=3, time_seconds >= raw + 30 ---
+    token_2 = create_or_get_token(test_db, "mmartin", 2025)
+    set_lutin_presence(test_db, "mmartin", 2025, present=True)
+    client.post(f"/api/lutin/{token_2}/defi/1/start")
+
+    # Essai 1 faux
+    r1 = client.post(f"/api/lutin/{token_2}/defi/1/solve", json={"solution": sol_wrong})
+    assert r1.status_code == 400
+    assert r1.json()["attempts"] == 1
+
+    # Essai 2 faux
+    r2 = client.post(f"/api/lutin/{token_2}/defi/1/solve", json={"solution": sol_wrong})
+    assert r2.status_code == 400
+    assert r2.json()["attempts"] == 2
+    assert r2.json()["essais_restants"] == 1
+
+    # Essai 3 juste
+    r3 = client.post(f"/api/lutin/{token_2}/defi/1/solve", json={"solution": sol_ok})
+    assert r3.status_code == 200
+    d_r3 = r3.json()
+    assert d_r3["solved"] is True
+    assert d_r3["attempts"] == 3
+    assert d_r3["time_seconds"] >= 30.0
+
+    # --- Cas 3 : 3 essais faux -> manche scellée, 1 pt participation, 4e appel -> 400 ---
+    token_3 = create_or_get_token(test_db, "plefebvre", 2025)
+    set_lutin_presence(test_db, "plefebvre", 2025, present=True)
+    client.post(f"/api/lutin/{token_3}/defi/1/start")
+
+    client.post(f"/api/lutin/{token_3}/defi/1/solve", json={"solution": sol_wrong})
+    client.post(f"/api/lutin/{token_3}/defi/1/solve", json={"solution": sol_wrong})
+    r_third = client.post(f"/api/lutin/{token_3}/defi/1/solve", json={"solution": sol_wrong})
+    assert r_third.status_code == 400
+    d_third = r_third.json()
+    assert d_third["solved"] is False
+    assert d_third["attempts"] == 3
+    assert d_third["essais_restants"] == 0
+
+    # Vérification en base : scellé avec solved=0 et time_seconds=None
+    conn = get_db_connection(test_db)
+    row3 = conn.execute("SELECT * FROM scores_defi WHERE lutin_id = 'plefebvre' AND manche_id = 1;").fetchone()
+    assert row3["solved"] == 0
+    assert row3["time_seconds"] is None
+    assert row3["completed_at"] is not None
+    assert row3["attempts"] == 3
+    conn.close()
+
+    # 4e tentative -> 400
+    r_fourth = client.post(f"/api/lutin/{token_3}/defi/1/solve", json={"solution": sol_ok})
+    assert r_fourth.status_code == 400
+    assert "terminée" in r_fourth.json().get("detail", "").lower()
+
+    # --- Cas 4 : Abandon volontaire -> 0 point ---
+    token_4 = create_or_get_token(test_db, "cbernard", 2025)
+    set_lutin_presence(test_db, "cbernard", 2025, present=True)
+    client.post(f"/api/lutin/{token_4}/defi/1/start")
+    client.post(f"/api/lutin/{token_4}/defi/1/abandon")
+
+    # Classement au championnat
+    from pere_noel_fremo.defi import calculate_championship_standings
+
+    standings = calculate_championship_standings(test_db, 2025)
+    p_third = next(s for s in standings if s["pseudo_lugeur"] == row3["pseudo_lugeur"])
+    conn = get_db_connection(test_db)
+    pseudo_4 = conn.execute("SELECT pseudo_lugeur FROM scores_defi WHERE lutin_id = 'cbernard';").fetchone()[0]
+    conn.close()
+    p_fourth = next(s for s in standings if s["pseudo_lugeur"] == pseudo_4)
+
+    # 3 essais faux donne 1 point de participation
+    assert p_third["total_points"] == 1
+    assert p_third["manches_resolved_count"] == 0
+
+    # Abandon volontaire donne 0 point
+    assert p_fourth["total_points"] == 0
+
+
+def test_regression_brute_force_attack_fails_and_never_solves_under_60s(client: TestClient, test_db: Path) -> None:
+    import itertools
+
+    from pere_noel_fremo.database import set_lutin_presence
+    from pere_noel_fremo.defi import get_manche
+    from pere_noel_fremo.tokens import create_or_get_token
+
+    m1 = get_manche(2025, 1)
+    assert m1 is not None
+    lutins = m1["categories"]["lutins"]
+    luges = m1["categories"]["luges"]
+    friandises = m1["categories"]["friandises"]
+
+    # Générer les 3! x 3! = 36 combinaisons possibles
+    all_combinations = []
+    for luge_perm in itertools.permutations(luges):
+        for friandise_perm in itertools.permutations(friandises):
+            candidate = {lutins[i]: {"luge": luge_perm[i], "friandise": friandise_perm[i]} for i in range(len(lutins))}
+            all_combinations.append(candidate)
+
+    # Exclure la vraie solution des 3 premières tentatives pour simuler l'attaque force-brute standard
+    sol_ok = m1["solution"]
+    wrong_candidates = [c for c in all_combinations if c != sol_ok]
+    candidates_to_try = wrong_candidates[:3] + [sol_ok] + wrong_candidates[3:]
+
+    conn = get_db_connection(test_db)
+    with conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO lutins (id, fullname, email) "
+            "VALUES ('brute_force_attacker', 'Attaquant', 'att@fremo.org');"
+        )
+    conn.close()
+
+    token = create_or_get_token(test_db, "brute_force_attacker", 2025)
+    set_lutin_presence(test_db, "brute_force_attacker", 2025, present=True)
+    client.post(f"/api/lutin/{token}/defi/1/start")
+
+    solved = False
+    solved_time = None
+    attempts_made = 0
+
+    for cand in candidates_to_try:
+        resp = client.post(f"/api/lutin/{token}/defi/1/solve", json={"solution": cand})
+        attempts_made += 1
+        if resp.status_code == 200 and resp.json().get("solved"):
+            solved = True
+            solved_time = resp.json().get("time_seconds")
+            break
+
+    # L'attaque par force brute doit avoir échoué car plafonnée à 3 essais
+    assert solved is False
+    assert solved_time is None
+    # Au 3e essai la manche a été scellée et le 4e a renvoyé 400
+    assert attempts_made == len(candidates_to_try)
+
+
+def test_espace_lutin_ui_elements_for_attempts_and_penalties(client: TestClient, test_db: Path) -> None:
+    from pere_noel_fremo.database import set_lutin_presence
+    from pere_noel_fremo.tokens import create_or_get_token
+
+    conn = get_db_connection(test_db)
+    with conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO lutins (id, fullname, email) VALUES ('ui_tester', 'UI Tester', 'ui@fremo.org');"
+        )
+    conn.close()
+
+    token = create_or_get_token(test_db, "ui_tester", 2025)
+    set_lutin_presence(test_db, "ui_tester", 2025, present=True)
+    client.post(f"/api/lutin/{token}/defi/1/start")
+
+    page = client.get(f"/lutin/{token}?manche=1")
+    assert page.status_code == 200
+    # Bouton valider initialement désactivé
+    assert 'id="btn-submit-defi"' in page.text
+    assert "disabled" in page.text
+    # Zone d'affichage des pénalités
+    assert 'id="penalty-display"' in page.text
+    # Logique de vérification de complétude de la grille
+    assert "checkGridCompletion" in page.text

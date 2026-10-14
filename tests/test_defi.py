@@ -223,3 +223,142 @@ def test_calculate_championship_standings_aggregates_points_and_ties(tmp_path: P
     assert second["total_points"] == 18
     assert round(second["total_time_seconds"], 1) == 70.0
     assert second["manches_resolved_count"] == 2
+
+
+def test_anti_brute_force_constants_and_solution_completeness() -> None:
+    from pere_noel_fremo.defi import (
+        MAX_ESSAIS_PAR_MANCHE,
+        PENALITE_ESSAI_FAUX_SECONDES,
+        is_solution_complete,
+    )
+
+    assert MAX_ESSAIS_PAR_MANCHE == 3
+    assert PENALITE_ESSAI_FAUX_SECONDES == 15
+
+    grille = get_or_load_grille(year=2026)
+
+    # Grille vide ou non dict -> False
+    assert is_solution_complete(grille, {}) is False
+    assert is_solution_complete(grille, None) is False  # type: ignore
+
+    # Grille partielle (un seul lutin) -> False
+    partial = {"Barnabé": {"luge": "Comète Bleue", "friandise": "Chocolat chaud"}}
+    assert is_solution_complete(grille, partial) is False
+
+    # Grille avec choix manquants (champ vide) -> False
+    incomplete_field = {
+        "Barnabé": {"luge": "Comète Bleue", "friandise": ""},
+        "Clémence": {"luge": "Étoile Rouge", "friandise": "Pain d'épices"},
+        "Gaspard": {"luge": "Éclair Vert", "friandise": "Canne de sucre"},
+    }
+    assert is_solution_complete(grille, incomplete_field) is False
+
+    # Grille complète (valide ou invalide, mais tous les choix sont renseignés) -> True
+    assert is_solution_complete(grille, grille["solution"]) is True
+
+
+def test_calculate_manche_points_participation_and_voluntary_abandon() -> None:
+    from pere_noel_fremo.defi import calculate_manche_points
+
+    classement = [
+        {"pseudo_lugeur": "Lutin Rapide", "solved": 1, "time_seconds": 22.1, "attempts": 1},
+        # Lutin ayant échoué à 3 essais -> 1 point de participation au championnat
+        {"pseudo_lugeur": "Lutin Persistant", "solved": 0, "time_seconds": None, "attempts": 3},
+        # Lutin ayant abandonné volontairement avant 3 essais -> 0 point
+        {"pseudo_lugeur": "Lutin Découragé", "solved": 0, "time_seconds": None, "attempts": 1},
+        # Lutin ayant abandonné sans aucun essai -> 0 point
+        {"pseudo_lugeur": "Lutin Fantôme", "solved": 0, "time_seconds": None, "attempts": 0},
+    ]
+
+    scored = calculate_manche_points(classement)
+
+    # 1er résolu : 10 pts
+    assert scored[0]["rank"] == 1
+    assert scored[0]["points"] == 10
+
+    # 3 essais faux : 1 point de participation, pas de rang
+    assert scored[1]["rank"] is None
+    assert scored[1]["points"] == 1
+
+    # Abandon volontaire avec 1 essai : 0 point
+    assert scored[2]["rank"] is None
+    assert scored[2]["points"] == 0
+
+    # Abandon sans essai : 0 point
+    assert scored[3]["rank"] is None
+    assert scored[3]["points"] == 0
+
+
+def test_championship_standings_tie_breaker_resolved_over_failed_attempts(tmp_path: Path) -> None:
+    from pere_noel_fremo.database import (
+        get_db_connection,
+        init_db,
+    )
+    from pere_noel_fremo.defi import calculate_championship_standings
+
+    db_path = tmp_path / "fremo_tie_breaker.db"
+    init_db(db_path)
+    conn = get_db_connection(db_path)
+    with conn:
+        conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
+        conn.execute("INSERT INTO lutins (id, fullname, email) VALUES ('l_resolved', 'Lutin Résolu', 'lr@fremo.org');")
+        conn.execute("INSERT INTO lutins (id, fullname, email) VALUES ('l_failed', 'Lutin Échoué', 'lf@fremo.org');")
+        # Simuler 8 lutins plus rapides pour que l_resolved n'obtienne que 1 pt (rang >= 8)
+        for i in range(1, 9):
+            conn.execute(
+                f"INSERT INTO lutins (id, fullname, email) VALUES ('l_fast_{i}', 'Fast {i}', 'f{i}@fremo.org');"
+            )
+            conn.execute(
+                """
+                INSERT INTO scores_defi (
+                    lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at, attempts
+                )
+                VALUES (?, 2026, 1, ?, '2026-10-14 20:00:00', 1, ?, '2026-10-14 20:01:00', 1);
+                """,
+                (f"l_fast_{i}", f"Fast Lugeur {i}", 10.0 + i),
+            )
+
+        # l_resolved résout en 9e position (temps 120s) -> 1 point, 1 manche résolue
+        conn.execute(
+            """
+            INSERT INTO scores_defi (
+                lutin_id, year, manche_id, pseudo_lugeur,
+                started_at, solved, time_seconds, completed_at, attempts
+            )
+            VALUES (
+                'l_resolved', 2026, 1, 'Lutin Persévérant',
+                '2026-10-14 20:00:00', 1, 120.0, '2026-10-14 20:02:00', 1
+            );
+            """
+        )
+
+        # l_failed échoue à 3 essais -> 1 point de participation, 0 manche résolue, time_seconds=NULL
+        conn.execute(
+            """
+            INSERT INTO scores_defi (
+                lutin_id, year, manche_id, pseudo_lugeur,
+                started_at, solved, time_seconds, completed_at, attempts
+            )
+            VALUES (
+                'l_failed', 2026, 1, 'Lutin Malchanceux',
+                '2026-10-14 20:00:00', 0, NULL, '2026-10-14 20:03:00', 3
+            );
+            """
+        )
+    conn.close()
+
+    simulated_now = datetime(2026, 10, 20, 12, 0, 0, tzinfo=timezone.utc)
+    standings = calculate_championship_standings(db_path, 2026, now=simulated_now)
+
+    # Trouver les deux lutins à 1 point
+    lutin_res = next(s for s in standings if s["pseudo_lugeur"] == "Lutin Persévérant")
+    lutin_fail = next(s for s in standings if s["pseudo_lugeur"] == "Lutin Malchanceux")
+
+    assert lutin_res["total_points"] == 1
+    assert lutin_res["manches_resolved_count"] == 1
+
+    assert lutin_fail["total_points"] == 1
+    assert lutin_fail["manches_resolved_count"] == 0
+
+    # Au départage, le lutin ayant résolu la manche prime sur celui ayant échoué aux 3 essais
+    assert lutin_res["rank"] < lutin_fail["rank"]

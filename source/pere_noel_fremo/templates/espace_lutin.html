@@ -201,8 +201,9 @@
 
                     <!-- Zone de jeu anti-triche (masquée avant le démarrage) -->
                     <div id="defi-game-box" class="anti-cheat-zone" oncontextmenu="return false;" style="{% if not score_info.started_at %}display:none;{% endif %}">
-                        <div style="text-align: right; font-family: monospace; color: var(--color-gold); font-size: 1.1rem; margin-bottom: 0.5rem;">
-                            ⏱️ Temps écoulé : <span id="timer-display">0.0</span>s
+                        <div style="text-align: right; font-family: monospace; color: var(--color-gold); font-size: 1.1rem; margin-bottom: 0.5rem; display: flex; justify-content: flex-end; align-items: center; gap: 0.8rem; flex-wrap: wrap;">
+                            <span id="attempts-badge" style="font-size: 0.85rem; color: #cbd5e1; background: #334155; padding: 0.2rem 0.5rem; border-radius: 4px;">Essai <span id="current-attempt-num">{{ (score_info.attempts or 0) + 1 }}</span>/3</span>
+                            <span>⏱️ Temps écoulé : <span id="timer-display">0.0</span>s <span id="penalty-display" style="color: #f87171; font-weight: bold; font-size: 0.95rem; margin-left: 0.3rem; {% if not score_info.attempts or score_info.attempts == 0 %}display: none;{% endif %}">(+{{ (score_info.attempts or 0) * 15 }}s pénalité)</span></span>
                         </div>
 
                         <h3>Indices de l'énigme (Visualisation fragmentée) :</h3>
@@ -247,7 +248,7 @@
                                         <tr>
                                             <td><strong>{{ lutin_name }}</strong></td>
                                             <td>
-                                                <select id="select-luge-{{ lutin_name }}" class="logic-select">
+                                                <select id="select-luge-{{ lutin_name }}" class="logic-select" onchange="checkGridCompletion()">
                                                     <option value="">-- Choisir la luge --</option>
                                                     {% for luge in active_manche.categories.luges %}
                                                         <option value="{{ luge }}">{{ luge }}</option>
@@ -255,7 +256,7 @@
                                                 </select>
                                             </td>
                                             <td>
-                                                <select id="select-friandise-{{ lutin_name }}" class="logic-select">
+                                                <select id="select-friandise-{{ lutin_name }}" class="logic-select" onchange="checkGridCompletion()">
                                                     <option value="">-- Choisir la friandise --</option>
                                                     {% for friandise in active_manche.categories.friandises %}
                                                         <option value="{{ friandise }}">{{ friandise }}</option>
@@ -269,7 +270,7 @@
                         </div>
 
                         <div style="display: flex; justify-content: center; gap: 1rem; margin-top: 1.2rem; flex-wrap: wrap;">
-                            <button type="button" class="btn-present" onclick="submitDefi()">
+                            <button type="button" id="btn-submit-defi" class="btn-present" onclick="submitDefi()" disabled style="opacity: 0.5; cursor: not-allowed;">
                                 🏁 Valider ma grille de la Manche #{{ active_manche_id }} !
                             </button>
                             <button type="button" class="btn-abandon" onclick="abandonDefi()">
@@ -364,6 +365,43 @@
         let isSolved = {{ 'true' if score_info.solved else 'false' }};
         let isCompleted = {{ 'true' if score_info.completed_at else 'false' }};
         let isChallengeActive = isStarted && !isCompleted;
+        let currentAttempts = {{ score_info.attempts or 0 }};
+        const MAX_ATTEMPTS = 3;
+        const PENALTY_SECONDS = 15;
+
+        function checkGridCompletion() {
+            const btn = document.getElementById("btn-submit-defi");
+            if (!btn) return;
+            let complete = true;
+            for (const name of LUTIN_NAMES) {
+                const lugeSelect = document.getElementById(`select-luge-${name}`);
+                const friandiseSelect = document.getElementById(`select-friandise-${name}`);
+                if (!lugeSelect || !friandiseSelect || !lugeSelect.value || !friandiseSelect.value) {
+                    complete = false;
+                    break;
+                }
+            }
+            btn.disabled = !complete;
+            btn.style.opacity = complete ? "1" : "0.5";
+            btn.style.cursor = complete ? "pointer" : "not-allowed";
+        }
+
+        function updatePenaltyDisplay() {
+            const penaltyDisplay = document.getElementById("penalty-display");
+            if (penaltyDisplay) {
+                if (currentAttempts > 0) {
+                    penaltyDisplay.textContent = `(+${currentAttempts * PENALTY_SECONDS}s pénalité)`;
+                    penaltyDisplay.style.display = "inline";
+                } else {
+                    penaltyDisplay.style.display = "none";
+                }
+            }
+            const attemptNum = document.getElementById("current-attempt-num");
+            if (attemptNum) {
+                attemptNum.textContent = Math.min(MAX_ATTEMPTS, currentAttempts + 1);
+            }
+        }
+
         let currentClueIndex = 0;
         const deducedClues = new Set();
         let timerInterval = null;
@@ -616,6 +654,13 @@
 
         // --- Soumission du Défi ---
         async function submitDefi() {
+            checkGridCompletion();
+            const btn = document.getElementById("btn-submit-defi");
+            if (btn && btn.disabled) {
+                showToast("Merci de compléter toutes les sélections de la grille !");
+                return;
+            }
+
             const solution = {};
             for (const name of LUTIN_NAMES) {
                 const luge = document.getElementById(`select-luge-${name}`).value;
@@ -641,7 +686,23 @@
                     showToast(`Bravo ! Manche #${ACTIVE_MANCHE_ID} réussie en ${data.time_seconds}s 🏆`);
                     setTimeout(() => location.reload(), 1500);
                 } else {
-                    showToast(data.detail || "La solution comporte des erreurs !");
+                    if (data.attempts !== undefined) {
+                        currentAttempts = data.attempts;
+                        updatePenaltyDisplay();
+                    }
+                    if (data.essais_restants !== undefined) {
+                        if (data.essais_restants === 0) {
+                            isChallengeActive = false;
+                            dismissEmergencyCurtain();
+                            if (timerInterval) clearInterval(timerInterval);
+                            showToast(data.detail || `❌ 3 essais épuisés ! Manche #${ACTIVE_MANCHE_ID} scellée.`);
+                            setTimeout(() => location.reload(), 2000);
+                        } else {
+                            showToast(data.detail || `❌ Erreur ! Il te reste ${data.essais_restants} essai(s) sur 3.`);
+                        }
+                    } else {
+                        showToast(data.detail || "La solution comporte des erreurs !");
+                    }
                 }
             } catch (e) {
                 showToast("Erreur lors de la validation du défi.");
@@ -823,6 +884,8 @@
 
         window.addEventListener("DOMContentLoaded", async () => {
             initScratchCard();
+            checkGridCompletion();
+            updatePenaltyDisplay();
             if (isStarted && !isCompleted) {
                 startLocalTimer();
                 try {

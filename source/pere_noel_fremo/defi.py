@@ -80,6 +80,10 @@ generate_pseudo_lutin = generate_pseudo_lugeur
 # Barème officiel Grand Prix F1 / Mario Kart (1er=10, 2e=8, etc., prime de complétion=1)
 POINTS_BAREME = [10, 8, 6, 5, 4, 3, 2, 1]
 
+# Neutralisation de la force brute : seuils officiels (Ticket #29)
+MAX_ESSAIS_PAR_MANCHE: int = 3
+PENALITE_ESSAI_FAUX_SECONDES: int = 15
+
 
 def calculate_points_for_rank(rank_1_indexed: int) -> int:
     """Retourne les points attribués pour un rang donné (1er = 10, etc., prime de complétion = 1)."""
@@ -100,6 +104,9 @@ def calculate_manche_points(classement: list[dict[str, Any]]) -> list[dict[str, 
             entry_copy["rank"] = solved_rank
             entry_copy["points"] = calculate_points_for_rank(solved_rank)
             solved_rank += 1
+        elif int(entry_copy.get("attempts", 0) or 0) >= MAX_ESSAIS_PAR_MANCHE:
+            entry_copy["rank"] = None
+            entry_copy["points"] = 1
         else:
             entry_copy["rank"] = None
             entry_copy["points"] = 0
@@ -155,12 +162,12 @@ def calculate_championship_standings(
             }
 
     standings = list(standings_map.values())
-    # Classement officiel : total_points décroissant, puis départage au temps cumulé croissant
+    # Classement officiel : total_points décroissant, puis départage manches réussies, puis temps cumulé
     standings.sort(
         key=lambda lutin_score: (
             -lutin_score["total_points"],
-            lutin_score["total_time_seconds"],
             -lutin_score["manches_resolved_count"],
+            lutin_score["total_time_seconds"],
             lutin_score["pseudo_lutin"],
         )
     )
@@ -294,6 +301,27 @@ def validate_grille_solution(grille: dict[str, Any], solution_soumise: dict[str,
         if solution_soumise[key] != expected_val:
             return False
 
+    return True
+
+
+def is_solution_complete(grille: dict[str, Any], solution: dict[str, Any]) -> bool:
+    """Vérifie si une grille soumise est complète (toutes les catégories requises renseignées)."""
+    if not isinstance(solution, dict) or not solution:
+        return False
+    categories = grille.get("categories") or {}
+    expected_lutins = categories.get("lutins")
+    if not expected_lutins:
+        expected_lutins = list((grille.get("solution") or {}).keys())
+    if not expected_lutins:
+        return False
+    for lutin in expected_lutins:
+        if lutin not in solution:
+            return False
+        entry = solution[lutin]
+        if not isinstance(entry, dict):
+            return False
+        if not entry.get("luge") or not entry.get("friandise"):
+            return False
     return True
 
 

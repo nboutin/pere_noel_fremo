@@ -460,3 +460,164 @@ def test_get_edition_date_repas_non_existent(tmp_path: Path) -> None:
     db_path = tmp_path / "empty.db"
     init_db(db_path)
     assert get_edition_date_repas(db_path, 2099) is None
+
+
+def test_init_db_adds_attempts_column_and_migrates_data(tmp_path: Path) -> None:
+    import sqlite3
+
+    db_path = tmp_path / "legacy_scores.db"
+    conn = sqlite3.connect(str(db_path))
+    # Créer les tables minimales avec un scores_defi sans la colonne attempts
+    conn.execute("CREATE TABLE editions (year INTEGER PRIMARY KEY, status TEXT NOT NULL DEFAULT 'draft');")
+    conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
+    conn.execute("CREATE TABLE lutins (id TEXT PRIMARY KEY, fullname TEXT NOT NULL, email TEXT);")
+    conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l1', 'Lutin 1');")
+    conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l2', 'Lutin 2');")
+    conn.execute("""
+        CREATE TABLE scores_defi (
+            lutin_id TEXT NOT NULL REFERENCES lutins(id) ON DELETE CASCADE,
+            year INTEGER NOT NULL REFERENCES editions(year) ON DELETE CASCADE,
+            manche_id INTEGER NOT NULL DEFAULT 1,
+            pseudo_lugeur TEXT NOT NULL,
+            started_at TIMESTAMP,
+            solved BOOLEAN NOT NULL DEFAULT 0,
+            time_seconds REAL,
+            completed_at TIMESTAMP,
+            PRIMARY KEY (lutin_id, year, manche_id)
+        );
+    """)
+    # l1 a résolu la manche -> attempts doit devenir 1
+    conn.execute("""
+        INSERT INTO scores_defi (
+            lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at
+        )
+        VALUES ('l1', 2026, 1, 'Renne Agile', '2026-10-14 20:00:00', 1, 42.0, '2026-10-14 20:00:42');
+    """)
+    # l2 n'a pas résolu la manche -> attempts doit devenir 0
+    conn.execute("""
+        INSERT INTO scores_defi (
+            lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at
+        )
+        VALUES ('l2', 2026, 1, 'Lutin Givré', '2026-10-14 20:00:00', 0, NULL, NULL);
+    """)
+    conn.commit()
+    conn.close()
+
+    # Migration idempotente via init_db
+    init_db(db_path)
+
+    conn_check = get_db_connection(db_path)
+    cols = [r[1] for r in conn_check.execute("PRAGMA table_info(scores_defi);").fetchall()]
+    assert "attempts" in cols
+
+    l1_row = conn_check.execute("SELECT attempts, solved FROM scores_defi WHERE lutin_id = 'l1';").fetchone()
+    assert l1_row["attempts"] == 1
+    assert l1_row["solved"] == 1
+
+    l2_row = conn_check.execute("SELECT attempts, solved FROM scores_defi WHERE lutin_id = 'l2';").fetchone()
+    assert l2_row["attempts"] == 0
+    assert l2_row["solved"] == 0
+    conn_check.close()
+
+    # Idempotence d'un deuxième appel
+    init_db(db_path)
+    conn_check2 = get_db_connection(db_path)
+    l1_row2 = conn_check2.execute("SELECT attempts FROM scores_defi WHERE lutin_id = 'l1';").fetchone()
+    assert l1_row2["attempts"] == 1
+    conn_check2.close()
+
+
+def test_register_solve_attempt_lifecycle(tmp_path: Path) -> None:
+    from datetime import datetime, timezone
+
+    from pere_noel_fremo.database import (
+        get_or_create_score_defi,
+        register_solve_attempt,
+        start_score_defi,
+    )
+
+    db_path = tmp_path / "fremo_attempts.db"
+    init_db(db_path)
+    conn = get_db_connection(db_path)
+    with conn:
+        conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
+        conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l1', 'Lutin 1');")
+        conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l2', 'Lutin 2');")
+    conn.close()
+
+    # 1. Tentative sans démarrage préalable -> ValueError
+    get_or_create_score_defi(db_path, "l1", 2026, "Renne Agile", manche_id=1)
+    with pytest.raises(ValueError, match="(?i)démarré"):
+        register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=False)
+
+    # 2. Démarrage
+    start_score_defi(db_path, "l1", 2026, manche_id=1)
+
+    # Forcer started_at pour un temps contrôlé
+    conn = get_db_connection(db_path)
+    with conn:
+        conn.execute(
+            "UPDATE scores_defi SET started_at = '2026-10-14 20:00:00' WHERE lutin_id = 'l1' AND manche_id = 1;"
+        )
+    conn.close()
+
+    # Tentative 1 fausse à t0 + 10s
+    t1 = datetime(2026, 10, 14, 20, 0, 10, tzinfo=timezone.utc)
+    res1 = register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=False, now=t1)
+    assert res1["solved"] is False
+    assert res1["attempts"] == 1
+    assert res1["essais_restants"] == 2
+    assert res1["sealed"] is False
+
+    # Tentative 2 fausse à t0 + 20s
+    t2 = datetime(2026, 10, 14, 20, 0, 20, tzinfo=timezone.utc)
+    res2 = register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=False, now=t2)
+    assert res2["solved"] is False
+    assert res2["attempts"] == 2
+    assert res2["essais_restants"] == 1
+    assert res2["sealed"] is False
+
+    # Tentative 3 fausse à t0 + 30s -> Scellement de la manche
+    t3 = datetime(2026, 10, 14, 20, 0, 30, tzinfo=timezone.utc)
+    res3 = register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=False, now=t3)
+    assert res3["solved"] is False
+    assert res3["attempts"] == 3
+    assert res3["essais_restants"] == 0
+    assert res3["sealed"] is True
+
+    # Vérification en base : solved=0, time_seconds=None, completed_at non nul
+    conn = get_db_connection(db_path)
+    row = conn.execute("SELECT * FROM scores_defi WHERE lutin_id = 'l1' AND manche_id = 1;").fetchone()
+    assert row["solved"] == 0
+    assert row["time_seconds"] is None
+    assert row["completed_at"] is not None
+    assert row["attempts"] == 3
+    conn.close()
+
+    # Tentative 4 après scellement -> already_completed=True
+    res4 = register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=True)
+    assert res4["already_completed"] is True
+
+    # Lutin 2 : 1 faux puis 1 juste avec pénalité
+    get_or_create_score_defi(db_path, "l2", 2026, "Lutin Givré", manche_id=1)
+    start_score_defi(db_path, "l2", 2026, manche_id=1)
+    conn = get_db_connection(db_path)
+    with conn:
+        conn.execute(
+            "UPDATE scores_defi SET started_at = '2026-10-14 20:00:00' WHERE lutin_id = 'l2' AND manche_id = 1;"
+        )
+    conn.close()
+
+    # Essai 1 faux à +10s
+    res_l2_1 = register_solve_attempt(db_path, "l2", 2026, manche_id=1, is_valid=False, now=t1)
+    assert res_l2_1["attempts"] == 1
+    assert res_l2_1["solved"] is False
+
+    # Essai 2 juste à +25s (temps brut = 25s, pénalité = 15s -> total = 40.0s)
+    t_l2_ok = datetime(2026, 10, 14, 20, 0, 25, tzinfo=timezone.utc)
+    res_l2_2 = register_solve_attempt(db_path, "l2", 2026, manche_id=1, is_valid=True, now=t_l2_ok)
+    assert res_l2_2["solved"] is True
+    assert res_l2_2["attempts"] == 2
+    assert res_l2_2["raw_time_seconds"] == 25.0
+    assert res_l2_2["penalty_seconds"] == 15.0
+    assert res_l2_2["time_seconds"] == 40.0
