@@ -20,6 +20,7 @@ from pere_noel_fremo.database import (
     import_yaml_data,
     init_db,
     save_attributions,
+    set_edition_status,
     set_lutin_presence,
     start_score_defi,
 )
@@ -377,7 +378,7 @@ def test_backfill_historical_attributions_idempotent(tmp_path: Path) -> None:
 
     init_db(db_path)
     # Exécuter le backfill
-    res1 = backfill_historical_attributions(db_path, res_dir=res_dir, purge_2026=True)
+    res1 = backfill_historical_attributions(db_path, res_dir=res_dir, purge_year=2026)
     assert res1["attributions"] == 233
     assert res1["editions"] == 11
 
@@ -397,8 +398,104 @@ def test_backfill_historical_attributions_idempotent(tmp_path: Path) -> None:
     assert edition_2026_status == "announced"
 
     # Vérification de l'idempotence
-    res2 = backfill_historical_attributions(db_path, res_dir=res_dir, purge_2026=True)
+    res2 = backfill_historical_attributions(db_path, res_dir=res_dir, purge_year=2026)
     assert res2["attributions"] == 233
+
+
+def test_backfill_historical_attributions_default_leaves_current_edition_intact(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo.db"
+    res_dir = Path("res")
+    init_db(db_path)
+
+    conn = get_db_connection(db_path)
+    try:
+        with conn:
+            conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
+            conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l1', 'Lutin 1'), ('l2', 'Lutin 2');")
+    finally:
+        conn.close()
+
+    # Simuler un tirage 2026 préalable
+    save_attributions(db_path, 2026, {"l1": "l2", "l2": "l1"})
+    set_edition_status(db_path, 2026, "drawn")
+
+    # Exécuter le backfill par défaut (sans argument purge_year)
+    res = backfill_historical_attributions(db_path, res_dir=res_dir)
+    assert res["editions"] == 11
+    assert res["attributions"] == 233
+
+    conn = get_db_connection(db_path)
+    try:
+        y2026_count = conn.execute("SELECT count(*) FROM attributions WHERE year = 2026;").fetchone()[0]
+        edition_2026_status = conn.execute("SELECT status FROM editions WHERE year = 2026;").fetchone()[0]
+        total_attributions = conn.execute("SELECT count(*) FROM attributions;").fetchone()[0]
+    finally:
+        conn.close()
+
+    assert y2026_count == 2
+    assert total_attributions == 235
+    assert edition_2026_status == "drawn"
+
+
+def test_save_attributions_successive_draws_no_order_index_hole(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+
+    conn = get_db_connection(db_path)
+    try:
+        with conn:
+            conn.execute(
+                "INSERT INTO editions (year, status) VALUES (2024, 'drawn'), (2025, 'drawn'), (2026, 'draft');"
+            )
+            conn.execute(
+                "INSERT INTO lutins (id, fullname) VALUES "
+                "('g1', 'Giver 1'), ('r1', 'Receiver 1'), ('r2', 'Receiver 2'), ('r3', 'Receiver 3');"
+            )
+            # Historique : order_index 0 (2024), 1 (2025)
+            conn.execute(
+                "INSERT INTO attributions (donneur_id, beneficiaire_id, year, order_index) "
+                "VALUES ('g1', 'r1', 2024, 0);"
+            )
+            conn.execute(
+                "INSERT INTO attributions (donneur_id, beneficiaire_id, year, order_index) "
+                "VALUES ('g1', 'r2', 2025, 1);"
+            )
+    finally:
+        conn.close()
+
+    # Premier tirage 2026 : donneur 'g1' reçoit l'attribution vers 'r3'
+    save_attributions(db_path, 2026, {"g1": "r3"})
+
+    conn = get_db_connection(db_path)
+    try:
+        row = conn.execute("SELECT order_index FROM attributions WHERE donneur_id = 'g1' AND year = 2026;").fetchone()
+        assert row is not None
+        assert row["order_index"] == 2
+    finally:
+        conn.close()
+
+    # Deuxième tirage (re-tirage pour la même année 2026) avec une cible différente (ou identique)
+    save_attributions(db_path, 2026, {"g1": "r2"})
+
+    conn = get_db_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT order_index, beneficiaire_id FROM attributions WHERE donneur_id = 'g1' AND year = 2026;"
+        ).fetchall()
+        assert len(rows) == 1
+        assert rows[0]["order_index"] == 2
+        assert rows[0]["beneficiaire_id"] == "r2"
+
+        # Vérifier l'ensemble de la séquence d'ordre pour g1 : [0, 1, 2] sans aucun trou
+        all_indices = [
+            r["order_index"]
+            for r in conn.execute(
+                "SELECT order_index FROM attributions WHERE donneur_id = 'g1' ORDER BY order_index ASC;"
+            ).fetchall()
+        ]
+        assert all_indices == [0, 1, 2]
+    finally:
+        conn.close()
 
 
 def test_init_db_adds_date_repas_column_and_migration(tmp_path: Path) -> None:

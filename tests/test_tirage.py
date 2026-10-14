@@ -15,6 +15,7 @@ from pere_noel_fremo.database import (
 )
 from pere_noel_fremo.tirage import (
     run_tirage,
+    solve_tirage,
 )
 
 
@@ -216,3 +217,76 @@ def test_tirage_respects_strict_perpetual_history(tmp_path: Path) -> None:
 
     audit = audit_tirage(db_path, year=2026)
     assert audit.is_valid is True
+
+
+def test_solve_tirage_fails_when_impossible() -> None:
+    """Si les exclusions bloquent toutes les possibilités, solve_tirage retourne None."""
+    impossible_data = {
+        "lutin_1": {"fullname": "1", "exclude": ["lutin_2"], "history": []},
+        "lutin_2": {"fullname": "2", "exclude": ["lutin_1"], "history": []},
+    }
+    result = solve_tirage(impossible_data, cheaters=[])
+    assert result is None
+
+
+def test_solve_tirage_invariants() -> None:
+    sample_lutins_data = {
+        "lutin_a": {
+            "fullname": "Lutin A",
+            "exclude": ["lutin_b"],
+            "history": ["lutin_c"],
+        },
+        "lutin_b": {
+            "fullname": "Lutin B",
+            "exclude": ["lutin_a"],
+            "history": [],
+        },
+        "lutin_c": {
+            "fullname": "Lutin C",
+            "exclude": [],
+            "history": ["lutin_a"],
+        },
+        "lutin_d": {
+            "fullname": "Lutin D",
+            "exclude": [],
+            "history": [],
+        },
+        "lutin_e": {
+            "fullname": "Lutin E",
+            "exclude": [],
+            "history": [],
+        },
+    }
+    result = solve_tirage(sample_lutins_data, cheaters=[])
+    assert result is not None
+    givers = list(sample_lutins_data.keys())
+    assert len(result) == len(givers)
+
+    # 1. Pas d'auto-cadeau
+    for giver, gifted in result.items():
+        assert giver != gifted, f"{giver} s'est offert un cadeau à lui-même"
+
+    # 2. Bijection : tous les Lutins reçoivent exactement 1 cadeau
+    assert sorted(result.values()) == sorted(givers)
+    assert len(set(result.values())) == len(givers)
+
+    # 3. Respect des exclusions
+    for giver, gifted in result.items():
+        assert gifted not in sample_lutins_data[giver]["exclude"], f"{gifted} est dans les exclusions de {giver}"
+
+    # 4. Respect de l'historique permanent
+    for giver, gifted in result.items():
+        assert gifted not in sample_lutins_data[giver]["history"], f"{gifted} était déjà dans l'historique de {giver}"
+
+
+def test_solve_tirage_imposed_cheaters() -> None:
+    data = {
+        "lutin_1": {"fullname": "Lutin 1", "exclude": [], "history": []},
+        "lutin_2": {"fullname": "Lutin 2", "exclude": [], "history": []},
+        "lutin_3": {"fullname": "Lutin 3", "exclude": [], "history": []},
+        "lutin_4": {"fullname": "Lutin 4", "exclude": [], "history": []},
+    }
+    cheaters = [{"giver": "lutin_1", "gifted": "lutin_3"}]
+    result = solve_tirage(data, cheaters=cheaters)
+    assert result is not None
+    assert result["lutin_1"] == "lutin_3"
