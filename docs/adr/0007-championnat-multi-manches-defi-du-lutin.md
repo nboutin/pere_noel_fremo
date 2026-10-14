@@ -14,7 +14,13 @@ La version initiale à manche unique ne permettait ni bataille de classement ni 
    - Chaque manche attribue des points selon le rang de vitesse parmi les Lutins ayant résolu la grille :
      * 1er : 10 pts, 2e : 8 pts, 3e : 6 pts, 4e : 5 pts, 5e : 4 pts, 6e : 3 pts, 7e : 2 pts, 8e et suivants : 1 pt (prime de complétion).
    - Les points de chaque manche sont recalculés dynamiquement en direct à chaque nouveau score enregistré.
-   - Le **Tableau des scores** général classe les Lutins par **points cumulés décroissants**, avec départage par temps total cumulé croissant sur les manches réussies.
+   - Le **Tableau des scores** général classe les Lutins par **points cumulés décroissants**, avec départage en premier lieu par le nombre de manches résolues avec succès, puis par temps total cumulé croissant sur les manches réussies.
+   - **Neutralisation de la force brute et limitation des soumissions** :
+     * Chaque Lutin dispose d'un plafond strict de **3 soumissions de validation** (`MAX_ESSAIS_PAR_MANCHE = 3`) par manche.
+     * Chaque soumission erronée précédant la réussite applique une pénalité forfaitaire de **15 secondes** (`PENALITE_ESSAI_FAUX_SECONDES = 15`) ajoutée au temps officiel chronométré.
+     * En cas d'échec à la 3e soumission, la manche est automatiquement scellée comme abandonnée (`completed_at = now`, `solved = 0`, `time_seconds = NULL`). Le Lutin reçoit **1 point de participation** pour avoir combattu jusqu'au bout.
+     * Un abandon volontaire en cours d'épreuve sans avoir consommé ses 3 soumissions n'octroie aucun point (0 pt).
+     * Seules les soumissions complètes mais logiquement erronées consomment un essai ; les requêtes incomplètes ou malformées sont rejetées sans pénalité ni décompte.
 
 2. **Déverrouillage progressif et rattrapage libre** :
    - Chaque manche possède une date d'ouverture (`unlock_at`).

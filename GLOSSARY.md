@@ -44,6 +44,11 @@ _Avoid_: Fête, fête de Noël, événement, soirée, party, banquet
 Association immuable entre un Donneur et son Bénéficiaire scellée pour une Édition précise (`year`), historiquement issue d'un tirage au sort annuel.
 _Avoid_: Paire, matching, assignation, record
 
+**Reconstitution historique**:
+Opération de migration programmatique et idempotente restaurant l'historique complet des Attributions millésimées (2014-2025) à partir des instantanés d'archives YAML, scellant les éditions passées sans écraser l'édition courante.
+_Avoid_: Backfill manuel, injection SQL, bricolage d'historique
+
+
 
 **Absent**:
 Lutin répertorié dans la base mais exclu de la participation pour l'édition courante.
@@ -52,6 +57,10 @@ _Avoid_: Désinscrit, ignoré, skipped
 **Annonce**:
 Courriel officiel lançant l'édition annuelle, transmettant à chaque Lutin son Lien magique pour accéder à son Espace Lutin, initier la Confirmation de présence et ouvrir le Défi du lutin avant la réalisation du Tirage au sort. Doit respecter les standards d'e-mailing HTML « bulletproof » (couleurs de fond de repli `bgcolor` et `background-color` strictes sous les dégradés CSS, bouton CTA sous forme de table dédiée, et support dual-scheme du mode sombre) pour garantir un rendu parfait sur l'ensemble des clients de messagerie (Outlook Web/Desktop, Gmail, Apple Mail).
 _Avoid_: Teaser, invitation, notification
+
+**Révélation**:
+Courriel officiel notifiant les Lutins que le Tirage au sort a été réalisé, les invitant à se reconnecter à leur Espace Lutin via leur Lien magique pour dévoiler leur Bénéficiaire sous la Carte à gratter, et faisant basculer l'Édition au statut `revealed`.
+_Avoid_: Découverte, déblocage, notification de tirage, alerte
 
 **Lien magique**:
 URL unique et sécurisée transmise à un Lutin pour lui donner un accès direct à son Espace Lutin sans nécessiter de mot de passe.
@@ -70,8 +79,12 @@ Compétition rituelle annuelle (alternant entre défi créatif et série de logi
 _Avoid_: Défi de la luge, quiz, challenge, mini-jeu, concours
 
 **Manche**:
-Épreuve hebdomadaire du Défi du lutin associée à une Grille logique débloquée à date fixe, sur laquelle chaque Lutin dispose d'un essai unique chronométré pour marquer des points de championnat.
+Épreuve bi-hebdomadaire du Défi du lutin associée à une Grille logique débloquée à date fixe, sur laquelle chaque Lutin dispose d'un parcours chronométré unique limité à 3 soumissions de validation avec pénalité de temps pour marquer des points de championnat.
 _Avoid_: Round, niveau, étape, session
+
+**Soumission**:
+Tentative de validation complète de la Grille logique transmise par un Lutin au cours d'une Manche, plafonnée à 3 essais par manche et assortie d'une pénalité de temps en cas d'erreur précédant la résolution.
+_Avoid_: Requête de solve, validation partielle, essai non décompté, tentative infinie
 
 **Grille logique**:
 Casse-tête de déduction à indices croisés proposé lors d'une Manche du Défi du lutin, chronométré pour établir le classement de la manche.
