@@ -326,11 +326,13 @@ def create_app(
             manche_id=manche_id,
             now=clock_fn(),
         )
+        assigned_pseudo = updated.get("pseudo_lutin") or updated.get("pseudo_lugeur", pseudo)
         return JSONResponse(
             {
                 "ok": True,
                 "manche_id": manche_id,
-                "pseudo_lugeur": updated.get("pseudo_lugeur", pseudo),
+                "pseudo_lutin": assigned_pseudo,
+                "pseudo_lugeur": assigned_pseudo,
                 "started_at": updated.get("started_at"),
                 "solved": bool(updated.get("solved", 0)),
                 "indices": list(manche.get("indices") or []),
@@ -407,7 +409,12 @@ def create_app(
                 detail=f"La manche {manche_id} est déjà terminée (essai unique officiel).",
             )
 
-        pseudo = score_entry.get("pseudo_lugeur") or get_pseudo_for_lutin(db_path, lutin_id, year) or "Lutin"
+        pseudo = (
+            score_entry.get("pseudo_lutin")
+            or score_entry.get("pseudo_lugeur")
+            or get_pseudo_for_lutin(db_path, lutin_id, year)
+            or "Lutin"
+        )
 
         if result.get("solved"):
             return JSONResponse(
@@ -417,6 +424,7 @@ def create_app(
                     "solved": True,
                     "attempts": result["attempts"],
                     "time_seconds": result["time_seconds"],
+                    "pseudo_lutin": pseudo,
                     "pseudo_lugeur": pseudo,
                 }
             )
@@ -465,13 +473,20 @@ def create_app(
             )
 
         updated = abandon_score_defi(db_path, lutin_id, year, manche_id=manche_id, now=clock_fn())
-        pseudo = score_entry.get("pseudo_lugeur") or get_pseudo_for_lutin(db_path, lutin_id, year) or "Lutin"
+        pseudo = (
+            score_entry.get("pseudo_lutin")
+            or score_entry.get("pseudo_lugeur")
+            or get_pseudo_for_lutin(db_path, lutin_id, year)
+            or "Lutin"
+        )
+        abandoned_pseudo = updated.get("pseudo_lutin") or updated.get("pseudo_lugeur", pseudo)
         return JSONResponse(
             {
                 "ok": True,
                 "manche_id": manche_id,
                 "abandoned": True,
-                "pseudo_lugeur": updated.get("pseudo_lugeur", pseudo),
+                "pseudo_lutin": abandoned_pseudo,
+                "pseudo_lugeur": abandoned_pseudo,
             }
         )
 

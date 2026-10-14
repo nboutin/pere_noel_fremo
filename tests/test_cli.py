@@ -468,6 +468,16 @@ def test_token_masking_filter_masks_tokens() -> None:
     assert record_public.getMessage() == '127.0.0.1:50000 - "GET /scores/2026 HTTP/1.1" 200'
 
 
+def test_build_uvicorn_log_config() -> None:
+    from pere_noel_fremo.cli import build_uvicorn_log_config
+    from pere_noel_fremo.web import TokenMaskingFilter
+
+    cfg = build_uvicorn_log_config()
+    assert "token_masking" in cfg.get("filters", {})
+    assert cfg["filters"]["token_masking"]["()"] is TokenMaskingFilter
+    assert "token_masking" in cfg.get("loggers", {}).get("uvicorn.access", {}).get("filters", [])
+
+
 def test_cli_serve_installs_token_masking_filter(tmp_path: Path) -> None:
     import logging
     from unittest.mock import patch
@@ -495,6 +505,11 @@ def test_cli_serve_installs_token_masking_filter(tmp_path: Path) -> None:
             )
             assert ret == 0
             assert mock_uvicorn.call_count == 1
+            call_kwargs = mock_uvicorn.call_args.kwargs
+            assert "log_config" in call_kwargs
+            log_cfg = call_kwargs["log_config"]
+            assert "token_masking" in log_cfg.get("filters", {})
+            assert "token_masking" in log_cfg.get("loggers", {}).get("uvicorn.access", {}).get("filters", [])
             has_masking_filter = any(isinstance(f, TokenMaskingFilter) for f in access_logger.filters)
             assert has_masking_filter is True
     finally:

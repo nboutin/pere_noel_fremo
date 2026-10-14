@@ -156,7 +156,7 @@
                 </div>
             {% else %}
                 <p>{{ active_manche.description or "Résous la grille logique pour inscrire ton pseudo et tenter d'ouvrir ton cadeau en premier !" }}</p>
-                <p>Ton Pseudo de lutin officiel : <strong style="color: var(--color-gold);">{{ pseudo_lugeur }}</strong></p>
+                <p>Ton Pseudo de lutin officiel : <strong style="color: var(--color-gold);">{{ pseudo_lutin }}</strong></p>
 
                 {% if not presence %}
                     <div class="presence-status status-unknown">
@@ -301,7 +301,7 @@
                     <tbody>
                         {% for entry in classement %}
                             {% set current_rank = entry.rank if (entry.rank is defined and entry.rank is not none) else loop.index %}
-                            <tr class="{% if entry.pseudo_lugeur == pseudo_lugeur or entry.pseudo_lutin == pseudo_lugeur %}my-score-row{% endif %}">
+                            <tr class="{% if (entry.pseudo_lutin or entry.pseudo_lugeur) == (pseudo_lutin or pseudo_lugeur) %}my-score-row{% endif %}">
                                 <td class="rank-col">
                                     {% if current_rank == 1 %}🥇
                                     {% elif current_rank == 2 %}🥈
@@ -311,7 +311,7 @@
                                 </td>
                                 <td>
                                     {{ entry.pseudo_lutin or entry.pseudo_lugeur }}
-                                    {% if entry.pseudo_lugeur == pseudo_lugeur or entry.pseudo_lutin == pseudo_lugeur %}
+                                    {% if (entry.pseudo_lutin or entry.pseudo_lugeur) == (pseudo_lutin or pseudo_lugeur) %}
                                         <span class="badge-you">(Toi)</span>
                                     {% endif %}
                                 </td>

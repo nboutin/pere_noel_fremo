@@ -212,12 +212,14 @@ def test_calculate_championship_standings_aggregates_points_and_ties(tmp_path: P
     first = standings[0]
     second = standings[1]
 
+    assert first["pseudo_lutin"] == "Lutin Givré"
     assert first["pseudo_lugeur"] == "Lutin Givré"
     assert first["rank"] == 1
     assert first["total_points"] == 18
     assert round(first["total_time_seconds"], 1) == 65.0
     assert first["manches_resolved_count"] == 2
 
+    assert second["pseudo_lutin"] == "Renne Agile"
     assert second["pseudo_lugeur"] == "Renne Agile"
     assert second["rank"] == 2
     assert second["total_points"] == 18

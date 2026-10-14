@@ -1,7 +1,8 @@
 import argparse
+import copy
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .annonce import send_annonces
 from .config import default_db_path, resolve_res_dir
@@ -291,6 +292,22 @@ def handle_annonce(args: argparse.Namespace) -> int:
         return 1
 
 
+def build_uvicorn_log_config() -> dict[str, Any]:
+    """Configure uvicorn's logging dictionary by attaching TokenMaskingFilter to uvicorn.access."""
+    import uvicorn.config
+
+    from .web import TokenMaskingFilter
+
+    custom_log_config = copy.deepcopy(uvicorn.config.LOGGING_CONFIG)
+    custom_log_config.setdefault("filters", {})["token_masking"] = {
+        "()": TokenMaskingFilter,
+    }
+    custom_log_config.setdefault("loggers", {}).setdefault("uvicorn.access", {}).setdefault("filters", []).append(
+        "token_masking"
+    )
+    return cast(dict[str, Any], custom_log_config)
+
+
 def handle_serve(args: argparse.Namespace) -> int:
     import logging
 
@@ -298,12 +315,14 @@ def handle_serve(args: argparse.Namespace) -> int:
 
     from .web import TokenMaskingFilter, create_app
 
+    custom_log_config = build_uvicorn_log_config()
+
     access_logger = logging.getLogger("uvicorn.access")
     access_logger.addFilter(TokenMaskingFilter())
 
     web_app = create_app(db_path=args.db_path)
     print(f"Démarrage de l'Espace Lutin sur http://{args.host}:{args.port} (DB: {args.db_path})")
-    uvicorn.run(web_app, host=args.host, port=args.port)
+    uvicorn.run(web_app, host=args.host, port=args.port, log_config=custom_log_config)
     return 0
 
 

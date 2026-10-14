@@ -768,7 +768,11 @@ def _get_score_entry(conn: Any, lutin_id: str, year: int, manche_id: int = 1) ->
         """,
         (lutin_id, year, manche_id),
     ).fetchone()
-    return dict(row) if row else {}
+    if not row:
+        return {}
+    res = dict(row)
+    res["pseudo_lutin"] = res.get("pseudo_lugeur")
+    return res
 
 
 def get_score_defi(
@@ -1083,33 +1087,24 @@ def get_scores_classement(
     """Récupère le Tableau des scores ordonné pour une édition (filtré par manche si spécifié)."""
     conn = get_db_connection(db_path)
     try:
-        if manche_id is not None:
-            rows = conn.execute(
-                """
-                SELECT lutin_id, pseudo_lugeur, manche_id, solved, time_seconds, completed_at, attempts, started_at
-                FROM scores_defi
-                WHERE year = ? AND manche_id = ? AND started_at IS NOT NULL
-                ORDER BY
-                    CASE WHEN solved = 1 THEN 0 ELSE 1 END ASC,
-                    time_seconds ASC,
-                    completed_at ASC;
-                """,
-                (year, manche_id),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                """
-                SELECT lutin_id, pseudo_lugeur, manche_id, solved, time_seconds, completed_at, attempts, started_at
-                FROM scores_defi
-                WHERE year = ? AND started_at IS NOT NULL
-                ORDER BY
-                    CASE WHEN solved = 1 THEN 0 ELSE 1 END ASC,
-                    time_seconds ASC,
-                    completed_at ASC;
-                """,
-                (year,),
-            ).fetchall()
-        return [dict(r) for r in rows]
+        query = """
+            SELECT lutin_id, pseudo_lugeur, manche_id, solved, time_seconds, completed_at, attempts, started_at
+            FROM scores_defi
+            WHERE year = ?
+              AND (? IS NULL OR manche_id = ?)
+              AND started_at IS NOT NULL
+            ORDER BY
+                CASE WHEN solved = 1 THEN 0 ELSE 1 END ASC,
+                time_seconds ASC,
+                completed_at ASC;
+        """
+        rows = conn.execute(query, (year, manche_id, manche_id)).fetchall()
+        result: list[dict[str, Any]] = []
+        for r in rows:
+            entry = dict(r)
+            entry["pseudo_lutin"] = entry.get("pseudo_lugeur")
+            result.append(entry)
+        return result
     finally:
         conn.close()
 

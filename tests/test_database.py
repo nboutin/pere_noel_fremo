@@ -831,6 +831,7 @@ def test_get_scores_classement_includes_lutin_id(tmp_path: Path) -> None:
     assert "lutin_id" in scores[0]
     assert scores[0]["lutin_id"] == "jdenis"
     assert scores[0]["pseudo_lugeur"] == "Renne Agile"
+    assert scores[0]["pseudo_lutin"] == "Renne Agile"
 
 
 def test_parse_iso_or_legacy() -> None:

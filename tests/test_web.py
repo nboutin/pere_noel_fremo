@@ -138,6 +138,8 @@ def test_defi_de_la_luge_flow(client: TestClient, test_db: Path) -> None:
     data_start = resp_start.json()
     assert data_start["ok"] is True
     assert "pseudo_lugeur" in data_start
+    assert "pseudo_lutin" in data_start
+    assert data_start["pseudo_lutin"] == data_start["pseudo_lugeur"]
     assert data_start["started_at"] is not None
 
     # 4. Soumettre une mauvaise solution
@@ -157,11 +159,13 @@ def test_defi_de_la_luge_flow(client: TestClient, test_db: Path) -> None:
     data_solve = resp_solve_ok.json()
     assert data_solve["solved"] is True
     assert data_solve["time_seconds"] >= 0
+    assert "pseudo_lutin" in data_solve
+    assert data_solve["pseudo_lutin"] == data_solve["pseudo_lugeur"]
 
     # 6. La page Espace Lutin affiche le statut résolu et le pseudo
     page = client.get(f"/lutin/{token}")
     assert page.status_code == 200
-    assert data_start["pseudo_lugeur"] in page.text
+    assert data_start["pseudo_lutin"] in page.text
 
 
 def test_revelation_beneficiaire_carte_a_gratter(client: TestClient, test_db: Path) -> None:
@@ -390,7 +394,11 @@ def test_abandon_defi_flow(client: TestClient, test_db: Path) -> None:
     # Abandon
     resp_abandon = client.post(f"/api/lutin/{token}/defi/1/abandon")
     assert resp_abandon.status_code == 200
-    assert resp_abandon.json()["abandoned"] is True
+    data_abandon = resp_abandon.json()
+    assert data_abandon["abandoned"] is True
+    assert "pseudo_lutin" in data_abandon
+    assert "pseudo_lugeur" in data_abandon
+    assert data_abandon["pseudo_lutin"] == data_abandon["pseudo_lugeur"]
 
     # Vérification que la page affiche le statut abandonné
     page = client.get(f"/lutin/{token}?manche=1")
