@@ -1,19 +1,18 @@
 import argparse
-import os
 import sys
 from pathlib import Path
+from typing import Any
 
 from .annonce import send_annonces
+from .config import default_db_path, resolve_res_dir
 from .database import import_yaml_data
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-RES_DIR = Path(os.environ.get("FREMO_RES_DIR", "/app/res" if Path("/app/res").exists() else PROJECT_ROOT / "res"))
-DEFAULT_DB_PATH = RES_DIR / "fremo.db"
-DEFAULT_DATA_IN = RES_DIR / "2025" / "data_in.yml"
-DEFAULT_SECURE_DATA = RES_DIR / "secure_data.yml"
 
 
 def create_parser() -> argparse.ArgumentParser:
+    res_dir = resolve_res_dir()
+    default_db = default_db_path(res_dir)
+    default_secure_data = res_dir / "secure_data.yml"
+
     parser = argparse.ArgumentParser(
         prog="pere-noel",
         description="Le Père Noël de la Frémo - Gestion et tirage au sort",
@@ -28,7 +27,7 @@ def create_parser() -> argparse.ArgumentParser:
     init_db_parser.add_argument(
         "--db-path",
         type=Path,
-        default=DEFAULT_DB_PATH,
+        default=default_db,
         help="Chemin de la base de données SQLite (défaut: res/fremo.db)",
     )
     init_db_parser.add_argument(
@@ -46,7 +45,7 @@ def create_parser() -> argparse.ArgumentParser:
     init_db_parser.add_argument(
         "--secure-data",
         type=Path,
-        default=DEFAULT_SECURE_DATA,
+        default=default_secure_data,
         help="Chemin du fichier secure_data.yml (défaut: res/secure_data.yml)",
     )
 
@@ -58,13 +57,13 @@ def create_parser() -> argparse.ArgumentParser:
     annonce_parser.add_argument(
         "--db-path",
         type=Path,
-        default=DEFAULT_DB_PATH,
+        default=default_db,
         help="Chemin de la base de données SQLite (défaut: res/fremo.db)",
     )
     annonce_parser.add_argument(
         "--secure-data",
         type=Path,
-        default=DEFAULT_SECURE_DATA,
+        default=default_secure_data,
         help="Chemin du fichier secure_data.yml (défaut: res/secure_data.yml)",
     )
     annonce_parser.add_argument(
@@ -146,7 +145,7 @@ def create_parser() -> argparse.ArgumentParser:
     serve_parser.add_argument(
         "--db-path",
         type=Path,
-        default=DEFAULT_DB_PATH,
+        default=default_db,
         help="Chemin de la base de données SQLite (défaut: res/fremo.db)",
     )
 
@@ -158,7 +157,7 @@ def create_parser() -> argparse.ArgumentParser:
     tirage_parser.add_argument(
         "--db-path",
         type=Path,
-        default=DEFAULT_DB_PATH,
+        default=default_db,
         help="Chemin de la base de données SQLite (défaut: res/fremo.db)",
     )
     tirage_parser.add_argument(
@@ -193,7 +192,7 @@ def create_parser() -> argparse.ArgumentParser:
     audit_parser.add_argument(
         "--db-path",
         type=Path,
-        default=DEFAULT_DB_PATH,
+        default=default_db,
         help="Chemin de la base de données SQLite (défaut: res/fremo.db)",
     )
     audit_parser.add_argument(
@@ -212,8 +211,10 @@ def handle_init_db(args: argparse.Namespace) -> int:
     secure_data_path: Path = args.secure_data
 
     if data_in_path is None:
-        candidate_data_in = RES_DIR / str(args.year) / "data_in.yml"
-        data_in_path = candidate_data_in if candidate_data_in.exists() else DEFAULT_DATA_IN
+        res_dir = resolve_res_dir()
+        candidate_data_in = res_dir / str(args.year) / "data_in.yml"
+        default_data_in = res_dir / "2025" / "data_in.yml"
+        data_in_path = candidate_data_in if candidate_data_in.exists() else default_data_in
 
     if not data_in_path.exists():
         print(f"Erreur: Fichier de données introuvable : {data_in_path}")
@@ -244,11 +245,12 @@ def handle_annonce(args: argparse.Namespace) -> int:
     # Resolve default template path if not provided
     template_path = args.template
     if template_path is None:
-        candidate_template = RES_DIR / str(args.year) / "annonce.txt"
+        res_dir = resolve_res_dir()
+        candidate_template = res_dir / str(args.year) / "annonce.txt"
         if candidate_template.exists():
             template_path = candidate_template
-        elif (RES_DIR / "2025" / "annonce.txt").exists():
-            template_path = RES_DIR / "2025" / "annonce.txt"
+        elif (res_dir / "2025" / "annonce.txt").exists():
+            template_path = res_dir / "2025" / "annonce.txt"
 
     absents_list = list(args.absent or []) + list(args.skip or [])
 
@@ -362,3 +364,15 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+def __getattr__(name: str) -> Any:
+    if name == "RES_DIR":
+        return resolve_res_dir()
+    if name == "DEFAULT_DB_PATH":
+        return default_db_path()
+    if name == "DEFAULT_DATA_IN":
+        return resolve_res_dir() / "2025" / "data_in.yml"
+    if name == "DEFAULT_SECURE_DATA":
+        return resolve_res_dir() / "secure_data.yml"
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

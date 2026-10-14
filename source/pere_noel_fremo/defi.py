@@ -1,13 +1,11 @@
 import hashlib
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-RES_DIR = Path(os.environ.get("FREMO_RES_DIR", "/app/res" if Path("/app/res").exists() else PROJECT_ROOT / "res"))
+from .config import resolve_res_dir
 
 ADJECTIFS_FESTIFS = [
     "Givré",
@@ -203,7 +201,7 @@ def get_manche(
     now: datetime | None = None,
 ) -> dict[str, Any] | None:
     """Charge une manche spécifique depuis res/{YEAR}/grilles/manche_{ID}.yml (ou None si introuvable)."""
-    base_res = Path(res_dir) if res_dir is not None else RES_DIR
+    base_res = Path(res_dir) if res_dir is not None else resolve_res_dir()
     grilles_dir = base_res / str(year) / "grilles"
     manche_file = grilles_dir / f"manche_{manche_id}.yml"
 
@@ -244,7 +242,7 @@ def get_all_manches(
     only_unlocked: bool = False,
 ) -> list[dict[str, Any]]:
     """Charge toutes les manches configurées pour une édition, triées par id, avec état de déblocage."""
-    base_res = Path(res_dir) if res_dir is not None else RES_DIR
+    base_res = Path(res_dir) if res_dir is not None else resolve_res_dir()
     grilles_dir = base_res / str(year) / "grilles"
     now_dt = now or datetime.now(timezone.utc)
 
@@ -297,3 +295,9 @@ def validate_grille_solution(grille: dict[str, Any], solution_soumise: dict[str,
             return False
 
     return True
+
+
+def __getattr__(name: str) -> Any:
+    if name == "RES_DIR":
+        return resolve_res_dir()
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

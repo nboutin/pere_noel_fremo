@@ -7,6 +7,7 @@ from pere_noel_fremo.audit import (
     audit_tirage,
 )
 from pere_noel_fremo.database import (
+    get_db_connection,
     import_yaml_data,
     init_db,
     save_attributions,
@@ -99,7 +100,7 @@ def test_tirage_only_draws_confirmed_lutins(test_db_setup: tuple[Path, Path, Pat
 def test_audit_tirage_detects_bijection_and_constraint_violations(tmp_path: Path) -> None:
     db_path = tmp_path / "fremo.db"
     init_db(db_path)
-    conn = init_db(db_path)
+    conn = get_db_connection(db_path)
     with conn:
         conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
         conn.execute("INSERT INTO lutins (id, fullname, email) VALUES ('l1', 'L1', 'l1@fremo.org');")
@@ -191,7 +192,7 @@ def test_tirage_respects_cheaters(test_db_setup: tuple[Path, Path, Path]) -> Non
 def test_tirage_respects_strict_perpetual_history(tmp_path: Path) -> None:
     db_path = tmp_path / "fremo.db"
     init_db(db_path)
-    conn = init_db(db_path)
+    conn = get_db_connection(db_path)
     with conn:
         conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
         for i in range(1, 5):

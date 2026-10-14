@@ -2,7 +2,7 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-from pere_noel_fremo.database import init_db
+from pere_noel_fremo.database import get_db_connection, init_db
 from pere_noel_fremo.tokens import (
     build_lien_magique_url,
     build_magic_url,
@@ -40,7 +40,8 @@ def test_build_lien_magique_url_strips_trailing_slash() -> None:
 
 def test_create_or_get_token_is_idempotent_and_resolvable(tmp_path: Path) -> None:
     db_path = tmp_path / "fremo.db"
-    conn = init_db(db_path)
+    init_db(db_path)
+    conn = get_db_connection(db_path)
     with conn:
         conn.execute("INSERT INTO lutins (id, fullname, email) VALUES ('lutin1', 'Lutin Un', 'lutin1@test.org');")
         conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
@@ -76,7 +77,8 @@ def test_create_or_get_token_is_idempotent_and_resolvable(tmp_path: Path) -> Non
 
 def test_token_table_enforces_unique_lutin_year(tmp_path: Path) -> None:
     db_path = tmp_path / "fremo.db"
-    conn = init_db(db_path)
+    init_db(db_path)
+    conn = get_db_connection(db_path)
     with conn:
         conn.execute("INSERT INTO lutins (id, fullname, email) VALUES ('lutin1', 'Lutin Un', 'lutin1@test.org');")
         conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")

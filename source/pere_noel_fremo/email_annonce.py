@@ -1,16 +1,15 @@
 import argparse
 import logging
 import logging.handlers
-from pathlib import Path
+from typing import Any
 
 import yaml
 
 from . import helper
+from .config import resolve_res_dir
 
 logger = logging.getLogger(__name__)
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-RES_DIR = PROJECT_ROOT / "res"
 DEFAULT_YEAR = 2025
 
 
@@ -39,8 +38,9 @@ def main(argv: list[str] | None = None) -> None:
     _configure_logger("email_annonce.log")
     logger.info(f"##### Le Pere Noel de la Fremo ({args.year}) #####")
 
-    secure_data_filepath = RES_DIR / "secure_data.yml"
-    email_text_filepath = RES_DIR / f"{args.year}" / "annonce.txt"
+    res_dir = resolve_res_dir()
+    secure_data_filepath = res_dir / "secure_data.yml"
+    email_text_filepath = res_dir / f"{args.year}" / "annonce.txt"
     email_subject = f"[Annonce Pole Nord Emploi] Recherche Lutin lugeur et lugeuse pour Noël {args.year}"
 
     with open(secure_data_filepath, encoding="utf-8") as stream:
@@ -68,3 +68,9 @@ def _configure_logger(filename: str) -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def __getattr__(name: str) -> Any:
+    if name == "RES_DIR":
+        return resolve_res_dir()
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

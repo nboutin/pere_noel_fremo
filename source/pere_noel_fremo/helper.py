@@ -17,35 +17,30 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
+from .config import resolve_logs_dir, resolve_res_dir
+
 logger = logging.getLogger(__name__)
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-
-
-def resolve_res_dir() -> Path:
-    env_dir = os.environ.get("FREMO_RES_DIR")
-    if env_dir:
-        return Path(env_dir)
-    app_res = Path("/app/res")
-    if app_res.exists():
-        return app_res
-    return PROJECT_ROOT / "res"
-
-
-RES_DIR = resolve_res_dir()
-LOGS_DIR = Path(os.environ.get("FREMO_LOGS_DIR", "/app/logs" if Path("/app/logs").exists() else PROJECT_ROOT / "logs"))
-
 SCOPES = ["https://www.googleapis.com/auth/gmail.compose"]
-TOKEN_PATH = RES_DIR / "token.json"  # nosec B105
-CREDENTIALS_PATH = RES_DIR / "code_secret_client.apps.googleusercontent.com.json"
-# IMG_BACKGROUND_URL = 'https://i.ibb.co/cD0Ddqb/2023-pere-noel-fait-du-ski-800.png'
-IMG_FILEPATH = RES_DIR / "img" / "snow_rider_3d_B.png"
+
+
+def get_token_path() -> Path:
+    return resolve_res_dir() / "token.json"
+
+
+def get_credentials_path() -> Path:
+    return resolve_res_dir() / "code_secret_client.apps.googleusercontent.com.json"
+
+
+def get_img_filepath() -> Path:
+    return resolve_res_dir() / "img" / "snow_rider_3d_B.png"
 
 
 def configure_logger(filename: str) -> None:
     """Configure root logger with console INFO and rotating file DEBUG in LOGS_DIR."""
-    LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    log_filepath = LOGS_DIR / filename
+    logs_dir = resolve_logs_dir()
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_filepath = logs_dir / filename
 
     root_logger = logging.getLogger("")
     root_logger.setLevel(logging.DEBUG)
@@ -80,8 +75,10 @@ def configure_logger(filename: str) -> None:
 
 def load_credentials() -> Credentials:
     creds = None
-    if os.path.exists(TOKEN_PATH):
-        creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
+    token_path = get_token_path()
+    credentials_path = get_credentials_path()
+    if os.path.exists(token_path):
+        creds = Credentials.from_authorized_user_file(token_path, SCOPES)
     if not creds or not creds.valid:
         refreshed = False
         if creds and creds.expired and creds.refresh_token:
@@ -91,10 +88,10 @@ def load_credentials() -> Credentials:
             except Exception as e:
                 logger.warning(f"Impossible de rafraîchir le jeton expiré ({e}), ré-authentification requise.")
         if not refreshed:
-            flow = InstalledAppFlow.from_client_secrets_file(str(CREDENTIALS_PATH), SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(str(credentials_path), SCOPES)
             creds = flow.run_local_server(port=0)
         if creds:
-            with open(TOKEN_PATH, "w", encoding="utf-8") as token:
+            with open(token_path, "w", encoding="utf-8") as token:
                 token.write(creds.to_json())
     return cast(Credentials, creds)
 
@@ -210,3 +207,17 @@ def format_date_repas(
         "delta_days": delta_days,
         "countdown": countdown,
     }
+
+
+def __getattr__(name: str) -> Any:
+    if name == "RES_DIR":
+        return resolve_res_dir()
+    if name == "LOGS_DIR":
+        return resolve_logs_dir()
+    if name == "TOKEN_PATH":
+        return get_token_path()
+    if name == "CREDENTIALS_PATH":
+        return get_credentials_path()
+    if name == "IMG_FILEPATH":
+        return get_img_filepath()
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

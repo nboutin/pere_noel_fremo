@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pytest
-from pere_noel_fremo.database import init_db
+from pere_noel_fremo.database import get_db_connection, init_db
 from pere_noel_fremo.tokens import create_or_get_token
 from pere_noel_fremo.web import create_app
 from starlette.testclient import TestClient
@@ -10,7 +10,8 @@ from starlette.testclient import TestClient
 @pytest.fixture
 def test_db(tmp_path: Path) -> Path:
     db_file = tmp_path / "fremo_test.db"
-    conn = init_db(db_file)
+    init_db(db_file)
+    conn = get_db_connection(db_file)
     with conn:
         conn.execute(
             "INSERT INTO lutins (id, fullname, email) VALUES ('fbonnet', 'François Bonnet', 'fb@example.com');"
@@ -78,7 +79,7 @@ def test_toggle_presence_rejected_when_edition_locked(client: TestClient, test_d
     token = create_or_get_token(test_db, "fbonnet", 2025)
 
     # Lock edition (tirage effectué)
-    conn = init_db(test_db)
+    conn = get_db_connection(test_db)
     with conn:
         conn.execute("UPDATE editions SET status = 'drawn' WHERE year = 2025;")
     conn.close()
@@ -257,7 +258,7 @@ def test_locked_manche_refuses_start_and_solve(client: TestClient, test_db: Path
     from pere_noel_fremo.database import set_lutin_presence
 
     # Édition 2026 où les manches ont un unlock_at futur (ex: 2026-10-16)
-    conn = init_db(test_db)
+    conn = get_db_connection(test_db)
     with conn:
         conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
     conn.close()
@@ -344,7 +345,7 @@ def test_espace_lutin_multi_manches_and_anti_cheat_ui(client: TestClient, test_d
     assert "brillamment résolue" in page_m1_solved.text
 
     # 8. Test avec l'édition 2026 (15 manches de championnat)
-    conn = init_db(test_db)
+    conn = get_db_connection(test_db)
     with conn:
         conn.execute("INSERT OR IGNORE INTO editions (year, status) VALUES (2026, 'draft');")
     conn.close()
@@ -413,7 +414,7 @@ def test_abandon_defi_flow(client: TestClient, test_db: Path) -> None:
 
 
 def test_espace_lutin_renders_date_repas(client: TestClient, test_db: Path) -> None:
-    conn = init_db(test_db)
+    conn = get_db_connection(test_db)
     with conn:
         conn.execute("UPDATE editions SET date_repas = '2026-12-05' WHERE year = 2025;")
     conn.close()

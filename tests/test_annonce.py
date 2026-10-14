@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import yaml
 from pere_noel_fremo.annonce import format_annonce_body, send_annonces
-from pere_noel_fremo.database import import_yaml_data, init_db
+from pere_noel_fremo.database import get_db_connection, import_yaml_data, init_db
 
 
 def test_format_annonce_body_injects_magic_url_and_fullname() -> None:
@@ -87,7 +87,7 @@ def test_send_annonces_creates_tokens_and_sends_emails(tmp_path: Path) -> None:
         # Verify that sent_at timestamp was consigned in database
         from pere_noel_fremo.tokens import get_lutin_by_token
 
-        conn = init_db(db_path)
+        conn = get_db_connection(db_path)
         token_row = conn.execute("SELECT token FROM tokens WHERE lutin_id = 'lutin_1';").fetchone()
         conn.close()
         assert token_row is not None

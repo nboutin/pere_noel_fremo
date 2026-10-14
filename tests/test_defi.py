@@ -175,11 +175,17 @@ def test_all_15_manches_calendar_integration() -> None:
 
 
 def test_calculate_championship_standings_aggregates_points_and_ties(tmp_path: Path) -> None:
-    from pere_noel_fremo.database import complete_score_defi, get_or_create_score_defi, init_db
+    from pere_noel_fremo.database import (
+        complete_score_defi,
+        get_db_connection,
+        get_or_create_score_defi,
+        init_db,
+    )
     from pere_noel_fremo.defi import calculate_championship_standings
 
     db_path = tmp_path / "fremo.db"
-    conn = init_db(db_path)
+    init_db(db_path)
+    conn = get_db_connection(db_path)
     with conn:
         conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
         conn.execute("INSERT INTO lutins (id, fullname, email) VALUES ('l1', 'Lutin 1', 'l1@fremo.org');")

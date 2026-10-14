@@ -11,11 +11,9 @@ from typing import Any
 import yaml
 
 from . import helper
+from .config import resolve_res_dir
 
 logger = logging.getLogger(__name__)
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-RES_DIR = PROJECT_ROOT / "res"
 
 DEFAULT_YEAR = 2025
 __CHEATERS: list[dict[str, str]] = [
@@ -82,10 +80,11 @@ def main(argv: list[str] | None = None) -> None:
     _configure_logger("email_tossing.log")
     logger.info(f"##### Le Pere Noel de la Fremo ({args.year}) #####")
 
-    secure_data_path = RES_DIR / "secure_data.yml"
-    data_in_path = RES_DIR / f"{args.year}" / "data_in.yml"
-    data_out_path = RES_DIR / f"{args.year}" / "data_out.yml"
-    body_path = RES_DIR / f"{args.year}" / "tossing.txt"
+    res_dir = resolve_res_dir()
+    secure_data_path = res_dir / "secure_data.yml"
+    data_in_path = res_dir / f"{args.year}" / "data_in.yml"
+    data_out_path = res_dir / f"{args.year}" / "data_out.yml"
+    body_path = res_dir / f"{args.year}" / "tossing.txt"
 
     with open(data_in_path, encoding="utf-8") as stream:
         data = yaml.safe_load(stream)
@@ -135,7 +134,7 @@ def send_all_email(
     body_path: Path | None = None,
 ) -> None:
     subject = f"[{year}] Le Père Noël de la Frémo: Tirage au sort"
-    template_path = body_path if body_path is not None else (RES_DIR / f"{year}" / "tossing.txt")
+    template_path = body_path if body_path is not None else (resolve_res_dir() / f"{year}" / "tossing.txt")
 
     for id_, id_param in data.items():
         if id_ in to_skip:
@@ -238,3 +237,9 @@ def _configure_logger(filename: str) -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def __getattr__(name: str) -> Any:
+    if name == "RES_DIR":
+        return resolve_res_dir()
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

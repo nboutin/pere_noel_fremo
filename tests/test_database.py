@@ -8,6 +8,7 @@ from pere_noel_fremo.database import (
     get_attributions,
     get_beneficiaire_for_lutin,
     get_confirmed_lutins,
+    get_db_connection,
     get_edition_date_repas,
     get_edition_status,
     get_lutin_exclusions,
@@ -25,7 +26,8 @@ from pere_noel_fremo.database import (
 
 def test_init_db_creates_all_required_tables(tmp_path: Path) -> None:
     db_path = tmp_path / "fremo.db"
-    conn = init_db(db_path)
+    init_db(db_path)
+    conn = get_db_connection(db_path)
 
     cursor = conn.cursor()
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
@@ -46,10 +48,10 @@ def test_init_db_creates_all_required_tables(tmp_path: Path) -> None:
 
 def test_init_db_enables_foreign_keys_and_is_idempotent(tmp_path: Path) -> None:
     db_path = tmp_path / "fremo.db"
-    conn1 = init_db(db_path)
-    conn1.close()
+    init_db(db_path)
 
-    conn2 = init_db(db_path)
+    init_db(db_path)
+    conn2 = get_db_connection(db_path)
     cursor = conn2.cursor()
     cursor.execute("PRAGMA foreign_keys;")
     fk_status = cursor.fetchone()[0]
@@ -172,7 +174,8 @@ def test_database_foreign_key_constraints(tmp_path: Path) -> None:
     import sqlite3
 
     db_path = tmp_path / "fremo.db"
-    conn = init_db(db_path)
+    init_db(db_path)
+    conn = get_db_connection(db_path)
 
     # Attempting to insert an exclusion with non-existent lutin must fail FK constraint
     with pytest.raises(sqlite3.IntegrityError):
@@ -189,7 +192,8 @@ def test_database_foreign_key_constraints(tmp_path: Path) -> None:
 
 def test_confirmed_lutins_and_save_attributions(tmp_path: Path) -> None:
     db_path = tmp_path / "fremo.db"
-    conn = init_db(db_path)
+    init_db(db_path)
+    conn = get_db_connection(db_path)
     with conn:
         conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
         conn.execute("INSERT INTO lutins (id, fullname, email) VALUES ('lutin_1', 'Lutin 1', 'l1@fremo.org');")
@@ -222,7 +226,8 @@ def test_confirmed_lutins_and_save_attributions(tmp_path: Path) -> None:
 
 def test_scores_defi_and_beneficiaire_operations(tmp_path: Path) -> None:
     db_path = tmp_path / "fremo.db"
-    conn = init_db(db_path)
+    init_db(db_path)
+    conn = get_db_connection(db_path)
     with conn:
         conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
         conn.execute("INSERT INTO lutins (id, fullname, email) VALUES ('l1', 'Lutin 1', 'l1@fremo.org');")
@@ -274,7 +279,8 @@ def test_scores_defi_and_beneficiaire_operations(tmp_path: Path) -> None:
 
 def test_scores_defi_multi_manches(tmp_path: Path) -> None:
     db_path = tmp_path / "fremo.db"
-    conn = init_db(db_path)
+    init_db(db_path)
+    conn = get_db_connection(db_path)
     with conn:
         conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
         conn.execute("INSERT INTO lutins (id, fullname, email) VALUES ('l1', 'Lutin 1', 'l1@fremo.org');")
@@ -343,8 +349,7 @@ def test_scores_defi_schema_migration_idempotent(tmp_path: Path) -> None:
     conn.close()
 
     # Exécution de init_db qui doit appliquer la migration
-    conn_migrated = init_db(db_path)
-    conn_migrated.close()
+    init_db(db_path)
 
     # Vérification que le score existant a manche_id = 1
     scores_m1 = get_scores_classement(db_path, 2026, manche_id=1)
@@ -358,8 +363,7 @@ def test_scores_defi_schema_migration_idempotent(tmp_path: Path) -> None:
     assert score_m2["manche_id"] == 2
 
     # Deuxième appel à init_db pour vérifier l'idempotence
-    conn_again = init_db(db_path)
-    conn_again.close()
+    init_db(db_path)
     scores_all = get_scores_classement(db_path, 2026)
     assert len(scores_all) == 2
 
@@ -405,7 +409,8 @@ def test_init_db_adds_date_repas_column_and_migration(tmp_path: Path) -> None:
     conn.close()
 
     # init_db doit migrer la table pour ajouter date_repas
-    conn_migrated = init_db(db_path)
+    init_db(db_path)
+    conn_migrated = get_db_connection(db_path)
     cols = [row[1] for row in conn_migrated.execute("PRAGMA table_info(editions);").fetchall()]
     conn_migrated.close()
     assert "date_repas" in cols

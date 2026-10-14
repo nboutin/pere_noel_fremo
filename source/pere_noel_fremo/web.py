@@ -1,5 +1,4 @@
 import base64
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -10,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from .config import default_db_path, resolve_res_dir
 from .database import (
     abandon_score_defi,
     complete_score_defi,
@@ -37,11 +37,6 @@ from .helper import format_date_repas
 from .tokens import get_lutin_by_token
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
-PROJECT_ROOT = PACKAGE_ROOT.parent.parent
-DEFAULT_RES_DIR = Path(
-    os.environ.get("FREMO_RES_DIR", "/app/res" if Path("/app/res").exists() else PROJECT_ROOT / "res")
-)
-DEFAULT_DB_PATH = DEFAULT_RES_DIR / "fremo.db"
 TEMPLATES_DIR = PACKAGE_ROOT / "templates"
 STATIC_DIR = PACKAGE_ROOT / "static"
 
@@ -54,9 +49,16 @@ class GrilleSolveRequest(BaseModel):
     solution: dict[str, Any]
 
 
-def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
+def create_app(
+    db_path: Path | str | None = None,
+    res_dir: Path | str | None = None,
+) -> FastAPI:
     """Crée l'application FastAPI pour l'Espace Lutin et les services festifs."""
-    init_db(db_path)
+    resolved_res_dir = Path(res_dir) if res_dir is not None else resolve_res_dir()
+    resolved_db_path = Path(db_path) if db_path is not None else default_db_path(resolved_res_dir)
+    init_db(resolved_db_path)
+    db_path = resolved_db_path
+    res_dir = resolved_res_dir
     app = FastAPI(title="Père Noël de la Frémo - Espace Lutin")
 
     if STATIC_DIR.exists():
@@ -75,7 +77,7 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
         standings = calculate_championship_standings(db_path, target_year)
         # Repli si aucune manche agrégée
         classement = standings if standings else get_scores_classement(db_path, target_year)
-        manches = get_all_manches(year=target_year, only_unlocked=False)
+        manches = get_all_manches(year=target_year, res_dir=res_dir, only_unlocked=False)
         return templates.TemplateResponse(
             request=request,
             name="tableau_scores.html",
@@ -107,7 +109,7 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
         pseudo = generate_pseudo_lugeur(lutin_id, year)
 
         # 1. Calendrier des manches et statuts pour ce lutin
-        all_manches = get_all_manches(year=year, only_unlocked=False)
+        all_manches = get_all_manches(year=year, res_dir=res_dir, only_unlocked=False)
         for m in all_manches:
             m_id = int(m["id"])
             m_score = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=m_id)
@@ -134,9 +136,9 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
             elif all_manches:
                 active_manche_id = all_manches[0]["id"]
 
-        active_manche = get_manche(year=year, manche_id=active_manche_id)
+        active_manche = get_manche(year=year, manche_id=active_manche_id, res_dir=res_dir)
         if active_manche is None:
-            active_manche = get_or_load_grille(year)
+            active_manche = get_or_load_grille(year, res_dir=res_dir)
 
         active_score = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=active_manche_id)
 
@@ -228,7 +230,7 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
                 detail="Tu dois d'abord confirmer ta présence pour lancer le Défi du lutin.",
             )
 
-        manche = get_manche(year=year, manche_id=manche_id)
+        manche = get_manche(year=year, manche_id=manche_id, res_dir=res_dir)
         if manche is None:
             raise HTTPException(status_code=404, detail=f"Manche {manche_id} introuvable.")
 
@@ -401,7 +403,3 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
         )
 
     return app
-
-
-# Application par défaut
-app = create_app()

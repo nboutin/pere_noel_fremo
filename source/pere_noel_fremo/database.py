@@ -74,74 +74,76 @@ def get_db_connection(db_path: Path | str) -> sqlite3.Connection:
     return conn
 
 
-def init_db(db_path: Path | str) -> sqlite3.Connection:
+def init_db(db_path: Path | str) -> None:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = get_db_connection(path)
-    with conn:
-        conn.executescript(SCHEMA_SQL)
-        table_info = conn.execute("PRAGMA table_info(scores_defi);").fetchall()
-        if table_info:
-            cols = [c[1] for c in table_info]
-            pk_cols = {c[1] for c in table_info if c[5] > 0}
-            if "started_at" not in cols:
-                conn.execute("ALTER TABLE scores_defi ADD COLUMN started_at TIMESTAMP;")
-            if "manche_id" not in pk_cols:
-                # Migration de l'ancienne table vers la clé composite (lutin_id, year, manche_id)
-                conn.execute("ALTER TABLE scores_defi RENAME TO _scores_defi_old;")
-                conn.execute("""
-                    CREATE TABLE scores_defi (
-                        lutin_id TEXT NOT NULL REFERENCES lutins(id) ON DELETE CASCADE,
-                        year INTEGER NOT NULL REFERENCES editions(year) ON DELETE CASCADE,
-                        manche_id INTEGER NOT NULL DEFAULT 1,
-                        pseudo_lugeur TEXT NOT NULL,
-                        started_at TIMESTAMP,
-                        solved BOOLEAN NOT NULL DEFAULT 0,
-                        time_seconds REAL,
-                        completed_at TIMESTAMP,
-                        PRIMARY KEY (lutin_id, year, manche_id)
-                    );
-                """)
-                old_cols = [c[1] for c in conn.execute("PRAGMA table_info(_scores_defi_old);").fetchall()]
-                if "manche_id" in old_cols and "started_at" in old_cols:
+    try:
+        with conn:
+            conn.executescript(SCHEMA_SQL)
+            table_info = conn.execute("PRAGMA table_info(scores_defi);").fetchall()
+            if table_info:
+                cols = [c[1] for c in table_info]
+                pk_cols = {c[1] for c in table_info if c[5] > 0}
+                if "started_at" not in cols:
+                    conn.execute("ALTER TABLE scores_defi ADD COLUMN started_at TIMESTAMP;")
+                if "manche_id" not in pk_cols:
+                    # Migration de l'ancienne table vers la clé composite (lutin_id, year, manche_id)
+                    conn.execute("ALTER TABLE scores_defi RENAME TO _scores_defi_old;")
                     conn.execute("""
-                        INSERT INTO scores_defi (
-                            lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at
-                        )
-                        SELECT
-                            lutin_id, year, COALESCE(manche_id, 1), pseudo_lugeur, started_at,
-                            solved, time_seconds, completed_at
-                        FROM _scores_defi_old;
+                        CREATE TABLE scores_defi (
+                            lutin_id TEXT NOT NULL REFERENCES lutins(id) ON DELETE CASCADE,
+                            year INTEGER NOT NULL REFERENCES editions(year) ON DELETE CASCADE,
+                            manche_id INTEGER NOT NULL DEFAULT 1,
+                            pseudo_lugeur TEXT NOT NULL,
+                            started_at TIMESTAMP,
+                            solved BOOLEAN NOT NULL DEFAULT 0,
+                            time_seconds REAL,
+                            completed_at TIMESTAMP,
+                            PRIMARY KEY (lutin_id, year, manche_id)
+                        );
                     """)
-                elif "started_at" in old_cols:
-                    conn.execute("""
-                        INSERT INTO scores_defi (
-                            lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at
-                        )
-                        SELECT
-                            lutin_id, year, 1, pseudo_lugeur, started_at,
-                            solved, time_seconds, completed_at
-                        FROM _scores_defi_old;
-                    """)
-                else:
-                    conn.execute("""
-                        INSERT INTO scores_defi (
-                            lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at
-                        )
-                        SELECT
-                            lutin_id, year, 1, pseudo_lugeur, NULL,
-                            solved, time_seconds, completed_at
-                        FROM _scores_defi_old;
-                    """)
-                conn.execute("DROP TABLE _scores_defi_old;")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_scores_defi_year_manche ON scores_defi(year, manche_id);")
+                    old_cols = [c[1] for c in conn.execute("PRAGMA table_info(_scores_defi_old);").fetchall()]
+                    if "manche_id" in old_cols and "started_at" in old_cols:
+                        conn.execute("""
+                            INSERT INTO scores_defi (
+                                lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at
+                            )
+                            SELECT
+                                lutin_id, year, COALESCE(manche_id, 1), pseudo_lugeur, started_at,
+                                solved, time_seconds, completed_at
+                            FROM _scores_defi_old;
+                        """)
+                    elif "started_at" in old_cols:
+                        conn.execute("""
+                            INSERT INTO scores_defi (
+                                lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at
+                            )
+                            SELECT
+                                lutin_id, year, 1, pseudo_lugeur, started_at,
+                                solved, time_seconds, completed_at
+                            FROM _scores_defi_old;
+                        """)
+                    else:
+                        conn.execute("""
+                            INSERT INTO scores_defi (
+                                lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at
+                            )
+                            SELECT
+                                lutin_id, year, 1, pseudo_lugeur, NULL,
+                                solved, time_seconds, completed_at
+                            FROM _scores_defi_old;
+                        """)
+                    conn.execute("DROP TABLE _scores_defi_old;")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_scores_defi_year_manche ON scores_defi(year, manche_id);")
 
-        editions_info = conn.execute("PRAGMA table_info(editions);").fetchall()
-        if editions_info:
-            ed_cols = [c[1] for c in editions_info]
-            if "date_repas" not in ed_cols:
-                conn.execute("ALTER TABLE editions ADD COLUMN date_repas TEXT;")
-    return conn
+            editions_info = conn.execute("PRAGMA table_info(editions);").fetchall()
+            if editions_info:
+                ed_cols = [c[1] for c in editions_info]
+                if "date_repas" not in ed_cols:
+                    conn.execute("ALTER TABLE editions ADD COLUMN date_repas TEXT;")
+    finally:
+        conn.close()
 
 
 def import_yaml_data(
@@ -176,73 +178,75 @@ def import_yaml_data(
             if excluded_id not in all_lutin_ids:
                 raise ValueError(f"Integrity error: lutin '{lutin_id}' excludes unknown lutin '{excluded_id}'")
 
-    conn = init_db(db_path)
+    init_db(db_path)
+    conn = get_db_connection(db_path)
     personnes_secure = secure_data.get("personnes", {})
 
-    with conn:
-        # Création / mise à jour de l'édition si spécifiée
-        if year is not None:
-            if date_repas:
+    try:
+        with conn:
+            # Création / mise à jour de l'édition si spécifiée
+            if year is not None:
+                if date_repas:
+                    conn.execute(
+                        """
+                        INSERT INTO editions (year, status, date_repas) VALUES (?, 'draft', ?)
+                        ON CONFLICT(year) DO UPDATE SET date_repas = excluded.date_repas;
+                        """,
+                        (year, str(date_repas)),
+                    )
+                else:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO editions (year, status) VALUES (?, 'draft');",
+                        (year,),
+                    )
+
+            # 1. Upsert des lutins actifs
+            for lutin_id, params in data_in.items():
+                fullname = params.get("fullname", lutin_id)
+                email = personnes_secure.get(lutin_id, {}).get("email") or params.get("email")
                 conn.execute(
                     """
-                    INSERT INTO editions (year, status, date_repas) VALUES (?, 'draft', ?)
-                    ON CONFLICT(year) DO UPDATE SET date_repas = excluded.date_repas;
+                    INSERT INTO lutins (id, fullname, email, is_active)
+                    VALUES (?, ?, ?, 1)
+                    ON CONFLICT(id) DO UPDATE SET
+                        fullname = excluded.fullname,
+                        email = excluded.email,
+                        is_active = 1;
                     """,
-                    (year, str(date_repas)),
-                )
-            else:
-                conn.execute(
-                    "INSERT OR IGNORE INTO editions (year, status) VALUES (?, 'draft');",
-                    (year,),
+                    (lutin_id, fullname, email),
                 )
 
-        # 1. Upsert des lutins actifs
-        for lutin_id, params in data_in.items():
-            fullname = params.get("fullname", lutin_id)
-            email = personnes_secure.get(lutin_id, {}).get("email") or params.get("email")
-            conn.execute(
-                """
-                INSERT INTO lutins (id, fullname, email, is_active)
-                VALUES (?, ?, ?, 1)
-                ON CONFLICT(id) DO UPDATE SET
-                    fullname = excluded.fullname,
-                    email = excluded.email,
-                    is_active = 1;
-                """,
-                (lutin_id, fullname, email),
-            )
+            # Enregistrement des participants historiques passés non actifs pour cette édition
+            for _lutin_id, params in data_in.items():
+                for historical_id in params.get("history") or []:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO lutins (id, fullname, email, is_active) VALUES (?, ?, NULL, 0);",
+                        (historical_id, historical_id),
+                    )
 
-        # Enregistrement des participants historiques passés non actifs pour cette édition
-        for _lutin_id, params in data_in.items():
-            for historical_id in params.get("history") or []:
-                conn.execute(
-                    "INSERT OR IGNORE INTO lutins (id, fullname, email, is_active) VALUES (?, ?, NULL, 0);",
-                    (historical_id, historical_id),
-                )
+            # 2. Synchronisation idempotente des exclusions
+            for lutin_id, params in data_in.items():
+                for excluded_id in params.get("exclude") or []:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO exclusions (lutin_id, excluded_lutin_id) VALUES (?, ?);",
+                        (lutin_id, excluded_id),
+                    )
 
-        # 2. Synchronisation idempotente des exclusions
-        for lutin_id, params in data_in.items():
-            for excluded_id in params.get("exclude") or []:
-                conn.execute(
-                    "INSERT OR IGNORE INTO exclusions (lutin_id, excluded_lutin_id) VALUES (?, ?);",
-                    (lutin_id, excluded_id),
-                )
+            # 3. Synchronisation idempotente de l'historique d'attributions
+            for lutin_id, params in data_in.items():
+                for order_idx, historical_id in enumerate(params.get("history") or []):
+                    conn.execute(
+                        """
+                        INSERT OR IGNORE INTO attributions (donneur_id, beneficiaire_id, year, order_index)
+                        VALUES (?, ?, NULL, ?);
+                        """,
+                        (lutin_id, historical_id, order_idx),
+                    )
 
-        # 3. Synchronisation idempotente de l'historique d'attributions
-        for lutin_id, params in data_in.items():
-            for order_idx, historical_id in enumerate(params.get("history") or []):
-                conn.execute(
-                    """
-                    INSERT OR IGNORE INTO attributions (donneur_id, beneficiaire_id, year, order_index)
-                    VALUES (?, ?, NULL, ?);
-                    """,
-                    (lutin_id, historical_id, order_idx),
-                )
-
-        exclusion_count = conn.execute("SELECT COUNT(*) FROM exclusions;").fetchone()[0]
-        attribution_count = conn.execute("SELECT COUNT(*) FROM attributions;").fetchone()[0]
-
-    conn.close()
+            exclusion_count = conn.execute("SELECT COUNT(*) FROM exclusions;").fetchone()[0]
+            attribution_count = conn.execute("SELECT COUNT(*) FROM attributions;").fetchone()[0]
+    finally:
+        conn.close()
     return {
         "lutins": len(data_in),
         "exclusions": exclusion_count,
