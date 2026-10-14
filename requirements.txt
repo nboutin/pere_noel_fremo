@@ -1,10 +1,1 @@
-pyyaml
-google-api-python-client
-google-auth-httplib2
-google-auth-oauthlib
-pre-commit
-ruff
-mypy
-types-PyYAML
-bandit
-pytest
+-e .[dev]

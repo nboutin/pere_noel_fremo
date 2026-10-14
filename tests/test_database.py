@@ -930,3 +930,17 @@ def test_get_scores_classement_filters_unstarted_participants(tmp_path: Path) ->
     scores_all = get_scores_classement(db_path, 2026)
     assert len(scores_all) == 1
     assert scores_all[0]["lutin_id"] == "l2"
+
+
+def test_set_edition_status_validation(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo_status.db"
+    init_db(db_path)
+
+    # Valid statuses should succeed
+    for valid_status in ("draft", "announced", "drawn", "revealed"):
+        set_edition_status(db_path, 2026, valid_status)
+        assert get_edition_status(db_path, 2026) == valid_status
+
+    # Bogus status should raise ValueError
+    with pytest.raises(ValueError, match="Statut d'édition invalide"):
+        set_edition_status(db_path, 2026, "bogus")

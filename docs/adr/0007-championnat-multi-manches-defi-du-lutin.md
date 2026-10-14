@@ -1,14 +1,14 @@
 # ADR 0007 : Championnat bi-hebdomadaire du Défi du lutin et protection anti-triche IA
 
 ## Contexte
-Le Défi du lutin vise à créer une émulation festive continue et à déterminer l'ordre d'ouverture des cadeaux lors du réveillon (fixé au **dimanche 5 décembre 2027** entre amis).
+Le Défi du lutin vise à créer une émulation festive continue et à déterminer l'ordre d'ouverture des cadeaux lors du réveillon (fixé au **samedi 5 décembre 2026** entre amis).
 La version initiale à manche unique ne permettait ni bataille de classement ni rejouabilité. De plus, l'avènement des modèles d'IA générative (LLM / OCR multimodaux) capables de résoudre un logigramme textuel ou une capture d'écran en quelques secondes impose une protection robuste pour préserver l'équité du chronomètre.
 
 ## Décisions
 
 1. **Format Championnat bi-hebdomadaire à points (Grand Prix)** :
    - Le Défi du lutin est découpé en **Manches** bi-hebdomadaires (déblocage chaque **lundi à 19h00** et chaque **vendredi à 19h00**).
-   - Coup d'envoi le **vendredi 16 octobre 2027 à 19h00**, menant au réveillon du **dimanche 5 décembre 2027** (soit 15 manches au total).
+   - Coup d'envoi le **lundi 12 octobre 2026 à 19h00** (selon manche 1), manches suivantes tous les lundis et vendredis jusqu'au **vendredi 4 décembre 2026** (15e manche), menant au réveillon du **samedi 5 décembre 2026** (soit 15 manches au total).
    - Chaque Manche propose une **Grille logique** distincte.
    - Sur chaque manche, un Lutin ne dispose que d'**un seul essai officiel** (chronométré au dixième de seconde).
    - Chaque manche attribue des points selon le rang de vitesse parmi les Lutins ayant résolu la grille :
@@ -24,7 +24,7 @@ La version initiale à manche unique ne permettait ni bataille de classement ni 
 
 2. **Déverrouillage progressif et rattrapage libre** :
    - Chaque manche possède une date d'ouverture (`unlock_at`).
-   - Un Lutin peut rattraper à tout moment les manches passées déjà déverrouillées jusqu'au réveillon du 5 décembre 2027.
+   - Un Lutin peut rattraper à tout moment les manches passées déjà déverrouillées jusqu'au réveillon du samedi 5 décembre 2026.
    - Aucune manche passée n'est pénalisée ni fermée prématurément.
 
 3. **Protection multicouche anti-capture et anti-triche IA (Défense en profondeur)** :
@@ -46,6 +46,6 @@ La version initiale à manche unique ne permettait ni bataille de classement ni 
    - Sur l'Espace Lutin, l'affichage montre l'état de chaque manche (Verrouillée 🔒, Disponible 🚀, Résolue ✅), les points gagnés, le classement général et le podium avec les écarts de points.
 
 ## Conséquences
-- Émulation collective bi-hebdomadaire forte du 16 octobre au 5 décembre 2027.
+- Émulation collective bi-hebdomadaire forte du 12 octobre au 4 décembre 2026 (réveillon le 5 décembre 2026).
 - Équité préservée face aux outils d'IA et au partage de copies d'écran.
 - Rattrapage flexible et sans stress pour les participants.

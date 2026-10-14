@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS exclusions (
 
 CREATE TABLE IF NOT EXISTS editions (
     year INTEGER PRIMARY KEY,
-    status TEXT NOT NULL DEFAULT 'draft',
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'announced', 'drawn', 'revealed')),
     date_repas TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -524,8 +524,13 @@ def get_edition_date_repas(db_path: Path | str, year: int) -> str | None:
         conn.close()
 
 
+VALID_EDITION_STATUSES: tuple[str, ...] = ("draft", "announced", "drawn", "revealed")
+
+
 def set_edition_status(db_path: Path | str, year: int, status: str) -> None:
-    """Met à jour le statut d'une édition ('draft', 'drawn', 'revealed')."""
+    """Met à jour le statut d'une édition ('draft', 'announced', 'drawn', 'revealed')."""
+    if status not in VALID_EDITION_STATUSES:
+        raise ValueError(f"Statut d'édition invalide : {status!r}. Valeurs acceptées : {VALID_EDITION_STATUSES}")
     conn = get_db_connection(db_path)
     try:
         with conn:
