@@ -144,6 +144,7 @@ def calculate_championship_standings(
     for manche in unlocked_manches:
         manche_id = int(manche["id"])
         manche_scores = get_scores_classement(db_path, year, manche_id=manche_id)
+        manche_scores = [s for s in manche_scores if s.get("started_at") is not None]
         scored_entries = calculate_manche_points(manche_scores)
 
         for entry in scored_entries:

@@ -932,3 +932,148 @@ def test_regression_jdenis_mdenis_standings(client: TestClient, test_db: Path) -
     assert page_m.status_code == 200
     assert "#2" in page_m.text
     assert "8 pts" in page_m.text
+
+
+def test_espace_lutin_get_read_only_no_score_created_absent_from_scores(client: TestClient, test_db: Path) -> None:
+    """GET /lutin/{token} ne crée aucune ligne dans scores_defi ; lutin absent de /scores."""
+    token = create_or_get_token(test_db, "fbonnet", 2025)
+
+    # 1. Ouvrir seulement l'Espace Lutin
+    resp_get = client.get(f"/lutin/{token}")
+    assert resp_get.status_code == 200
+
+    conn = get_db_connection(test_db)
+    count = conn.execute("SELECT COUNT(*) FROM scores_defi WHERE lutin_id = 'fbonnet';").fetchone()[0]
+    conn.close()
+    assert count == 0
+
+    # Vérifier l'absence sur /scores
+    resp_scores = client.get("/scores/2025")
+    assert resp_scores.status_code == 200
+    assert "François Bonnet" not in resp_scores.text
+    assert "fbonnet" not in resp_scores.text
+    # Aucune ligne de classement
+    assert "my-score-row" not in resp_scores.text
+
+    # 2. Décliner sa présence puis rouvrir
+    resp_presence = client.post(f"/api/lutin/{token}/presence", json={"present": False})
+    assert resp_presence.status_code == 200
+
+    resp_get2 = client.get(f"/lutin/{token}")
+    assert resp_get2.status_code == 200
+
+    conn = get_db_connection(test_db)
+    count2 = conn.execute("SELECT COUNT(*) FROM scores_defi WHERE lutin_id = 'fbonnet';").fetchone()[0]
+    conn.close()
+    assert count2 == 0
+
+    resp_scores2 = client.get("/scores/2025")
+    assert "fbonnet" not in resp_scores2.text
+
+
+def test_chrono_injectable_clock_millisecond_precision(tmp_path: Path) -> None:
+    """Test avec horloge injectée : start à t0, solve à t0 + 30.46 s -> time_seconds == 30.5."""
+    from datetime import datetime, timedelta, timezone
+
+    from pere_noel_fremo.database import set_lutin_presence
+    from pere_noel_fremo.defi import get_or_load_grille
+
+    db_file = tmp_path / "fremo_clock_test.db"
+    init_db(db_file)
+    conn = get_db_connection(db_file)
+    with conn:
+        conn.execute(
+            "INSERT INTO lutins (id, fullname, email) VALUES ('fbonnet', 'François Bonnet', 'fb@example.com');"
+        )
+        conn.execute("INSERT INTO editions (year, status) VALUES (2025, 'draft');")
+    conn.close()
+
+    token = create_or_get_token(db_file, "fbonnet", 2025)
+    set_lutin_presence(db_file, "fbonnet", 2025, present=True)
+
+    t0 = datetime(2025, 12, 24, 18, 0, 0, 0, tzinfo=timezone.utc)
+    current_time = t0
+
+    def mock_clock() -> datetime:
+        return current_time
+
+    app = create_app(db_path=db_file, clock=mock_clock)
+    test_client = TestClient(app)
+
+    # 1. Démarrage à t0
+    resp_start = test_client.post(f"/api/lutin/{token}/defi/1/start")
+    assert resp_start.status_code == 200
+    data_start = resp_start.json()
+    assert data_start["ok"] is True
+    assert "T" in data_start["started_at"]
+
+    # 2. Résolution à t0 + 30.46 s
+    current_time = t0 + timedelta(seconds=30.46)
+    grille = get_or_load_grille(2025)
+    assert grille is not None
+
+    resp_solve = test_client.post(
+        f"/api/lutin/{token}/defi/1/solve",
+        json={"solution": grille["solution"]},
+    )
+    assert resp_solve.status_code == 200
+    data_solve = resp_solve.json()
+    assert data_solve["solved"] is True
+    # round(30.46 + 0.0, 1) == 30.5
+    assert data_solve["time_seconds"] == 30.5
+
+    # 3. Vérification en base des horodatages ISO UTC avec millisecondes
+    conn = get_db_connection(db_file)
+    row = conn.execute("SELECT * FROM scores_defi WHERE lutin_id = 'fbonnet' AND manche_id = 1;").fetchone()
+    conn.close()
+
+    assert row["time_seconds"] == 30.5
+    started_at_str = str(row["started_at"])
+    completed_at_str = str(row["completed_at"])
+    assert "T" in started_at_str
+    assert "T" in completed_at_str
+    assert "+00:00" in started_at_str or "Z" in started_at_str
+
+
+def test_chrono_legacy_started_at_read_correctly(tmp_path: Path) -> None:
+    """Une ligne existante au format seconde %Y-%m-%d %H:%M:%S est toujours lue correctement."""
+    from datetime import datetime, timezone
+
+    from pere_noel_fremo.database import set_lutin_presence
+    from pere_noel_fremo.defi import get_or_load_grille
+
+    db_file = tmp_path / "fremo_legacy_date.db"
+    init_db(db_file)
+    conn = get_db_connection(db_file)
+    with conn:
+        conn.execute(
+            "INSERT INTO lutins (id, fullname, email) VALUES ('fbonnet', 'François Bonnet', 'fb@example.com');"
+        )
+        conn.execute("INSERT INTO editions (year, status) VALUES (2025, 'draft');")
+        # Insertion d'un score démarré au format legacy SQLite
+        conn.execute(
+            "INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lugeur, started_at, solved) "
+            "VALUES ('fbonnet', 2025, 1, 'Renne Agile', '2025-12-24 18:00:00', 0);"
+        )
+    conn.close()
+
+    token = create_or_get_token(db_file, "fbonnet", 2025)
+    set_lutin_presence(db_file, "fbonnet", 2025, present=True)
+
+    t_solve = datetime(2025, 12, 24, 18, 0, 42, 460000, tzinfo=timezone.utc)
+
+    app = create_app(db_path=db_file, clock=lambda: t_solve)
+    test_client = TestClient(app)
+
+    grille = get_or_load_grille(2025)
+    assert grille is not None
+
+    resp_solve = test_client.post(
+        f"/api/lutin/{token}/defi/1/solve",
+        json={"solution": grille["solution"]},
+    )
+    assert resp_solve.status_code == 200
+    data_solve = resp_solve.json()
+    assert data_solve["solved"] is True
+    # round(42.46, 1) == 42.5
+    assert data_solve["time_seconds"] == 42.5

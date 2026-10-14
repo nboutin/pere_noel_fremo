@@ -363,6 +363,7 @@ def test_scores_defi_schema_migration_idempotent(tmp_path: Path) -> None:
     # Insertion d'une manche 2 pour le même lutin (doit réussir grâce à la clé composite)
     score_m2 = get_or_create_score_defi(db_path, "l1", 2026, "Lutin Ancien", manche_id=2)
     assert score_m2["manche_id"] == 2
+    start_score_defi(db_path, "l1", 2026, manche_id=2)
 
     # Deuxième appel à init_db pour vérifier l'idempotence
     init_db(db_path)
@@ -727,9 +728,108 @@ def test_get_scores_classement_includes_lutin_id(tmp_path: Path) -> None:
         conn.execute("INSERT INTO lutins (id, fullname) VALUES ('jdenis', 'Jean Denis');")
     conn.close()
 
-    get_or_create_score_defi(db_path, "jdenis", 2026, "Renne Agile", manche_id=1)
+    start_score_defi(db_path, "jdenis", 2026, pseudo_lugeur="Renne Agile", manche_id=1)
     scores = get_scores_classement(db_path, 2026, manche_id=1)
     assert len(scores) == 1
     assert "lutin_id" in scores[0]
     assert scores[0]["lutin_id"] == "jdenis"
     assert scores[0]["pseudo_lugeur"] == "Renne Agile"
+
+
+def test_parse_iso_or_legacy() -> None:
+    from datetime import datetime, timezone
+
+    from pere_noel_fremo.database import parse_iso_or_legacy
+
+    # 1. Format legacy SQLite (%Y-%m-%d %H:%M:%S)
+    legacy_dt = parse_iso_or_legacy("2026-10-14 20:00:00")
+    assert legacy_dt == datetime(2026, 10, 14, 20, 0, 0, tzinfo=timezone.utc)
+
+    # 2. Format ISO-8601 avec millisecondes et fuseau
+    iso_ms_dt = parse_iso_or_legacy("2026-10-14T20:00:00.123456+00:00")
+    assert iso_ms_dt == datetime(2026, 10, 14, 20, 0, 0, 123456, tzinfo=timezone.utc)
+
+    # 3. Format ISO-8601 avec suffixe Z
+    iso_z_dt = parse_iso_or_legacy("2026-10-14T20:00:00.123Z")
+    assert iso_z_dt == datetime(2026, 10, 14, 20, 0, 0, 123000, tzinfo=timezone.utc)
+
+    # 4. Objet datetime direct (aware et naive)
+    naive_dt = datetime(2026, 10, 14, 20, 0, 0)
+    assert parse_iso_or_legacy(naive_dt) == datetime(2026, 10, 14, 20, 0, 0, tzinfo=timezone.utc)
+
+
+def test_migration_purges_unstarted_scores(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo_purge.db"
+    init_db(db_path)
+
+    conn = get_db_connection(db_path)
+    with conn:
+        conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
+        conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l1', 'Lutin 1');")
+        conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l2', 'Lutin 2');")
+        conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l3', 'Lutin 3');")
+        # Row 1: non démarré (started_at IS NULL)
+        conn.execute(
+            "INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lugeur, started_at, solved) "
+            "VALUES ('l1', 2026, 1, 'Lutin Un', NULL, 0);"
+        )
+        # Row 2: démarré et résolu
+        conn.execute(
+            """
+            INSERT INTO scores_defi (
+                lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at
+            ) VALUES (
+                'l2', 2026, 1, 'Lutin Deux', '2026-10-14T20:00:00.123456+00:00',
+                1, 35.2, '2026-10-14T20:00:35.323456+00:00'
+            );
+            """
+        )
+        # Row 3: démarré en cours (format legacy)
+        conn.execute(
+            "INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lugeur, started_at, solved) "
+            "VALUES ('l3', 2026, 1, 'Lutin Trois', '2026-10-14 20:00:00', 0);"
+        )
+    conn.close()
+
+    # Exécution de init_db qui doit purger les lignes sans started_at
+    init_db(db_path)
+
+    conn = get_db_connection(db_path)
+    rows = conn.execute("SELECT lutin_id, started_at FROM scores_defi ORDER BY lutin_id;").fetchall()
+    conn.close()
+
+    assert len(rows) == 2
+    lutin_ids = [r["lutin_id"] for r in rows]
+    assert "l1" not in lutin_ids
+    assert "l2" in lutin_ids
+    assert "l3" in lutin_ids
+
+
+def test_get_scores_classement_filters_unstarted_participants(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo_filter.db"
+    init_db(db_path)
+
+    conn = get_db_connection(db_path)
+    with conn:
+        conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
+        conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l1', 'Lutin 1');")
+        conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l2', 'Lutin 2');")
+        # Ingestion manuelle sans started_at (pour contourner init_db purge)
+        conn.execute(
+            "INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lugeur, started_at, solved) "
+            "VALUES ('l1', 2026, 1, 'Lutin Un', NULL, 0);"
+        )
+        # Participant ayant démarré
+        conn.execute(
+            "INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds) "
+            "VALUES ('l2', 2026, 1, 'Lutin Deux', '2026-10-14T20:00:00+00:00', 1, 28.5);"
+        )
+    conn.close()
+
+    scores = get_scores_classement(db_path, 2026, manche_id=1)
+    assert len(scores) == 1
+    assert scores[0]["lutin_id"] == "l2"
+
+    scores_all = get_scores_classement(db_path, 2026)
+    assert len(scores_all) == 1
+    assert scores_all[0]["lutin_id"] == "l2"

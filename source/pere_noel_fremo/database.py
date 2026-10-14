@@ -85,6 +85,21 @@ def get_db_connection(db_path: Path | str) -> sqlite3.Connection:
     return conn
 
 
+def parse_iso_or_legacy(val: str | datetime) -> datetime:
+    """Parse une date soit au format ISO-8601 (avec millisecondes/fuseau), soit au format legacy SQLite."""
+    if isinstance(val, datetime):
+        dt = val
+    else:
+        raw = str(val).strip()
+        try:
+            dt = datetime.fromisoformat(raw)
+        except ValueError:
+            dt = datetime.strptime(raw, "%Y-%m-%d %H:%M:%S")
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def init_db(db_path: Path | str) -> None:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -145,7 +160,7 @@ def init_db(db_path: Path | str) -> None:
                                 started_at, solved, time_seconds, completed_at, attempts
                             )
                             SELECT
-                                lutin_id, year, 1, pseudo_lugeur, NULL,
+                                lutin_id, year, 1, pseudo_lugeur, COALESCE(completed_at, '2026-01-01 00:00:00'),
                                 solved, time_seconds, completed_at, CASE WHEN solved = 1 THEN 1 ELSE 0 END
                             FROM _scores_defi_old;
                         """)
@@ -158,6 +173,18 @@ def init_db(db_path: Path | str) -> None:
                     conn.execute("UPDATE scores_defi SET attempts = CASE WHEN solved = 1 THEN 1 ELSE 0 END;")
 
             conn.execute("CREATE INDEX IF NOT EXISTS idx_scores_defi_year_manche ON scores_defi(year, manche_id);")
+
+            # Backfill started_at pour les anciens scores déjà résolus/complétés sans started_at
+            conn.execute(
+                """
+                UPDATE scores_defi
+                SET started_at = COALESCE(completed_at, '2026-01-01 00:00:00')
+                WHERE started_at IS NULL AND (solved = 1 OR time_seconds IS NOT NULL OR completed_at IS NOT NULL);
+                """
+            )
+
+            # Migration Ticket #33 : purger les lignes de scores_defi existantes où started_at IS NULL
+            conn.execute("DELETE FROM scores_defi WHERE started_at IS NULL;")
 
             # Migration idempotente des pseudos pour scores_defi
             conn.execute(
@@ -694,6 +721,37 @@ def get_or_assign_pseudo(
             conn.close()
 
 
+def get_lutin_pseudo(
+    conn_or_path: Any,
+    lutin_id: str,
+    year: int,
+) -> str | None:
+    """Récupère le pseudo déjà persisté pour (year, lutin_id) s'il existe, sinon None (sans attribution)."""
+    conn: sqlite3.Connection
+    close_after: bool
+    if isinstance(conn_or_path, sqlite3.Connection):
+        conn = conn_or_path
+        close_after = False
+    else:
+        conn = get_db_connection(conn_or_path)
+        close_after = True
+
+    try:
+        row = conn.execute(
+            "SELECT pseudo FROM pseudos WHERE year = ? AND lutin_id = ?;",
+            (year, lutin_id),
+        ).fetchone()
+        if row is not None:
+            return str(row["pseudo"])
+        return None
+    finally:
+        if close_after:
+            conn.close()
+
+
+get_pseudo_for_lutin = get_lutin_pseudo
+
+
 def _get_score_entry(conn: Any, lutin_id: str, year: int, manche_id: int = 1) -> dict[str, Any]:
     row = conn.execute(
         """
@@ -704,6 +762,20 @@ def _get_score_entry(conn: Any, lutin_id: str, year: int, manche_id: int = 1) ->
         (lutin_id, year, manche_id),
     ).fetchone()
     return dict(row) if row else {}
+
+
+def get_score_defi(
+    db_path: Path | str,
+    lutin_id: str,
+    year: int,
+    manche_id: int = 1,
+) -> dict[str, Any]:
+    """Récupère l'entrée score_defi pour un Lutin, une édition et une manche sans la créer si absente."""
+    conn = get_db_connection(db_path)
+    try:
+        return _get_score_entry(conn, lutin_id, year, manche_id=manche_id)
+    finally:
+        conn.close()
 
 
 def get_or_create_score_defi(
@@ -752,12 +824,22 @@ def start_score_defi(
     db_path: Path | str,
     lutin_id: str,
     year: int,
+    pseudo_lugeur: str | None = None,
     manche_id: int = 1,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
-    """Démarre le chronomètre du Défi du lutin pour une manche donnée si non déjà démarré ou résolu."""
+    """Démarre le chronomètre du Défi du lutin pour une manche donnée si non déjà démarré ou résolu.
+
+    Crée la ligne dans scores_defi si elle n'existe pas encore.
+    """
     conn = get_db_connection(db_path)
     try:
         with conn:
+            now_dt = parse_iso_or_legacy(now) if now is not None else datetime.now(timezone.utc)
+            now_str = now_dt.isoformat()
+
+            pseudo = get_or_assign_pseudo(conn, lutin_id, year) if pseudo_lugeur is None else pseudo_lugeur
+
             row = conn.execute(
                 """
                 SELECT started_at, solved, time_seconds
@@ -766,18 +848,30 @@ def start_score_defi(
                 """,
                 (lutin_id, year, manche_id),
             ).fetchone()
-            if row and not row["solved"] and row["started_at"] is None:
+
+            if row is None:
+                conn.execute(
+                    """
+                    INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lugeur, started_at, solved)
+                    VALUES (?, ?, ?, ?, ?, 0);
+                    """,
+                    (lutin_id, year, manche_id, pseudo, now_str),
+                )
+            elif not row["solved"] and row["started_at"] is None:
                 conn.execute(
                     """
                     UPDATE scores_defi
-                    SET started_at = CURRENT_TIMESTAMP
+                    SET started_at = ?
                     WHERE lutin_id = ? AND year = ? AND manche_id = ?;
                     """,
-                    (lutin_id, year, manche_id),
+                    (now_str, lutin_id, year, manche_id),
                 )
             return _get_score_entry(conn, lutin_id, year, manche_id=manche_id)
     finally:
         conn.close()
+
+
+start_manche_defi = start_score_defi
 
 
 def complete_score_defi(
@@ -786,29 +880,39 @@ def complete_score_defi(
     year: int,
     time_seconds: float,
     manche_id: int = 1,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
     """Scelle la complétion du Défi du lutin pour une manche avec le temps officiel."""
     conn = get_db_connection(db_path)
     try:
         with conn:
+            now_dt = parse_iso_or_legacy(now) if now is not None else datetime.now(timezone.utc)
+            now_str = now_dt.isoformat()
+
             row = conn.execute(
-                "SELECT solved, attempts FROM scores_defi WHERE lutin_id = ? AND year = ? AND manche_id = ?;",
+                """
+                SELECT solved, attempts, started_at
+                FROM scores_defi
+                WHERE lutin_id = ? AND year = ? AND manche_id = ?;
+                """,
                 (lutin_id, year, manche_id),
             ).fetchone()
             # Si déjà résolu, on ne modifie pas le temps (essai unique officiel)
             if row and not row["solved"]:
                 current_attempts = int(row["attempts"] or 0)
                 new_attempts = max(1, current_attempts)
+                started_at_val = row["started_at"] or now_str
                 conn.execute(
                     """
                     UPDATE scores_defi
                     SET solved = 1,
                         attempts = ?,
                         time_seconds = ?,
-                        completed_at = CURRENT_TIMESTAMP
+                        completed_at = ?,
+                        started_at = ?
                     WHERE lutin_id = ? AND year = ? AND manche_id = ?;
                     """,
-                    (new_attempts, time_seconds, lutin_id, year, manche_id),
+                    (new_attempts, time_seconds, now_str, started_at_val, lutin_id, year, manche_id),
                 )
             return _get_score_entry(conn, lutin_id, year, manche_id=manche_id)
     finally:
@@ -820,11 +924,15 @@ def abandon_score_defi(
     lutin_id: str,
     year: int,
     manche_id: int = 1,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
     """Scelle l'abandon d'une manche du Défi du lutin : chrono arrêté, tentative scellée."""
     conn = get_db_connection(db_path)
     try:
         with conn:
+            now_dt = parse_iso_or_legacy(now) if now is not None else datetime.now(timezone.utc)
+            now_str = now_dt.isoformat()
+
             row = conn.execute(
                 "SELECT solved, completed_at FROM scores_defi WHERE lutin_id = ? AND year = ? AND manche_id = ?;",
                 (lutin_id, year, manche_id),
@@ -835,10 +943,10 @@ def abandon_score_defi(
                     UPDATE scores_defi
                     SET solved = 0,
                         time_seconds = NULL,
-                        completed_at = CURRENT_TIMESTAMP
+                        completed_at = ?
                     WHERE lutin_id = ? AND year = ? AND manche_id = ?;
                     """,
-                    (lutin_id, year, manche_id),
+                    (now_str, lutin_id, year, manche_id),
                 )
             return _get_score_entry(conn, lutin_id, year, manche_id=manche_id)
     finally:
@@ -882,25 +990,18 @@ def register_solve_attempt(
             if not row["started_at"]:
                 raise ValueError("Le Défi du lutin doit être démarré avant d'être validé.")
 
-            now_dt = now or datetime.now(timezone.utc)
-            start_raw = str(row["started_at"]).strip()
-            if "T" in start_raw:
-                start_time = datetime.fromisoformat(start_raw)
-            else:
-                start_time = datetime.strptime(start_raw, "%Y-%m-%d %H:%M:%S")
-            if start_time.tzinfo is None:
-                start_time = start_time.replace(tzinfo=timezone.utc)
+            now_dt = parse_iso_or_legacy(now) if now is not None else datetime.now(timezone.utc)
+            start_time = parse_iso_or_legacy(str(row["started_at"]))
 
             time_diff = (now_dt - start_time).total_seconds()
-            raw_time_seconds = max(1.0, round(time_diff, 1))
-
             current_attempts = int(row["attempts"] or 0)
             new_attempts = current_attempts + 1
-            now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+            now_str = now_dt.isoformat()
 
             if is_valid:
                 penalty = (new_attempts - 1) * penalty_seconds
-                total_time = round(raw_time_seconds + penalty, 1)
+                total_time = max(0.1, round(time_diff + penalty, 1))
+                raw_time_seconds = max(0.1, round(time_diff, 1))
                 conn.execute(
                     """
                     UPDATE scores_defi
@@ -978,9 +1079,9 @@ def get_scores_classement(
         if manche_id is not None:
             rows = conn.execute(
                 """
-                SELECT lutin_id, pseudo_lugeur, manche_id, solved, time_seconds, completed_at, attempts
+                SELECT lutin_id, pseudo_lugeur, manche_id, solved, time_seconds, completed_at, attempts, started_at
                 FROM scores_defi
-                WHERE year = ? AND manche_id = ?
+                WHERE year = ? AND manche_id = ? AND started_at IS NOT NULL
                 ORDER BY
                     CASE WHEN solved = 1 THEN 0 ELSE 1 END ASC,
                     time_seconds ASC,
@@ -991,9 +1092,9 @@ def get_scores_classement(
         else:
             rows = conn.execute(
                 """
-                SELECT lutin_id, pseudo_lugeur, manche_id, solved, time_seconds, completed_at, attempts
+                SELECT lutin_id, pseudo_lugeur, manche_id, solved, time_seconds, completed_at, attempts, started_at
                 FROM scores_defi
-                WHERE year = ?
+                WHERE year = ? AND started_at IS NOT NULL
                 ORDER BY
                     CASE WHEN solved = 1 THEN 0 ELSE 1 END ASC,
                     time_seconds ASC,

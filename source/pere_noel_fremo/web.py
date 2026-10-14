@@ -1,3 +1,5 @@
+from collections.abc import Callable
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +18,8 @@ from .database import (
     get_latest_edition_year,
     get_lutin_presence,
     get_or_assign_pseudo,
-    get_or_create_score_defi,
+    get_pseudo_for_lutin,
+    get_score_defi,
     get_scores_classement,
     init_db,
     register_solve_attempt,
@@ -53,6 +56,7 @@ class GrilleSolveRequest(BaseModel):
 def create_app(
     db_path: Path | str | None = None,
     res_dir: Path | str | None = None,
+    clock: Callable[[], datetime] | None = None,
 ) -> FastAPI:
     """Crée l'application FastAPI pour l'Espace Lutin et les services festifs."""
     resolved_res_dir = Path(res_dir) if res_dir is not None else resolve_res_dir()
@@ -60,6 +64,7 @@ def create_app(
     init_db(resolved_db_path)
     db_path = resolved_db_path
     res_dir = resolved_res_dir
+    clock_fn: Callable[[], datetime] = clock if clock is not None else (lambda: datetime.now(timezone.utc))
     app = FastAPI(title="Père Noël de la Frémo - Espace Lutin")
 
     if STATIC_DIR.exists():
@@ -74,11 +79,12 @@ def create_app(
     @app.get("/scores", response_class=HTMLResponse)
     @app.get("/scores/{year}", response_class=HTMLResponse)
     async def get_scores_page(request: Request, year: int | None = None) -> Any:
+        now_dt = clock_fn()
         target_year = year if year is not None else get_latest_edition_year(db_path)
-        standings = calculate_championship_standings(db_path, target_year)
+        standings = calculate_championship_standings(db_path, target_year, res_dir=res_dir, now=now_dt)
         # Repli si aucune manche agrégée
         classement = standings if standings else get_scores_classement(db_path, target_year)
-        manches = get_all_manches(year=target_year, res_dir=res_dir, only_unlocked=False)
+        manches = get_all_manches(year=target_year, res_dir=res_dir, now=now_dt, only_unlocked=False)
 
         def _strip_lutin_id(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
             return [{k: v for k, v in e.items() if k != "lutin_id"} for e in entries]
@@ -107,17 +113,19 @@ def create_app(
 
         year = lutin_info["year"]
         lutin_id = lutin_info["id"]
+        now_dt = clock_fn()
         presence = get_lutin_presence(db_path, lutin_id, year)
         status = get_edition_status(db_path, year) or "draft"
         is_locked = status in ("drawn", "revealed")
 
-        pseudo = get_or_assign_pseudo(db_path, lutin_id, year)
+        # Lecture seule : on ne génère pas de pseudo s'il n'existe pas encore
+        pseudo = get_pseudo_for_lutin(db_path, lutin_id, year)
 
         # 1. Calendrier des manches et statuts pour ce lutin
-        all_manches = get_all_manches(year=year, res_dir=res_dir, only_unlocked=False)
+        all_manches = get_all_manches(year=year, res_dir=res_dir, now=now_dt, only_unlocked=False)
         for m in all_manches:
             m_id = int(m["id"])
-            m_score = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=m_id)
+            m_score = get_score_defi(db_path, lutin_id, year, manche_id=m_id)
             m["user_score"] = m_score
             m["is_solved"] = bool(m_score.get("solved"))
             if m["is_solved"]:
@@ -145,14 +153,14 @@ def create_app(
             elif all_manches:
                 active_manche_id = all_manches[0]["id"]
 
-        active_manche = get_manche(year=year, manche_id=active_manche_id, res_dir=res_dir)
+        active_manche = get_manche(year=year, manche_id=active_manche_id, res_dir=res_dir, now=now_dt)
         if active_manche is None:
             active_manche = get_or_load_grille(year, res_dir=res_dir)
 
-        active_score = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=active_manche_id)
+        active_score = get_score_defi(db_path, lutin_id, year, manche_id=active_manche_id)
 
         # 3. Profil championnat et classement
-        standings = calculate_championship_standings(db_path, year)
+        standings = calculate_championship_standings(db_path, year, res_dir=res_dir, now=now_dt)
         my_standing = next(
             (entry for entry in standings if entry.get("lutin_id") == lutin_id),
             None,
@@ -252,11 +260,12 @@ def create_app(
                 detail="Tu dois d'abord confirmer ta présence pour lancer le Défi du lutin.",
             )
 
-        manche = get_manche(year=year, manche_id=manche_id, res_dir=res_dir)
+        now_dt = clock_fn()
+        manche = get_manche(year=year, manche_id=manche_id, res_dir=res_dir, now=now_dt)
         if manche is None:
             raise HTTPException(status_code=404, detail=f"Manche {manche_id} introuvable.")
 
-        if not is_manche_unlocked(manche):
+        if not is_manche_unlocked(manche, now=now_dt):
             raise HTTPException(
                 status_code=403,
                 detail=f"La manche {manche_id} n'est pas encore déverrouillée.",
@@ -270,7 +279,7 @@ def create_app(
         lutin_id = lutin_info["id"]
 
         pseudo = get_or_assign_pseudo(db_path, lutin_id, year)
-        score_entry = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=manche_id)
+        score_entry = get_score_defi(db_path, lutin_id, year, manche_id=manche_id)
         if score_entry.get("solved"):
             raise HTTPException(
                 status_code=400,
@@ -282,7 +291,14 @@ def create_app(
                 detail=f"La manche {manche_id} a été abandonnée (essai unique officiel).",
             )
 
-        updated = start_score_defi(db_path, lutin_id, year, manche_id=manche_id)
+        updated = start_score_defi(
+            db_path,
+            lutin_id,
+            year,
+            pseudo_lugeur=pseudo,
+            manche_id=manche_id,
+            now=clock_fn(),
+        )
         return JSONResponse(
             {
                 "ok": True,
@@ -299,8 +315,7 @@ def create_app(
         year = lutin_info["year"]
         lutin_id = lutin_info["id"]
 
-        pseudo = get_or_assign_pseudo(db_path, lutin_id, year)
-        score_entry = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=manche_id)
+        score_entry = get_score_defi(db_path, lutin_id, year, manche_id=manche_id)
         if not score_entry.get("started_at") or score_entry.get("completed_at") is not None:
             raise HTTPException(
                 status_code=403,
@@ -320,8 +335,7 @@ def create_app(
         year = lutin_info["year"]
         lutin_id = lutin_info["id"]
 
-        pseudo = get_or_assign_pseudo(db_path, lutin_id, year)
-        score_entry = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=manche_id)
+        score_entry = get_score_defi(db_path, lutin_id, year, manche_id=manche_id)
 
         if score_entry.get("completed_at"):
             raise HTTPException(
@@ -357,6 +371,7 @@ def create_app(
             is_valid=is_valid,
             max_attempts=MAX_ESSAIS_PAR_MANCHE,
             penalty_seconds=float(PENALITE_ESSAI_FAUX_SECONDES),
+            now=clock_fn(),
         )
 
         if result.get("already_completed"):
@@ -364,6 +379,8 @@ def create_app(
                 status_code=400,
                 detail=f"La manche {manche_id} est déjà terminée (essai unique officiel).",
             )
+
+        pseudo = score_entry.get("pseudo_lugeur") or get_pseudo_for_lutin(db_path, lutin_id, year) or "Lutin"
 
         if result.get("solved"):
             return JSONResponse(
@@ -408,8 +425,7 @@ def create_app(
         year = lutin_info["year"]
         lutin_id = lutin_info["id"]
 
-        pseudo = get_or_assign_pseudo(db_path, lutin_id, year)
-        score_entry = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=manche_id)
+        score_entry = get_score_defi(db_path, lutin_id, year, manche_id=manche_id)
         if score_entry.get("completed_at"):
             raise HTTPException(
                 status_code=400,
@@ -421,7 +437,8 @@ def create_app(
                 detail="Le Défi du lutin doit être démarré avant de pouvoir être abandonné.",
             )
 
-        updated = abandon_score_defi(db_path, lutin_id, year, manche_id=manche_id)
+        updated = abandon_score_defi(db_path, lutin_id, year, manche_id=manche_id, now=clock_fn())
+        pseudo = score_entry.get("pseudo_lugeur") or get_pseudo_for_lutin(db_path, lutin_id, year) or "Lutin"
         return JSONResponse(
             {
                 "ok": True,
