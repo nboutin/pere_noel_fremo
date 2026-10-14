@@ -309,12 +309,13 @@ def test_espace_lutin_multi_manches_and_anti_cheat_ui(client: TestClient, test_d
     assert "manche-badge" in page.text
     assert "Manche #1" in page.text
 
-    # 2. Rendu des indices via HTML5 Canvas (anti-OCR) et absence d'indices en clair dans le DOM
+    # 2. Rendu des indices via HTML5 Canvas (anti-OCR) et absence d'indices dans le DOM
     assert '<canvas id="clue-canvas"' in page.text
     assert "anti-ocr" in page.text.lower()
-    # Garantie anti-triche : aucun texte d'indice en clair dans le code HTML de la page
+    # Garantie anti-triche : aucun texte d'indice en clair ni obfusqué dans le code HTML de la page
     assert "Barnabé ne conduit pas l'Étoile Rouge" not in page.text
-    assert "OBF_CLUES" in page.text
+    assert "OBF_CLUES" not in page.text
+    assert "obf_clues" not in page.text
 
     # 3. Fragmentation des indices par onglets (anti-screenshot global)
     assert "clue-tab" in page.text
@@ -428,3 +429,174 @@ def test_espace_lutin_renders_date_repas(client: TestClient, test_db: Path) -> N
     assert "samedi 5 décembre 2026" in page.text
     assert "Participeras-tu à l'échange de cadeaux cette année ?" in page.text
     assert "Date du Repas de Noël" in page.text
+
+
+def test_espace_lutin_locked_manche_no_clues_no_categories(client: TestClient, test_db: Path) -> None:
+    conn = get_db_connection(test_db)
+    with conn:
+        conn.execute("INSERT OR IGNORE INTO editions (year, status) VALUES (2026, 'draft');")
+    conn.close()
+
+    token = create_or_get_token(test_db, "fbonnet", 2026)
+    from pere_noel_fremo.database import set_lutin_presence
+
+    set_lutin_presence(test_db, "fbonnet", 2026, present=True)
+
+    # Manche 2 est verrouillée dans res/2026/grilles/manche_2.yml (unlock_at en 2026-10-19)
+    response = client.get(f"/lutin/{token}?manche=2")
+    assert response.status_code == 200
+    page_text = response.text
+
+    # Titre et unlock_at doivent être affichés
+    assert "Manche 2 : La Ronde des Étoiles" in page_text
+    assert "2026-10-19 19:00:00" in page_text
+    assert "Cette manche est encore verrouillée" in page_text
+
+    # Aucun indice, ni en clair ni en base64
+    assert "Léon porte le bonnet Vert Sapin" not in page_text
+    import base64
+
+    b64_clue = base64.b64encode("Léon porte le bonnet Vert Sapin".encode()).decode("ascii")
+    assert b64_clue not in page_text
+    assert "OBF_CLUES" not in page_text
+    assert "obf_clues" not in page_text
+
+    # Aucune catégorie de la manche verrouillée ne doit fuiter dans le DOM/JS
+    assert "Léon" not in page_text
+    assert "Maya" not in page_text
+    assert "Noé" not in page_text
+    assert "Vert Sapin" not in page_text
+    assert "Rouge à Pompon" not in page_text
+    assert "Bleu Nuit" not in page_text
+    assert "Train en bois" not in page_text
+    assert "Poupée de chiffon" not in page_text
+
+
+def test_espace_lutin_unlocked_manche_not_started_no_clues(client: TestClient, test_db: Path) -> None:
+    token = create_or_get_token(test_db, "fbonnet", 2025)
+    from pere_noel_fremo.database import set_lutin_presence
+
+    set_lutin_presence(test_db, "fbonnet", 2025, present=True)
+
+    # Manche 1 déverrouillée mais non démarrée
+    response = client.get(f"/lutin/{token}?manche=1")
+    assert response.status_code == 200
+    page_text = response.text
+
+    # Contient les éléments prévus : titre, description, estimated_time, catégories
+    assert "Le Défi du lutin malin" in page_text
+    assert "2 à 5 minutes" in page_text
+    assert "Barnabé" in page_text
+    assert "Étoile Rouge" in page_text
+    assert "Canne de sucre" in page_text
+    assert "Indice 1" in page_text
+    assert "Indice 4" in page_text
+
+    # Aucun indice en clair ni en base64
+    assert "Barnabé ne conduit pas l'Étoile Rouge" not in page_text
+    import base64
+
+    b64_clue = base64.b64encode("Barnabé ne conduit pas l'Étoile Rouge".encode()).decode("ascii")
+    assert b64_clue not in page_text
+    assert "OBF_CLUES" not in page_text
+    assert "obf_clues" not in page_text
+
+
+def test_start_defi_returns_indices_and_guards(client: TestClient, test_db: Path) -> None:
+    conn = get_db_connection(test_db)
+    with conn:
+        conn.execute("INSERT OR IGNORE INTO editions (year, status) VALUES (2026, 'draft');")
+    conn.close()
+
+    token_confirmed = create_or_get_token(test_db, "fbonnet", 2026)
+    from pere_noel_fremo.database import set_lutin_presence
+
+    set_lutin_presence(test_db, "fbonnet", 2026, present=True)
+
+    token_unconfirmed = create_or_get_token(test_db, "alacroix", 2026)
+    # alacroix n'a pas confirmé sa présence
+
+    # 1. Sans présence confirmée -> 403 sans indices
+    resp_no_pres = client.post(f"/api/lutin/{token_unconfirmed}/defi/1/start")
+    assert resp_no_pres.status_code == 403
+    assert "indices" not in resp_no_pres.json()
+
+    # 2. Manche verrouillée (manche 2) -> 403 sans indices
+    resp_locked = client.post(f"/api/lutin/{token_confirmed}/defi/2/start")
+    assert resp_locked.status_code == 403
+    assert "indices" not in resp_locked.json()
+
+    # 3. Manche déverrouillée avec présence confirmée -> 200 avec indices
+    resp_ok = client.post(f"/api/lutin/{token_confirmed}/defi/1/start")
+    assert resp_ok.status_code == 200
+    data = resp_ok.json()
+    assert data["ok"] is True
+    assert "indices" in data
+    assert isinstance(data["indices"], list)
+    assert len(data["indices"]) > 0
+    assert any("Comète Bleue" in idx for idx in data["indices"])
+
+    # Test alias sans manche_id sur manche 1 avec un autre lutin confirmé
+    token_fbonnet_2025 = create_or_get_token(test_db, "fbonnet", 2025)
+    set_lutin_presence(test_db, "fbonnet", 2025, present=True)
+    resp_alias = client.post(f"/api/lutin/{token_fbonnet_2025}/defi/start")
+    assert resp_alias.status_code == 200
+    data_alias = resp_alias.json()
+    assert "indices" in data_alias
+    assert len(data_alias["indices"]) > 0
+
+
+def test_defi_indices_resume_endpoint(client: TestClient, test_db: Path) -> None:
+    token = create_or_get_token(test_db, "fbonnet", 2025)
+    from pere_noel_fremo.database import set_lutin_presence
+
+    set_lutin_presence(test_db, "fbonnet", 2025, present=True)
+
+    # 1. Avant start -> 403
+    resp_before = client.get(f"/api/lutin/{token}/defi/1/indices")
+    assert resp_before.status_code == 403
+    assert "indices" not in resp_before.json()
+
+    # Test alias sans manche_id
+    resp_alias_before = client.get(f"/api/lutin/{token}/defi/indices")
+    assert resp_alias_before.status_code == 403
+
+    # Démarrage
+    resp_start = client.post(f"/api/lutin/{token}/defi/1/start")
+    assert resp_start.status_code == 200
+
+    # 2. Pendant l'essai -> 200 avec indices
+    resp_during = client.get(f"/api/lutin/{token}/defi/1/indices")
+    assert resp_during.status_code == 200
+    data_during = resp_during.json()
+    assert data_during["ok"] is True
+    assert "indices" in data_during
+    assert isinstance(data_during["indices"], list)
+    assert len(data_during["indices"]) == 4
+
+    resp_alias_during = client.get(f"/api/lutin/{token}/defi/indices")
+    assert resp_alias_during.status_code == 200
+    assert len(resp_alias_during.json()["indices"]) == 4
+
+    # 3. Après solve -> 403
+    # On valide la grille (DEFAULT_GRILLE_2026 solution)
+    solution = {
+        "Barnabé": {"luge": "Comète Bleue", "friandise": "Chocolat chaud"},
+        "Clémence": {"luge": "Étoile Rouge", "friandise": "Pain d'épices"},
+        "Gaspard": {"luge": "Éclair Vert", "friandise": "Canne de sucre"},
+    }
+    resp_solve = client.post(f"/api/lutin/{token}/defi/1/solve", json={"solution": solution})
+    assert resp_solve.status_code == 200
+    assert resp_solve.json()["solved"] is True
+
+    resp_after_solve = client.get(f"/api/lutin/{token}/defi/1/indices")
+    assert resp_after_solve.status_code == 403
+
+    # 4. Après abandon -> 403 (testé avec un second lutin)
+    token_abandon = create_or_get_token(test_db, "alacroix", 2025)
+    set_lutin_presence(test_db, "alacroix", 2025, present=True)
+    client.post(f"/api/lutin/{token_abandon}/defi/1/start")
+    client.post(f"/api/lutin/{token_abandon}/defi/1/abandon")
+
+    resp_after_abandon = client.get(f"/api/lutin/{token_abandon}/defi/1/indices")
+    assert resp_after_abandon.status_code == 403

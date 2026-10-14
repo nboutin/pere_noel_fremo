@@ -150,18 +150,19 @@
         <!-- 4. Défi du lutin (Grille logique festive & anti-triche) -->
         <section class="card" id="card-defi">
             <h2>🧩 {{ active_manche.title or ("Manche #" ~ active_manche_id) }}</h2>
-            <p>{{ active_manche.description or "Résous la grille logique pour inscrire ton pseudo et tenter d'ouvrir ton cadeau en premier !" }}</p>
-            <p>Ton Pseudo de lutin officiel : <strong style="color: var(--color-gold);">{{ pseudo_lugeur }}</strong></p>
-
-            {% if not presence %}
-                <div class="presence-status status-unknown">
-                    ⚠️ Confirme d'abord ta présence ci-dessus pour accéder au Défi du lutin !
-                </div>
-            {% elif not active_manche.is_unlocked %}
-                <div class="presence-status status-unknown" style="border-color: #64748b; color: #94a3b8;">
+            {% if not active_manche.is_unlocked %}
+                <div class="presence-status status-unknown" style="border-color: #64748b; color: #94a3b8; margin-top: 1rem;">
                     🔒 Cette manche est encore verrouillée. Rendez-vous le {{ active_manche.unlock_at }} !
                 </div>
             {% else %}
+                <p>{{ active_manche.description or "Résous la grille logique pour inscrire ton pseudo et tenter d'ouvrir ton cadeau en premier !" }}</p>
+                <p>Ton Pseudo de lutin officiel : <strong style="color: var(--color-gold);">{{ pseudo_lugeur }}</strong></p>
+
+                {% if not presence %}
+                    <div class="presence-status status-unknown">
+                        ⚠️ Confirme d'abord ta présence ci-dessus pour accéder au Défi du lutin !
+                    </div>
+                {% else %}
                 {% if score_info.solved %}
                     <div class="presence-status status-present">
                         🎉 Manche #{{ active_manche_id }} brillamment résolue en <strong>{{ "%.1f"|format(score_info.time_seconds) }} s</strong> ! Ton chrono est scellé.
@@ -278,6 +279,7 @@
                     </div>
                 {% endif %}
             {% endif %}
+        {% endif %}
         </section>
 
         <!-- 5. Tableau des scores du Championnat -->
@@ -352,17 +354,11 @@
         const TOKEN = "{{ lutin.token }}";
         const ACTIVE_MANCHE_ID = {{ active_manche_id }};
         const IS_LOCKED = {{ 'true' if is_locked else 'false' }};
-        const LUTIN_NAMES = {{ active_manche.categories.lutins | tojson }};
+        const LUTIN_NAMES = {{ (active_manche.categories.lutins if (active_manche.categories and active_manche.categories.lutins) else []) | tojson }};
+        const INDICES_COUNT = {{ indices_count }};
 
-        // Décodage client des indices obfuscés en base64 pour neutraliser le scraping HTML brut
-        const OBF_CLUES = {{ obf_clues | tojson }};
-        const CLUES = OBF_CLUES.map(b64 => {
-            try {
-                return decodeURIComponent(escape(atob(b64)));
-            } catch (e) {
-                return atob(b64);
-            }
-        });
+        // Indices transmis dynamiquement via l'API lors du démarrage ou de la reprise d'une manche
+        let CLUES = [];
 
         let isStarted = {{ 'true' if score_info.started_at else 'false' }};
         let isSolved = {{ 'true' if score_info.solved else 'false' }};
@@ -472,6 +468,10 @@
                     const err = await res.json();
                     showToast(err.detail || "Impossible de démarrer le défi.");
                     return;
+                }
+                const data = await res.json();
+                if (data.indices) {
+                    CLUES = data.indices;
                 }
                 document.getElementById("defi-start-box").style.display = "none";
                 document.getElementById("defi-game-box").style.display = "block";
@@ -584,14 +584,11 @@
 
         function selectClueTab(index) {
             currentClueIndex = index;
-            CLUES.forEach((_, i) => {
-                const tab = document.getElementById(`tab-clue-${i}`);
-                if (tab) {
-                    if (i === index) {
-                        tab.classList.add("active");
-                    } else {
-                        tab.classList.remove("active");
-                    }
+            document.querySelectorAll(".clue-tab").forEach((tab, i) => {
+                if (i === index) {
+                    tab.classList.add("active");
+                } else {
+                    tab.classList.remove("active");
                 }
             });
 
@@ -824,10 +821,21 @@
             }
         }
 
-        window.addEventListener("DOMContentLoaded", () => {
+        window.addEventListener("DOMContentLoaded", async () => {
             initScratchCard();
             if (isStarted && !isCompleted) {
                 startLocalTimer();
+                try {
+                    const res = await fetch(`/api/lutin/${TOKEN}/defi/${ACTIVE_MANCHE_ID}/indices`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.indices) {
+                            CLUES = data.indices;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Erreur lors de la récupération des indices", e);
+                }
                 renderClueCanvas(0);
             } else {
                 dismissEmergencyCurtain();

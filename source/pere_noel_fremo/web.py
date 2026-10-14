@@ -1,4 +1,3 @@
-import base64
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -123,6 +122,10 @@ def create_app(
                 m["status_tag"] = "disponible"
             else:
                 m["status_tag"] = "verrouillee"
+            m.pop("indices", None)
+            m.pop("solution", None)
+            if not m.get("is_unlocked"):
+                m.pop("categories", None)
 
         # 2. Détermination de la manche active
         active_manche_id = 1
@@ -156,9 +159,28 @@ def create_app(
         my_points = my_standing["total_points"] if my_standing else 0
         gap_to_leader = max(0, leader_points - my_points) if my_standing else None
 
-        # Obfuscation anti-scraping des indices pour garantir l'absence de texte brut dans le DOM HTML
-        raw_indices = list(active_manche.get("indices") or [])
-        obf_clues = [base64.b64encode(idx.encode("utf-8")).decode("ascii") for idx in raw_indices]
+        # Préparation de la manche pour le rendu : aucun indice n'est transmis via la page HTML
+        is_active_unlocked = bool(active_manche.get("is_unlocked"))
+        if is_active_unlocked:
+            raw_indices = list(active_manche.get("indices") or [])
+            indices_count = len(raw_indices)
+            display_manche = {
+                "id": active_manche.get("id", active_manche_id),
+                "title": active_manche.get("title"),
+                "description": active_manche.get("description"),
+                "estimated_time": active_manche.get("estimated_time"),
+                "categories": active_manche.get("categories", {}),
+                "unlock_at": active_manche.get("unlock_at"),
+                "is_unlocked": True,
+            }
+        else:
+            indices_count = 0
+            display_manche = {
+                "id": active_manche.get("id", active_manche_id),
+                "title": active_manche.get("title"),
+                "unlock_at": active_manche.get("unlock_at"),
+                "is_unlocked": False,
+            }
 
         # Bénéficiaire pour la Carte à gratter (si tirage scellé)
         beneficiaire = None
@@ -184,11 +206,9 @@ def create_app(
                 "score_info": active_score,
                 "pseudo_lugeur": pseudo,
                 "pseudo_lutin": pseudo,
-                "grille": active_manche,
-                "active_manche": active_manche,
+                "active_manche": display_manche,
                 "active_manche_id": active_manche_id,
-                "obf_clues": obf_clues,
-                "indices_count": len(raw_indices),
+                "indices_count": indices_count,
                 "manches": all_manches,
                 "standings": standings,
                 "my_standing": my_standing,
@@ -243,7 +263,7 @@ def create_app(
         return lutin_info, manche
 
     async def _handle_start_defi(token: str, manche_id: int = 1) -> JSONResponse:
-        lutin_info, _manche = _get_lutin_and_manche_or_raise(token, manche_id)
+        lutin_info, manche = _get_lutin_and_manche_or_raise(token, manche_id)
         year = lutin_info["year"]
         lutin_id = lutin_info["id"]
 
@@ -268,6 +288,28 @@ def create_app(
                 "pseudo_lugeur": updated.get("pseudo_lugeur", pseudo),
                 "started_at": updated.get("started_at"),
                 "solved": bool(updated.get("solved", 0)),
+                "indices": list(manche.get("indices") or []),
+            }
+        )
+
+    async def _handle_get_indices(token: str, manche_id: int = 1) -> JSONResponse:
+        lutin_info, manche = _get_lutin_and_manche_or_raise(token, manche_id)
+        year = lutin_info["year"]
+        lutin_id = lutin_info["id"]
+
+        pseudo = generate_pseudo_lugeur(lutin_id, year)
+        score_entry = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=manche_id)
+        if not score_entry.get("started_at") or score_entry.get("completed_at") is not None:
+            raise HTTPException(
+                status_code=403,
+                detail="Les indices ne sont accessibles que pendant un essai en cours.",
+            )
+
+        return JSONResponse(
+            {
+                "ok": True,
+                "manche_id": manche_id,
+                "indices": list(manche.get("indices") or []),
             }
         )
 
@@ -372,6 +414,14 @@ def create_app(
     @app.post("/api/lutin/{token}/defi/{manche_id}/abandon")
     async def abandon_defi_manche(token: str, manche_id: int) -> JSONResponse:
         return await _handle_abandon_defi(token=token, manche_id=manche_id)
+
+    @app.get("/api/lutin/{token}/defi/indices")
+    async def get_defi_indices(token: str) -> JSONResponse:
+        return await _handle_get_indices(token=token, manche_id=1)
+
+    @app.get("/api/lutin/{token}/defi/{manche_id}/indices")
+    async def get_defi_manche_indices(token: str, manche_id: int) -> JSONResponse:
+        return await _handle_get_indices(token=token, manche_id=manche_id)
 
     @app.get("/api/lutin/{token}/beneficiaire")
     async def get_beneficiaire(token: str) -> JSONResponse:
