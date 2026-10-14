@@ -15,6 +15,8 @@ DEFAULT_ANNONCE_TEMPLATE = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <meta name="supported-color-schemes" content="light dark">
     <title>Le Père Noël de la Frémo - Annonce</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #0f172a; \
@@ -26,13 +28,14 @@ style="background-color: #0f172a; padding: 24px 12px;">
                 <table role="presentation" width="100%" style="max-width: 600px; background-color: #ffffff; \
 border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.3);" cellspacing="0" cellpadding="0">
                     <tr>
-                        <td style="background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%); padding: 32px 24px; \
-text-align: center; color: #ffffff;">
+                        <td bgcolor="#991b1b" style="background-color: #991b1b; \
+background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%); padding: 32px 24px; text-align: center; color: #ffffff;">
                             <div style="font-size: 40px; margin-bottom: 8px;">🎅 ❄️ 🎄</div>
                             <div style="display: inline-block; background-color: #d97706; color: #ffffff; \
 font-size: 12px; font-weight: bold; padding: 4px 12px; border-radius: 9999px; text-transform: uppercase; \
 letter-spacing: 1px; margin-bottom: 12px;">Édition {year}</div>
-                            <h1 style="margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.5px;">
+                            <h1 style="margin: 0; font-size: 26px; font-weight: 800; \
+letter-spacing: -0.5px; color: #ffffff;">
                                 Le Père Noël de la Frémo
                             </h1>
                             <p style="margin: 8px 0 0; font-size: 15px; color: #fecaca;">
@@ -79,13 +82,20 @@ border-radius: 6px; padding: 16px; margin: 24px 0;">
                                 virtuelle se débloquera sur ton Espace Lutin pour révéler ton Bénéficiaire
                                 (budget indicatif habituel : 15 à 20 €).
                             </p>
-                            <div style="text-align: center; margin: 36px 0 28px;">
-                                <a href="{lien_magique}" style="background: linear-gradient(135deg, #dc2626 0%, \
-#b91c1c 100%); color: #ffffff; text-decoration: none; padding: 16px 32px; font-size: 16px; font-weight: bold; \
-border-radius: 8px; display: inline-block; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);">
-                                    👉 Accéder à mon Espace Lutin
-                                </a>
-                            </div>
+                            <table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" \
+style="margin: 36px auto 28px;">
+                                <tr>
+                                    <td align="center" bgcolor="#dc2626" style="border-radius: 8px; \
+background-color: #dc2626; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); \
+box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);">
+                                        <a href="{lien_magique}" target="_blank" style="font-size: 16px; \
+font-weight: bold; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; \
+text-decoration: none; color: #ffffff; padding: 16px 32px; border-radius: 8px; display: inline-block;">
+                                            👉 Accéder à mon Espace Lutin
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
                             <p style="text-align: center; font-size: 12px; color: #94a3b8; margin: 0 0 16px;">
                                 🔒 <em>Ce lien est magique et strictement personnel (aucun mot de passe requis).
                                 Ne le transmets pas pour garder tes secrets de Lutin bien au chaud !</em>

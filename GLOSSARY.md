@@ -36,6 +36,10 @@ _Avoid_: Antécédents, mémoire, historique glissant
 Itération annuelle du Père Noël secret désignée par son millésime (`year`), progressant à travers un cycle d'états (`draft` -> `announced` -> `drawn` -> `revealed`).
 _Avoid_: Campagne, saison, tournoi, session
 
+**Fête**:
+Rassemblement rituel annuel réunissant les Lutins pour célébrer le Père Noël secret, au cours duquel le vainqueur du Défi du lutin ouvre son cadeau en premier avant la distribution des cadeaux.
+_Avoid_: Événement, soirée, repas de Noël, fête de Noël, party
+
 **Attribution millésimée**:
 Association immuable entre un Donneur et son Bénéficiaire scellée pour une Édition précise (`year`), historiquement issue d'un tirage au sort annuel.
 _Avoid_: Paire, matching, assignation, record
@@ -46,7 +50,7 @@ Lutin répertorié dans la base mais exclu de la participation pour l'édition c
 _Avoid_: Désinscrit, ignoré, skipped
 
 **Annonce**:
-Courriel officiel lançant l'édition annuelle, transmettant à chaque Lutin son Lien magique pour accéder à son Espace Lutin, initier la Confirmation de présence et ouvrir le Défi du lutin avant la réalisation du Tirage au sort.
+Courriel officiel lançant l'édition annuelle, transmettant à chaque Lutin son Lien magique pour accéder à son Espace Lutin, initier la Confirmation de présence et ouvrir le Défi du lutin avant la réalisation du Tirage au sort. Doit respecter les standards d'e-mailing HTML « bulletproof » (couleurs de fond de repli `bgcolor` et `background-color` strictes sous les dégradés CSS, bouton CTA sous forme de table dédiée, et support dual-scheme du mode sombre) pour garantir un rendu parfait sur l'ensemble des clients de messagerie (Outlook Web/Desktop, Gmail, Apple Mail).
 _Avoid_: Teaser, invitation, notification
 
 **Lien magique**:

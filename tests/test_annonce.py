@@ -162,3 +162,28 @@ def test_send_annonces_with_port_in_base_url(tmp_path: Path) -> None:
         assert stats["sent"] == 1
         call_body = mock_send.call_args.kwargs["body"]
         assert "https://homelab.tail7d8b91.ts.net:10000/lutin/" in call_body
+
+
+def test_annonce_templates_contain_bulletproof_fallbacks() -> None:
+    from pere_noel_fremo.annonce import DEFAULT_ANNONCE_TEMPLATE
+
+    # Vérification du gabarit par défaut
+    assert 'bgcolor="#991b1b"' in DEFAULT_ANNONCE_TEMPLATE
+    assert "background-color: #991b1b" in DEFAULT_ANNONCE_TEMPLATE
+    assert 'bgcolor="#dc2626"' in DEFAULT_ANNONCE_TEMPLATE
+    assert "background-color: #dc2626" in DEFAULT_ANNONCE_TEMPLATE
+    assert "color-scheme" in DEFAULT_ANNONCE_TEMPLATE
+    assert (
+        '<table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center"'
+        in DEFAULT_ANNONCE_TEMPLATE
+    )
+
+    # Vérification du gabarit res/2026/annonce.txt
+    res_path = Path(__file__).resolve().parent.parent / "res" / "2026" / "annonce.txt"
+    if res_path.exists():
+        content = res_path.read_text(encoding="utf-8")
+        assert 'bgcolor="#991b1b"' in content
+        assert "background-color: #991b1b" in content
+        assert 'bgcolor="#dc2626"' in content
+        assert "background-color: #dc2626" in content
+        assert '<table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center"' in content
