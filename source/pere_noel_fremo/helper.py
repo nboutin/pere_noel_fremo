@@ -96,8 +96,17 @@ def load_credentials() -> Credentials:
     return cast(Credentials, creds)
 
 
+class EmailSendError(Exception):
+    """Exception levée en cas d'échec lors de l'envoi d'un courriel via Gmail."""
+
+
 def create_message(
-    sender_email: str, subject: str, body: str, toaddr: str, img_path: str | None = None
+    sender_email: str,
+    subject: str,
+    body: str,
+    toaddr: str,
+    img_path: str | None = None,
+    text_body: str | None = None,
 ) -> dict[str, str]:
     msg = MIMEMultipart("related")
     msg["Subject"] = subject
@@ -107,13 +116,14 @@ def create_message(
     msgAlternative = MIMEMultipart("alternative")
     msg.attach(msgAlternative)
 
-    msgText = MIMEText("This is the alternative plain text message.")
+    plain_content = text_body if text_body is not None else "This is the alternative plain text message."
+    msgText = MIMEText(plain_content, "plain", "utf-8")
     msgAlternative.attach(msgText)
 
     if img_path:
         # We reference the image in the IMG SRC attribute by the ID we give it below
-        msgText = MIMEText('<img src="cid:image1"><br>' + body, "html")
-        msgAlternative.attach(msgText)
+        msgHtml = MIMEText('<img src="cid:image1"><br>' + body, "html", "utf-8")
+        msgAlternative.attach(msgHtml)
 
         # This example assumes the image is in the current directory
         with open(img_path, "rb") as fp:
@@ -123,8 +133,8 @@ def create_message(
         msgImage.add_header("Content-ID", "<image1>")
         msg.attach(msgImage)
     else:
-        msgText = MIMEText(body, "html")
-        msgAlternative.attach(msgText)
+        msgHtml = MIMEText(body, "html", "utf-8")
+        msgAlternative.attach(msgHtml)
 
     # encoded message
     encoded_message = base64.urlsafe_b64encode(msg.as_bytes()).decode()
@@ -132,17 +142,24 @@ def create_message(
     return {"raw": encoded_message}
 
 
-def gmail_send_email(sender_email: str, subject: str, body: str, toaddr: str) -> Any:
+def gmail_send_email(
+    sender_email: str,
+    subject: str,
+    body: str,
+    toaddr: str,
+    text_body: str | None = None,
+) -> Any:
     try:
         creds = load_credentials()
         service = build("gmail", "v1", credentials=creds)
-        message = create_message(sender_email, subject, body, toaddr, None)
+        message = create_message(sender_email, subject, body, toaddr, None, text_body=text_body)
         # message = create_message(sender_email, subject, body, toaddr, IMG_FILEPATH)
         send_message = service.users().messages().send(userId="me", body=message).execute()
         logger.info(f"Sent to {toaddr}")
+        return send_message
     except Exception as error:
-        logger.error(f"An error occurred: {error}")
-    return send_message
+        logger.error(f"Failed to send email to {toaddr}: {error}")
+        raise EmailSendError(f"Failed to send email to {toaddr}: {error}") from error
 
 
 FRENCH_DAYS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]

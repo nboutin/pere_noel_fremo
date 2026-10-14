@@ -148,6 +148,19 @@ def format_annonce_body(template: str, fullname: str, magic_url: str, year: int)
     return content
 
 
+def format_annonce_text(fullname: str, magic_url: str, year: int) -> str:
+    """Génère la version texte brut (plain text) de l'email d'Annonce avec salutation et Lien magique."""
+    return (
+        f"HOHOHO {fullname},\n\n"
+        f"L'atelier du Pôle Nord ouvre officiellement ses portes pour l'édition {year} du Père Noël de la Frémo !\n\n"
+        "Accède dès maintenant à ton Espace Lutin personnel pour confirmer ta présence "
+        f"et participer au Défi du lutin :\n"
+        f"{magic_url}\n\n"
+        f"Ce lien est magique et strictement personnel (aucun mot de passe requis).\n\n"
+        f"Le Père Noël de la Frémo 🎅"
+    )
+
+
 def send_annonces(
     db_path: Path | str,
     secure_data_path: Path | str,
@@ -191,6 +204,7 @@ def send_annonces(
     sent_count = 0
     absent_count = 0
     sans_email_count = 0
+    echecs_count = 0
 
     for lutin_id, params in lutins.items():
         if targets_set and lutin_id not in targets_set:
@@ -203,6 +217,11 @@ def send_annonces(
         magic_url = build_lien_magique_url(effective_base_url, token)
         body = format_annonce_body(
             template=template_body,
+            fullname=params.get("fullname", lutin_id),
+            magic_url=magic_url,
+            year=year,
+        )
+        text_body = format_annonce_text(
             fullname=params.get("fullname", lutin_id),
             magic_url=magic_url,
             year=year,
@@ -224,15 +243,21 @@ def send_annonces(
                 subject=email_subject,
                 body=body,
                 toaddr=to_addr,
+                text_body=text_body,
             )
             mark_token_sent(db_path, token)
             sent_count += 1
+        except helper.EmailSendError as exc:
+            echecs_count += 1
+            logger.error(f"Échec de l'envoi du courriel au Lutin '{lutin_id}' ({to_addr}): {exc}")
         except Exception as exc:
-            logger.error(f"Échec de l'envoi du courriel à {to_addr} pour '{lutin_id}': {exc}")
+            echecs_count += 1
+            logger.error(f"Erreur inattendue lors de l'envoi au Lutin '{lutin_id}' ({to_addr}): {exc}")
 
     return {
         "total": len(lutins),
         "sent": sent_count,
         "absents": absent_count,
         "sans_email": sans_email_count,
+        "echecs": echecs_count,
     }

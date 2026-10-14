@@ -274,11 +274,17 @@ def handle_annonce(args: argparse.Namespace) -> int:
                 f"Simulation Annonce : {stats['sent']} courriels préparés (mode simulation), "
                 f"{stats['absents']} absents sur {stats['total']} lutins."
             )
-        else:
-            print(
-                f"Campagne d'Annonce terminée : {stats['sent']} courriels envoyés, "
-                f"{stats['absents']} absents sur {stats['total']} lutins."
-            )
+            return 0
+
+        echecs = stats.get("echecs", 0)
+        print(
+            f"Campagne d'Annonce terminée : {stats['sent']} courriels envoyés, "
+            f"{echecs} échecs, "
+            f"{stats['absents']} absents sur {stats['total']} lutins."
+        )
+        if echecs > 0:
+            print(f"Alerte : {echecs} échec(s) d'envoi détecté(s) lors de la campagne d'Annonce.")
+            return 1
         return 0
     except Exception as exc:
         print(f"Erreur lors de la campagne d'Annonce : {exc}")

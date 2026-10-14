@@ -187,3 +187,98 @@ def test_annonce_templates_contain_bulletproof_fallbacks() -> None:
         assert 'bgcolor="#dc2626"' in content
         assert "background-color: #dc2626" in content
         assert '<table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center"' in content
+
+
+def test_send_annonces_handles_send_failure_leaves_sent_at_null_and_increments_echecs(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+
+    data_in_path = tmp_path / "data_in.yml"
+    secure_data_path = tmp_path / "secure_data.yml"
+
+    sample_data: dict[str, Any] = {
+        "lutin_fail": {"fullname": "Lutin Fail", "email": None, "exclude": [], "history": []},
+    }
+    sample_secure = {
+        "sender_email": "pere.noel@fremo.org",
+        "personnes": {
+            "lutin_fail": {"email": "fail@fremo.org"},
+        },
+    }
+    with open(data_in_path, "w", encoding="utf-8") as f:
+        yaml.dump(sample_data, f)
+    with open(secure_data_path, "w", encoding="utf-8") as f:
+        yaml.dump(sample_secure, f)
+
+    import_yaml_data(db_path, data_in_path, secure_data_path)
+
+    # Simulation d'un échec d'authentification ou d'envoi Gmail (load_credentials ou build qui lève)
+    with patch("pere_noel_fremo.helper.build", side_effect=RuntimeError("Google API quota exceeded")):
+        stats = send_annonces(
+            db_path=db_path,
+            secure_data_path=secure_data_path,
+            year=2026,
+        )
+
+        assert stats["total"] == 1
+        assert stats["sent"] == 0
+        assert stats["absents"] == 0
+        assert stats["sans_email"] == 0
+        assert stats["echecs"] == 1
+
+        # Vérification en base : sent_at doit impérativement rester NULL
+        conn = get_db_connection(db_path)
+        row = conn.execute("SELECT sent_at FROM tokens WHERE lutin_id = 'lutin_fail';").fetchone()
+        conn.close()
+        assert row is not None
+        assert row["sent_at"] is None
+
+
+def test_send_annonces_success_provides_text_body_with_magic_link(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+
+    data_in_path = tmp_path / "data_in.yml"
+    secure_data_path = tmp_path / "secure_data.yml"
+
+    sample_data: dict[str, Any] = {
+        "lutin_ok": {"fullname": "Lutin Ok", "email": None, "exclude": [], "history": []},
+    }
+    sample_secure = {
+        "sender_email": "pere.noel@fremo.org",
+        "base_url": "https://noel.fremo.fr",
+        "personnes": {
+            "lutin_ok": {"email": "ok@fremo.org"},
+        },
+    }
+    with open(data_in_path, "w", encoding="utf-8") as f:
+        yaml.dump(sample_data, f)
+    with open(secure_data_path, "w", encoding="utf-8") as f:
+        yaml.dump(sample_secure, f)
+
+    import_yaml_data(db_path, data_in_path, secure_data_path)
+
+    with patch("pere_noel_fremo.helper.gmail_send_email") as mock_send:
+        stats = send_annonces(
+            db_path=db_path,
+            secure_data_path=secure_data_path,
+            year=2026,
+        )
+
+        assert stats["sent"] == 1
+        assert stats["echecs"] == 0
+
+        # Vérification en base : sent_at doit être renseigné
+        conn = get_db_connection(db_path)
+        row = conn.execute("SELECT sent_at FROM tokens WHERE lutin_id = 'lutin_ok';").fetchone()
+        conn.close()
+        assert row is not None
+        assert row["sent_at"] is not None
+
+        # Vérification de l'appel : text_body est fourni avec salutation et Lien magique
+        assert mock_send.call_count == 1
+        call_kwargs = mock_send.call_args.kwargs
+        assert "text_body" in call_kwargs
+        text_body = call_kwargs["text_body"]
+        assert "Lutin Ok" in text_body
+        assert "https://noel.fremo.fr/lutin/" in text_body

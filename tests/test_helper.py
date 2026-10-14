@@ -69,6 +69,44 @@ def test_gmail_send_email_mocked(mock_build: MagicMock, mock_load_credentials: M
     mock_messages.send.assert_called_once()
 
 
+def test_create_message_with_text_body() -> None:
+    sender = "pere_noel@fremo.org"
+    subject = "Ho Ho Ho"
+    body = "<h1>HTML Message</h1>"
+    recipient = "lutin@fremo.org"
+    magic_url = "https://noel.fremo.fr/lutin/magic-1234"
+    text_body = f"Bonjour Lutin,\nVoici ton lien magique : {magic_url}"
+
+    msg_dict = create_message(sender, subject, body, recipient, None, text_body=text_body)
+    raw_decoded = base64.urlsafe_b64decode(msg_dict["raw"])
+    email_msg = message_from_bytes(raw_decoded)
+
+    plain_parts = []
+    for part in email_msg.walk():
+        if part.get_content_type() == "text/plain":
+            payload = part.get_payload(decode=True)
+            assert isinstance(payload, bytes)
+            plain_parts.append(payload.decode("utf-8"))
+
+    assert len(plain_parts) >= 1
+    assert magic_url in plain_parts[0]
+    assert "Bonjour Lutin" in plain_parts[0]
+
+
+@patch("pere_noel_fremo.helper.load_credentials")
+def test_gmail_send_email_raises_email_send_error_on_failure(mock_load_credentials: MagicMock) -> None:
+    import pytest
+    from pere_noel_fremo.helper import EmailSendError
+
+    mock_load_credentials.side_effect = RuntimeError("OAuth credential failure")
+
+    with pytest.raises(EmailSendError) as exc_info:
+        gmail_send_email("from@test.com", "Subject", "Body", "target@test.com")
+
+    assert "target@test.com" in str(exc_info.value)
+    assert "OAuth credential failure" in str(exc_info.value)
+
+
 def test_configure_logger_creates_file_in_logs_dir() -> None:
     test_log_filename = "test_execution.log"
     configure_logger(test_log_filename)

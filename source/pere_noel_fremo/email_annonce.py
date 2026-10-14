@@ -57,7 +57,10 @@ def main(argv: list[str] | None = None) -> None:
         if args.dry_run:
             logger.info(f"[DRY-RUN] Annonce prête pour {lutin_id} ({id_param['email']})")
         else:
-            helper.gmail_send_email(secure_data["sender_email"], email_subject, body, id_param["email"])
+            try:
+                helper.gmail_send_email(secure_data["sender_email"], email_subject, body, id_param["email"])
+            except helper.EmailSendError as exc:
+                logger.error(f"Échec de l'envoi de l'annonce à {lutin_id} ({id_param['email']}): {exc}")
 
     logger.info("Finish")
 

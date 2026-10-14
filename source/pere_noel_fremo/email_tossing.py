@@ -149,7 +149,10 @@ def send_all_email(
             body = file.read().format(gift_from_fullname, to_gift_fullname)
 
         logger.debug(f"{id_} -> {to_gift_fullname} ({to_gift_id})")
-        helper.gmail_send_email(secure_data["sender_email"], subject, body, to_addr)
+        try:
+            helper.gmail_send_email(secure_data["sender_email"], subject, body, to_addr)
+        except helper.EmailSendError as exc:
+            logger.error(f"Échec de l'envoi du tirage au sort à {id_} ({to_addr}): {exc}")
 
 
 def tossing(
