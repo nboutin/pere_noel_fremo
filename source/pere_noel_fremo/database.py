@@ -1,3 +1,4 @@
+import secrets
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -6,6 +7,14 @@ from typing import Any
 import yaml
 
 SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS pseudos (
+    year INTEGER NOT NULL,
+    lutin_id TEXT NOT NULL,
+    pseudo TEXT NOT NULL,
+    PRIMARY KEY (year, lutin_id),
+    UNIQUE (year, pseudo)
+);
+
 CREATE TABLE IF NOT EXISTS lutins (
     id TEXT PRIMARY KEY,
     fullname TEXT NOT NULL,
@@ -149,6 +158,75 @@ def init_db(db_path: Path | str) -> None:
                     conn.execute("UPDATE scores_defi SET attempts = CASE WHEN solved = 1 THEN 1 ELSE 0 END;")
 
             conn.execute("CREATE INDEX IF NOT EXISTS idx_scores_defi_year_manche ON scores_defi(year, manche_id);")
+
+            # Migration idempotente des pseudos pour scores_defi
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS pseudos (
+                    year INTEGER NOT NULL,
+                    lutin_id TEXT NOT NULL,
+                    pseudo TEXT NOT NULL,
+                    PRIMARY KEY (year, lutin_id),
+                    UNIQUE (year, pseudo)
+                );
+                """
+            )
+            scores_table_info = conn.execute("PRAGMA table_info(scores_defi);").fetchall()
+            if scores_table_info:
+                missing_scores_lutins = conn.execute(
+                    """
+                    SELECT DISTINCT s.year, s.lutin_id, s.pseudo_lugeur
+                    FROM scores_defi s
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM pseudos p WHERE p.year = s.year AND p.lutin_id = s.lutin_id
+                    )
+                    ORDER BY s.year, s.lutin_id;
+                    """
+                ).fetchall()
+
+                for r in missing_scores_lutins:
+                    yr = int(r["year"])
+                    lid = str(r["lutin_id"])
+                    existing_pseudo = str(r["pseudo_lugeur"]) if r["pseudo_lugeur"] else None
+
+                    assigned_p = None
+                    if existing_pseudo:
+                        already_taken = conn.execute(
+                            "SELECT 1 FROM pseudos WHERE year = ? AND pseudo = ?;",
+                            (yr, existing_pseudo),
+                        ).fetchone()
+                        if not already_taken:
+                            try:
+                                conn.execute(
+                                    "INSERT INTO pseudos (year, lutin_id, pseudo) VALUES (?, ?, ?);",
+                                    (yr, lid, existing_pseudo),
+                                )
+                                assigned_p = existing_pseudo
+                            except sqlite3.IntegrityError:
+                                assigned_p = None
+
+                    if assigned_p is None:
+                        assigned_p = get_or_assign_pseudo(conn, lid, yr)
+
+                    conn.execute(
+                        "UPDATE scores_defi SET pseudo_lugeur = ? WHERE year = ? AND lutin_id = ?;",
+                        (assigned_p, yr, lid),
+                    )
+
+                conn.execute(
+                    """
+                    UPDATE scores_defi
+                    SET pseudo_lugeur = (
+                        SELECT p.pseudo FROM pseudos p
+                        WHERE p.year = scores_defi.year AND p.lutin_id = scores_defi.lutin_id
+                    )
+                    WHERE EXISTS (
+                        SELECT 1 FROM pseudos p
+                        WHERE p.year = scores_defi.year AND p.lutin_id = scores_defi.lutin_id
+                        AND p.pseudo != scores_defi.pseudo_lugeur
+                    );
+                    """
+                )
 
             editions_info = conn.execute("PRAGMA table_info(editions);").fetchall()
             if editions_info:
@@ -548,6 +626,74 @@ def get_beneficiaire_for_lutin(
         conn.close()
 
 
+def get_or_assign_pseudo(
+    db_path: Path | str | sqlite3.Connection,
+    lutin_id: str,
+    year: int,
+) -> str:
+    """Vérifie si un pseudo est déjà persisté pour (year, lutin_id), sinon en tire un aléatoirement sans remise."""
+    from .defi import ADJECTIFS_FESTIFS, ANIMAUX_LUGEURS
+
+    conn: sqlite3.Connection
+    close_after: bool
+    if isinstance(db_path, sqlite3.Connection):
+        conn = db_path
+        close_after = False
+    else:
+        conn = get_db_connection(db_path)
+        close_after = True
+
+    try:
+        with conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS pseudos (
+                    year INTEGER NOT NULL,
+                    lutin_id TEXT NOT NULL,
+                    pseudo TEXT NOT NULL,
+                    PRIMARY KEY (year, lutin_id),
+                    UNIQUE (year, pseudo)
+                );
+                """
+            )
+            for _ in range(10):
+                row = conn.execute(
+                    "SELECT pseudo FROM pseudos WHERE year = ? AND lutin_id = ?;",
+                    (year, lutin_id),
+                ).fetchone()
+                if row is not None:
+                    return str(row["pseudo"])
+
+                assigned_rows = conn.execute(
+                    "SELECT pseudo FROM pseudos WHERE year = ?;",
+                    (year,),
+                ).fetchall()
+                assigned = {str(r["pseudo"]) for r in assigned_rows}
+
+                all_combinations = [f"{animal} {adj}" for animal in ANIMAUX_LUGEURS for adj in ADJECTIFS_FESTIFS]
+                available = [p for p in all_combinations if p not in assigned]
+                if not available:
+                    raise RuntimeError(
+                        f"Espace de pseudos épuisé pour l'édition {year} "
+                        f"({len(assigned)}/{len(all_combinations)} attribués)"
+                    )
+
+                chosen = secrets.choice(available)
+                try:
+                    conn.execute(
+                        "INSERT INTO pseudos (year, lutin_id, pseudo) VALUES (?, ?, ?);",
+                        (year, lutin_id, chosen),
+                    )
+                    return chosen
+                except sqlite3.IntegrityError:
+                    continue
+
+            raise RuntimeError("Impossible d'attribuer un pseudo unique après plusieurs tentatives.")
+    finally:
+        if close_after:
+            conn.close()
+
+
 def _get_score_entry(conn: Any, lutin_id: str, year: int, manche_id: int = 1) -> dict[str, Any]:
     row = conn.execute(
         """
@@ -564,19 +710,38 @@ def get_or_create_score_defi(
     db_path: Path | str,
     lutin_id: str,
     year: int,
-    pseudo_lugeur: str,
+    pseudo_lugeur: str | None = None,
     manche_id: int = 1,
 ) -> dict[str, Any]:
     """Récupère ou initialise la ligne score_defi pour un Lutin, une édition et une manche."""
     conn = get_db_connection(db_path)
     try:
         with conn:
+            if pseudo_lugeur is None:
+                pseudo = get_or_assign_pseudo(conn, lutin_id, year)
+            else:
+                pseudo = pseudo_lugeur
+                row = conn.execute(
+                    "SELECT pseudo FROM pseudos WHERE year = ? AND lutin_id = ?;",
+                    (year, lutin_id),
+                ).fetchone()
+                if not row:
+                    try:
+                        conn.execute(
+                            "INSERT INTO pseudos (year, lutin_id, pseudo) VALUES (?, ?, ?);",
+                            (year, lutin_id, pseudo),
+                        )
+                    except sqlite3.IntegrityError:
+                        pseudo = get_or_assign_pseudo(conn, lutin_id, year)
+                else:
+                    pseudo = str(row["pseudo"])
+
             conn.execute(
                 """
                 INSERT OR IGNORE INTO scores_defi (lutin_id, year, manche_id, pseudo_lugeur, solved)
                 VALUES (?, ?, ?, ?, 0);
                 """,
-                (lutin_id, year, manche_id, pseudo_lugeur),
+                (lutin_id, year, manche_id, pseudo),
             )
             return _get_score_entry(conn, lutin_id, year, manche_id=manche_id)
     finally:
@@ -813,7 +978,7 @@ def get_scores_classement(
         if manche_id is not None:
             rows = conn.execute(
                 """
-                SELECT pseudo_lugeur, manche_id, solved, time_seconds, completed_at, attempts
+                SELECT lutin_id, pseudo_lugeur, manche_id, solved, time_seconds, completed_at, attempts
                 FROM scores_defi
                 WHERE year = ? AND manche_id = ?
                 ORDER BY
@@ -826,7 +991,7 @@ def get_scores_classement(
         else:
             rows = conn.execute(
                 """
-                SELECT pseudo_lugeur, manche_id, solved, time_seconds, completed_at, attempts
+                SELECT lutin_id, pseudo_lugeur, manche_id, solved, time_seconds, completed_at, attempts
                 FROM scores_defi
                 WHERE year = ?
                 ORDER BY

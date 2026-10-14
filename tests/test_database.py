@@ -1,3 +1,4 @@
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -42,6 +43,7 @@ def test_init_db_creates_all_required_tables(tmp_path: Path) -> None:
         "presences",
         "scores_defi",
         "attributions",
+        "pseudos",
     }
     assert required_tables.issubset(tables)
 
@@ -621,3 +623,113 @@ def test_register_solve_attempt_lifecycle(tmp_path: Path) -> None:
     assert res_l2_2["raw_time_seconds"] == 25.0
     assert res_l2_2["penalty_seconds"] == 15.0
     assert res_l2_2["time_seconds"] == 40.0
+
+
+def test_get_or_assign_pseudo_all_26_lutins_from_res_2025_get_unique_pseudos(tmp_path: Path) -> None:
+    from pere_noel_fremo.database import get_or_assign_pseudo
+
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+
+    res_data_in = Path("res/2025/data_in.yml")
+    with open(res_data_in, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+
+    lutin_ids = list(data.keys())
+    assert len(lutin_ids) == 26
+
+    assigned_pseudos = {}
+    for lid in lutin_ids:
+        p = get_or_assign_pseudo(db_path, lid, 2026)
+        assigned_pseudos[lid] = p
+
+    # 26 pseudos distincts
+    assert len(set(assigned_pseudos.values())) == 26
+
+    # Deux appels successifs renvoient le même pseudo (stabilité/idempotence)
+    for lid in lutin_ids:
+        assert get_or_assign_pseudo(db_path, lid, 2026) == assigned_pseudos[lid]
+
+
+def test_get_or_assign_pseudo_raises_when_space_exhausted(tmp_path: Path) -> None:
+    from pere_noel_fremo.database import get_or_assign_pseudo
+    from pere_noel_fremo.defi import ADJECTIFS_FESTIFS, ANIMAUX_LUGEURS
+
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+
+    max_pseudos = len(ANIMAUX_LUGEURS) * len(ADJECTIFS_FESTIFS)
+    assert max_pseudos == 180
+
+    for i in range(max_pseudos):
+        get_or_assign_pseudo(db_path, f"lutin_{i}", 2026)
+
+    # Le 181e tirage doit lever une RuntimeError ou ValueError
+    with pytest.raises((RuntimeError, ValueError), match="épuisé"):
+        get_or_assign_pseudo(db_path, "lutin_overflow", 2026)
+
+
+def test_migration_scores_defi_with_duplicate_pseudos_assigns_unique_pseudos(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo_legacy.db"
+    # Créer une base simulant l'ancien schéma avec scores_defi sans table pseudos
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("PRAGMA foreign_keys = OFF;")
+    conn.executescript("""
+        CREATE TABLE editions (year INTEGER PRIMARY KEY, status TEXT NOT NULL DEFAULT 'draft');
+        CREATE TABLE lutins (id TEXT PRIMARY KEY, fullname TEXT NOT NULL, email TEXT);
+        CREATE TABLE scores_defi (
+            lutin_id TEXT NOT NULL,
+            year INTEGER NOT NULL,
+            manche_id INTEGER NOT NULL DEFAULT 1,
+            pseudo_lugeur TEXT NOT NULL,
+            started_at TIMESTAMP,
+            solved BOOLEAN NOT NULL DEFAULT 0,
+            time_seconds REAL,
+            completed_at TIMESTAMP,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (lutin_id, year, manche_id)
+        );
+        INSERT INTO editions (year) VALUES (2026);
+        INSERT INTO lutins (id, fullname) VALUES ('jdenis', 'Jean Denis'), ('mdenis', 'Marc Denis');
+        INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lugeur, solved, time_seconds)
+        VALUES ('jdenis', 2026, 1, 'Lutin Givré', 1, 30.0),
+               ('mdenis', 2026, 1, 'Lutin Givré', 1, 45.0);
+    """)
+    conn.commit()
+    conn.close()
+
+    # Exécution de la migration idempotente
+    init_db(db_path)
+
+    conn2 = get_db_connection(db_path)
+    p_jdenis = conn2.execute("SELECT pseudo FROM pseudos WHERE year = 2026 AND lutin_id = 'jdenis';").fetchone()
+    p_mdenis = conn2.execute("SELECT pseudo FROM pseudos WHERE year = 2026 AND lutin_id = 'mdenis';").fetchone()
+    assert p_jdenis is not None
+    assert p_mdenis is not None
+    assert p_jdenis["pseudo"] != p_mdenis["pseudo"]
+
+    # scores_defi doit refléter ces pseudos distincts
+    row_j = conn2.execute("SELECT pseudo_lugeur FROM scores_defi WHERE lutin_id = 'jdenis';").fetchone()
+    row_m = conn2.execute("SELECT pseudo_lugeur FROM scores_defi WHERE lutin_id = 'mdenis';").fetchone()
+    assert row_j["pseudo_lugeur"] == p_jdenis["pseudo"]
+    assert row_m["pseudo_lugeur"] == p_mdenis["pseudo"]
+    assert row_j["pseudo_lugeur"] != row_m["pseudo_lugeur"]
+    conn2.close()
+
+
+def test_get_scores_classement_includes_lutin_id(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+
+    conn = get_db_connection(db_path)
+    with conn:
+        conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
+        conn.execute("INSERT INTO lutins (id, fullname) VALUES ('jdenis', 'Jean Denis');")
+    conn.close()
+
+    get_or_create_score_defi(db_path, "jdenis", 2026, "Renne Agile", manche_id=1)
+    scores = get_scores_classement(db_path, 2026, manche_id=1)
+    assert len(scores) == 1
+    assert "lutin_id" in scores[0]
+    assert scores[0]["lutin_id"] == "jdenis"
+    assert scores[0]["pseudo_lugeur"] == "Renne Agile"

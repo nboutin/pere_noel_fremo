@@ -834,3 +834,101 @@ def test_espace_lutin_ui_elements_for_attempts_and_penalties(client: TestClient,
     assert 'id="penalty-display"' in page.text
     # Logique de vérification de complétude de la grille
     assert "checkGridCompletion" in page.text
+
+
+def test_scores_page_does_not_contain_lutin_id(client: TestClient, test_db: Path) -> None:
+    # Insérer plusieurs lutins et un score
+    from pere_noel_fremo.database import (
+        complete_score_defi,
+        get_or_create_score_defi,
+        start_score_defi,
+    )
+
+    get_or_create_score_defi(test_db, "fbonnet", 2025, "Renne Agile", manche_id=1)
+    start_score_defi(test_db, "fbonnet", 2025, manche_id=1)
+    complete_score_defi(test_db, "fbonnet", 2025, time_seconds=30.0, manche_id=1)
+
+    resp = client.get("/scores")
+    assert resp.status_code == 200
+    html = resp.text
+
+    # Vérifier qu'aucun lutin_id n'apparaît dans le HTML de /scores
+    assert "fbonnet" not in html
+    assert "alacroix" not in html
+
+
+def test_regression_jdenis_mdenis_standings(client: TestClient, test_db: Path) -> None:
+    from pere_noel_fremo.database import (
+        set_lutin_presence,
+    )
+    from pere_noel_fremo.defi import get_or_load_grille
+
+    conn = get_db_connection(test_db)
+    with conn:
+        conn.execute("INSERT OR IGNORE INTO editions (year, status) VALUES (2026, 'draft');")
+        conn.execute(
+            "INSERT OR IGNORE INTO lutins (id, fullname, email) VALUES ('jdenis', 'Jean Denis', 'jd@fremo.org');"
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO lutins (id, fullname, email) VALUES ('mdenis', 'Marc Denis', 'md@fremo.org');"
+        )
+    conn.close()
+
+    tok_j = create_or_get_token(test_db, "jdenis", 2026)
+    tok_m = create_or_get_token(test_db, "mdenis", 2026)
+
+    set_lutin_presence(test_db, "jdenis", 2026, present=True)
+    set_lutin_presence(test_db, "mdenis", 2026, present=True)
+
+    client.post(f"/api/lutin/{tok_j}/defi/1/start")
+    client.post(f"/api/lutin/{tok_m}/defi/1/start")
+
+    # Ajuster started_at pour donner 30s à jdenis et 45s à mdenis
+    conn = get_db_connection(test_db)
+    with conn:
+        conn.execute(
+            "UPDATE scores_defi SET started_at = '2026-10-14 20:00:00' WHERE lutin_id = 'jdenis' AND manche_id = 1;"
+        )
+        conn.execute(
+            "UPDATE scores_defi SET started_at = '2026-10-14 20:00:00' WHERE lutin_id = 'mdenis' AND manche_id = 1;"
+        )
+    conn.close()
+
+    grille = get_or_load_grille(2026)
+
+    # Note: solve_defi utilise register_solve_attempt qui utilise datetime.now(timezone.utc) par défaut,
+    # donc on valide via l'API puis on simule le temps final si nécessaire
+    res_j = client.post(f"/api/lutin/{tok_j}/defi/1/solve", json={"solution": grille["solution"]})
+    assert res_j.status_code == 200
+
+    res_m = client.post(f"/api/lutin/{tok_m}/defi/1/solve", json={"solution": grille["solution"]})
+    assert res_m.status_code == 200
+
+    conn = get_db_connection(test_db)
+    with conn:
+        conn.execute("UPDATE scores_defi SET time_seconds = 30.0 WHERE lutin_id = 'jdenis' AND manche_id = 1;")
+        conn.execute("UPDATE scores_defi SET time_seconds = 45.0 WHERE lutin_id = 'mdenis' AND manche_id = 1;")
+    conn.close()
+
+    # Vérification du classement public
+    resp_scores = client.get("/scores/2026")
+    assert resp_scores.status_code == 200
+    scores_html = resp_scores.text
+
+    # Deux lignes distinctes avec 10 pts et 8 pts
+    assert "10 pts" in scores_html
+    assert "8 pts" in scores_html
+    # Strict anonymat : aucun identifiant lutin dans le HTML
+    assert "jdenis" not in scores_html
+    assert "mdenis" not in scores_html
+
+    # Vérification dans l'Espace Lutin de chacun (recherche par lutin_id)
+    page_j = client.get(f"/lutin/{tok_j}")
+    assert page_j.status_code == 200
+    assert "#1" in page_j.text
+    assert "10 pts" in page_j.text
+
+    page_m = client.get(f"/lutin/{tok_m}")
+    assert page_m.status_code == 200
+    assert "#2" in page_m.text
+    assert "8 pts" in page_m.text

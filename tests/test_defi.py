@@ -362,3 +362,53 @@ def test_championship_standings_tie_breaker_resolved_over_failed_attempts(tmp_pa
 
     # Au départage, le lutin ayant résolu la manche prime sur celui ayant échoué aux 3 essais
     assert lutin_res["rank"] < lutin_fail["rank"]
+
+
+def test_calculate_championship_standings_aggregates_by_lutin_id(tmp_path: Path) -> None:
+    from pere_noel_fremo.database import (
+        get_db_connection,
+        init_db,
+    )
+    from pere_noel_fremo.defi import calculate_championship_standings
+
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+    conn = get_db_connection(db_path)
+    with conn:
+        conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
+        conn.execute("INSERT INTO lutins (id, fullname, email) VALUES ('jdenis', 'Jean Denis', 'jd@fremo.org');")
+        conn.execute("INSERT INTO lutins (id, fullname, email) VALUES ('mdenis', 'Marc Denis', 'md@fremo.org');")
+        # Simuler deux lutins résolvant la manche 1 (30s vs 45s)
+        conn.execute(
+            """
+            INSERT INTO scores_defi (
+                lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at, attempts
+            )
+            VALUES ('jdenis', 2026, 1, 'Lutin A', '2026-10-14 20:00:00', 1, 30.0, '2026-10-14 20:00:30', 1);
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO scores_defi (
+                lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at, attempts
+            )
+            VALUES ('mdenis', 2026, 1, 'Lutin B', '2026-10-14 20:00:00', 1, 45.0, '2026-10-14 20:00:45', 1);
+            """
+        )
+    conn.close()
+
+    simulated_now = datetime(2026, 10, 20, 12, 0, 0, tzinfo=timezone.utc)
+    standings = calculate_championship_standings(db_path, 2026, now=simulated_now)
+
+    assert len(standings) == 2
+    # Doit contenir lutin_id
+    first = standings[0]
+    second = standings[1]
+
+    assert first["lutin_id"] == "jdenis"
+    assert first["total_points"] == 10
+    assert first["rank"] == 1
+
+    assert second["lutin_id"] == "mdenis"
+    assert second["total_points"] == 8
+    assert second["rank"] == 2

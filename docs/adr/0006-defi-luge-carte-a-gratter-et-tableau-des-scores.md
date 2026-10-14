@@ -26,9 +26,10 @@ Initialement, le ticket 13 suggérait que la résolution de la grille conditionn
    - Le temps final `time_seconds` est calculé côté serveur lors de la validation `POST /api/lutin/{token}/defi/solve`.
    - Un seul essai officiel est consigné dans `scores_defi`. Une fois résolue, la grille reste consultable mais le temps n'est plus modifiable.
 
-4. **Pseudos de lutin stables et anonymes** :
-   - Chaque Lutin se voit attribuer un Pseudo de lutin festif généré de manière pseudo-aléatoire mais déterministe (hachage stable de `lutin_id` et `year` avec sel cryptographique piochant dans une liste d'adjectifs et noms d'animaux/créatures d'hiver).
-   - Le pseudo est persisté dans `scores_defi` dès l'attribution.
+4. **Pseudos de lutin uniques tirés sans remise et anonymes** :
+   - Chaque Lutin se voit attribuer un Pseudo de lutin festif unique par édition via un tirage aléatoire cryptographique sans remise (`secrets.choice`) parmi les combinaisons cartésiennes disponibles (`ANIMAUX_LUGEURS` × `ADJECTIFS_FESTIFS`), remplaçant l'ancien hachage pseudo-salé qui provoquait des collisions entre participants.
+   - Les attributions sont scellées et persistées dans une table dédiée `pseudos(year, lutin_id, pseudo)` avec contrainte d'unicité `UNIQUE(year, pseudo)` et répercutées dans `scores_defi`.
+   - Le classement du championnat est indexé et agrégé par `lutin_id` (garantissant l'intégrité des points individuels) tout en n'exposant que les Pseudos de lutin sur les interfaces publiques afin de préserver l'anonymat.
 
 5. **Tableau des scores permanent et public** :
    - Accessible en permanence sur chaque Espace Lutin (avec mise en valeur du pseudo et du rang personnel).

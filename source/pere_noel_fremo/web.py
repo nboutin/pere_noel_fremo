@@ -15,6 +15,7 @@ from .database import (
     get_edition_status,
     get_latest_edition_year,
     get_lutin_presence,
+    get_or_assign_pseudo,
     get_or_create_score_defi,
     get_scores_classement,
     init_db,
@@ -26,7 +27,6 @@ from .defi import (
     MAX_ESSAIS_PAR_MANCHE,
     PENALITE_ESSAI_FAUX_SECONDES,
     calculate_championship_standings,
-    generate_pseudo_lugeur,
     get_all_manches,
     get_manche,
     get_or_load_grille,
@@ -79,13 +79,17 @@ def create_app(
         # Repli si aucune manche agrégée
         classement = standings if standings else get_scores_classement(db_path, target_year)
         manches = get_all_manches(year=target_year, res_dir=res_dir, only_unlocked=False)
+
+        def _strip_lutin_id(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+            return [{k: v for k, v in e.items() if k != "lutin_id"} for e in entries]
+
         return templates.TemplateResponse(
             request=request,
             name="tableau_scores.html",
             context={
                 "edition": target_year,
-                "classement": classement,
-                "standings": standings,
+                "classement": _strip_lutin_id(classement),
+                "standings": _strip_lutin_id(standings),
                 "manches": manches,
                 "my_pseudo": None,
             },
@@ -107,7 +111,7 @@ def create_app(
         status = get_edition_status(db_path, year) or "draft"
         is_locked = status in ("drawn", "revealed")
 
-        pseudo = generate_pseudo_lugeur(lutin_id, year)
+        pseudo = get_or_assign_pseudo(db_path, lutin_id, year)
 
         # 1. Calendrier des manches et statuts pour ce lutin
         all_manches = get_all_manches(year=year, res_dir=res_dir, only_unlocked=False)
@@ -150,11 +154,7 @@ def create_app(
         # 3. Profil championnat et classement
         standings = calculate_championship_standings(db_path, year)
         my_standing = next(
-            (
-                entry
-                for entry in standings
-                if entry.get("pseudo_lutin") == pseudo or entry.get("pseudo_lugeur") == pseudo
-            ),
+            (entry for entry in standings if entry.get("lutin_id") == lutin_id),
             None,
         )
         leader_points = standings[0]["total_points"] if standings else 0
@@ -269,7 +269,7 @@ def create_app(
         year = lutin_info["year"]
         lutin_id = lutin_info["id"]
 
-        pseudo = generate_pseudo_lugeur(lutin_id, year)
+        pseudo = get_or_assign_pseudo(db_path, lutin_id, year)
         score_entry = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=manche_id)
         if score_entry.get("solved"):
             raise HTTPException(
@@ -299,7 +299,7 @@ def create_app(
         year = lutin_info["year"]
         lutin_id = lutin_info["id"]
 
-        pseudo = generate_pseudo_lugeur(lutin_id, year)
+        pseudo = get_or_assign_pseudo(db_path, lutin_id, year)
         score_entry = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=manche_id)
         if not score_entry.get("started_at") or score_entry.get("completed_at") is not None:
             raise HTTPException(
@@ -320,7 +320,7 @@ def create_app(
         year = lutin_info["year"]
         lutin_id = lutin_info["id"]
 
-        pseudo = generate_pseudo_lugeur(lutin_id, year)
+        pseudo = get_or_assign_pseudo(db_path, lutin_id, year)
         score_entry = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=manche_id)
 
         if score_entry.get("completed_at"):
@@ -408,7 +408,7 @@ def create_app(
         year = lutin_info["year"]
         lutin_id = lutin_info["id"]
 
-        pseudo = generate_pseudo_lugeur(lutin_id, year)
+        pseudo = get_or_assign_pseudo(db_path, lutin_id, year)
         score_entry = get_or_create_score_defi(db_path, lutin_id, year, pseudo, manche_id=manche_id)
         if score_entry.get("completed_at"):
             raise HTTPException(
