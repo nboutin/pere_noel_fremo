@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS exclusions (
 CREATE TABLE IF NOT EXISTS editions (
     year INTEGER PRIMARY KEY,
     status TEXT NOT NULL DEFAULT 'draft',
+    date_repas TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -134,6 +135,12 @@ def init_db(db_path: Path | str) -> sqlite3.Connection:
                     """)
                 conn.execute("DROP TABLE _scores_defi_old;")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_scores_defi_year_manche ON scores_defi(year, manche_id);")
+
+        editions_info = conn.execute("PRAGMA table_info(editions);").fetchall()
+        if editions_info:
+            ed_cols = [c[1] for c in editions_info]
+            if "date_repas" not in ed_cols:
+                conn.execute("ALTER TABLE editions ADD COLUMN date_repas TEXT;")
     return conn
 
 
@@ -150,6 +157,11 @@ def import_yaml_data(
     """
     with open(data_in_path, encoding="utf-8") as stream:
         data_in = yaml.safe_load(stream) or {}
+
+    edition_meta = data_in.pop("_edition", None)
+    date_repas = None
+    if isinstance(edition_meta, dict):
+        date_repas = edition_meta.get("date_repas") or edition_meta.get("date_fete")
 
     secure_data: dict[str, Any] = {}
     if Path(secure_data_path).exists():
@@ -168,12 +180,21 @@ def import_yaml_data(
     personnes_secure = secure_data.get("personnes", {})
 
     with conn:
-        # Création de l'édition si spécifiée
+        # Création / mise à jour de l'édition si spécifiée
         if year is not None:
-            conn.execute(
-                "INSERT OR IGNORE INTO editions (year, status) VALUES (?, 'draft');",
-                (year,),
-            )
+            if date_repas:
+                conn.execute(
+                    """
+                    INSERT INTO editions (year, status, date_repas) VALUES (?, 'draft', ?)
+                    ON CONFLICT(year) DO UPDATE SET date_repas = excluded.date_repas;
+                    """,
+                    (year, str(date_repas)),
+                )
+            else:
+                conn.execute(
+                    "INSERT OR IGNORE INTO editions (year, status) VALUES (?, 'draft');",
+                    (year,),
+                )
 
         # 1. Upsert des lutins actifs
         for lutin_id, params in data_in.items():
@@ -360,6 +381,21 @@ def get_edition_status(db_path: Path | str, year: int) -> str | None:
         if not row:
             return None
         return str(row["status"])
+    finally:
+        conn.close()
+
+
+def get_edition_date_repas(db_path: Path | str, year: int) -> str | None:
+    """Récupère la date ISO du Repas de Noël d'une édition ('YYYY-MM-DD')."""
+    conn = get_db_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT date_repas FROM editions WHERE year = ?;",
+            (year,),
+        ).fetchone()
+        if not row or not row["date_repas"]:
+            return None
+        return str(row["date_repas"])
     finally:
         conn.close()
 

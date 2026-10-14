@@ -88,3 +88,42 @@ def test_configure_logger_creates_file_in_logs_dir() -> None:
             root_logger.removeHandler(handler)
 
     expected_log_path.unlink(missing_ok=True)
+
+
+def test_format_date_repas_none_or_empty() -> None:
+    from pere_noel_fremo.helper import format_date_repas
+
+    assert format_date_repas(None) is None
+    assert format_date_repas("") is None
+    assert format_date_repas("   ") is None
+
+
+def test_format_date_repas_future_current_and_past() -> None:
+    from datetime import date
+
+    from pere_noel_fremo.helper import format_date_repas
+
+    target_date = "2026-12-05"
+
+    # 1. Date future (52 jours avant)
+    ref_future = date(2026, 10, 14)
+    info_future = format_date_repas(target_date, now=ref_future)
+    assert info_future is not None
+    assert info_future["raw"] == "2026-12-05"
+    assert info_future["formatted"] == "samedi 5 décembre 2026"
+    assert info_future["delta_days"] == 52
+    assert info_future["countdown"] == "J-52"
+
+    # 2. Jour J
+    ref_today = date(2026, 12, 5)
+    info_today = format_date_repas(target_date, now=ref_today)
+    assert info_today is not None
+    assert info_today["delta_days"] == 0
+    assert info_today["countdown"] == "Aujourd'hui ! 🎅"
+
+    # 3. Date passée
+    ref_past = date(2026, 12, 6)
+    info_past = format_date_repas(target_date, now=ref_past)
+    assert info_past is not None
+    assert info_past["delta_days"] == -1
+    assert info_past["countdown"] == "Passé"

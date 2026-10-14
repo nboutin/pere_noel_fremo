@@ -410,3 +410,20 @@ def test_abandon_defi_flow(client: TestClient, test_db: Path) -> None:
     )
     assert resp_solve.status_code == 400
     assert "terminée" in resp_solve.json()["detail"]
+
+
+def test_espace_lutin_renders_date_repas(client: TestClient, test_db: Path) -> None:
+    conn = init_db(test_db)
+    with conn:
+        conn.execute("UPDATE editions SET date_repas = '2026-12-05' WHERE year = 2025;")
+    conn.close()
+
+    token = create_or_get_token(test_db, "fbonnet", 2025)
+    page = client.get(f"/lutin/{token}")
+    assert page.status_code == 200
+
+    # Vérification présence dans l'en-tête et dans la confirmation de présence
+    assert "Repas de Noël" in page.text
+    assert "samedi 5 décembre 2026" in page.text
+    assert "Participeras-tu à l'échange de cadeaux cette année ?" in page.text
+    assert "Date du Repas de Noël" in page.text

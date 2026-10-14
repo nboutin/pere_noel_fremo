@@ -36,9 +36,9 @@ _Avoid_: Antécédents, mémoire, historique glissant
 Itération annuelle du Père Noël secret désignée par son millésime (`year`), progressant à travers un cycle d'états (`draft` -> `announced` -> `drawn` -> `revealed`).
 _Avoid_: Campagne, saison, tournoi, session
 
-**Fête**:
+**Repas de Noël**:
 Rassemblement rituel annuel réunissant les Lutins pour célébrer le Père Noël secret, au cours duquel le vainqueur du Défi du lutin ouvre son cadeau en premier avant la distribution des cadeaux.
-_Avoid_: Événement, soirée, repas de Noël, fête de Noël, party
+_Avoid_: Fête, fête de Noël, événement, soirée, party, banquet
 
 **Attribution millésimée**:
 Association immuable entre un Donneur et son Bénéficiaire scellée pour une Édition précise (`year`), historiquement issue d'un tirage au sort annuel.
@@ -66,7 +66,7 @@ Action par laquelle un Lutin valide ou décline sa participation à l'édition c
 _Avoid_: RSVP, inscription, check-in, vote
 
 **Défi du lutin**:
-Compétition rituelle annuelle (alternant entre défi créatif et série de logigrammes hebdomadaires) disputée sous forme de championnat à points permettant de départager les Lutins et de désigner le vainqueur qui ouvrira son cadeau en premier lors de la fête.
+Compétition rituelle annuelle (alternant entre défi créatif et série de logigrammes hebdomadaires) disputée sous forme de championnat à points permettant de départager les Lutins et de désigner le vainqueur qui ouvrira son cadeau en premier lors du Repas de Noël.
 _Avoid_: Défi de la luge, quiz, challenge, mini-jeu, concours
 
 **Manche**:
@@ -78,7 +78,7 @@ Casse-tête de déduction à indices croisés proposé lors d'une Manche du Déf
 _Avoid_: Logigramme, puzzle d'Einstein, énigme
 
 **Pseudo de lutin**:
-Pseudonyme festif et humoristique attribué aléatoirement à chaque Lutin sur le tableau des scores public pour préserver le secret de l'identité du vainqueur jusqu'à la fête.
+Pseudonyme festif et humoristique attribué aléatoirement à chaque Lutin sur le tableau des scores public pour préserver le secret de l'identité du vainqueur jusqu'au Repas de Noël.
 _Avoid_: Pseudo de lugeur, alias, handle, avatar
 
 **Admin aveugle**:

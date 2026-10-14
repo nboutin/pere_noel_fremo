@@ -22,7 +22,12 @@
 
     <div class="container">
         <header>
-            <span class="badge-edition">Édition {{ edition }}</span>
+            <div style="display: flex; gap: 0.5rem; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 0.5rem;">
+                <span class="badge-edition">Édition {{ edition }}</span>
+                {% if date_repas_info %}
+                    <span class="badge-edition" style="background: rgba(212, 175, 55, 0.2); border-color: var(--color-gold); color: var(--color-gold);">📅 Repas de Noël : {{ date_repas_info.formatted }} ({{ date_repas_info.countdown }})</span>
+                {% endif %}
+            </div>
             <h1>🎅 Père Noël de la Frémo 🎄</h1>
             <p>Bienvenue dans ton Espace Lutin, <strong>{{ lutin.fullname }}</strong> !</p>
         </header>
@@ -57,6 +62,11 @@
         <section class="card" id="card-presence" data-presence="{% if presence is not none %}{{ 'true' if presence else 'false' }}{% else %}unknown{% endif %}">
             <h2>Confirmation de présence</h2>
             <p>Participeras-tu à l'échange de cadeaux cette année ?</p>
+            {% if date_repas_info %}
+                <p style="margin: -0.2rem 0 1rem; color: var(--color-gold); font-size: 0.95rem; font-weight: 500;">
+                    📅 <strong>Date du Repas de Noël :</strong> {{ date_repas_info.formatted }} ({{ date_repas_info.countdown }})
+                </p>
+            {% endif %}
 
             <div id="status-box" class="presence-status {% if presence is true %}status-present{% elif presence is false %}status-absent{% else %}status-unknown{% endif %}">
                 {% if presence is true %}

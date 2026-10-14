@@ -14,6 +14,7 @@ from .database import (
     abandon_score_defi,
     complete_score_defi,
     get_beneficiaire_for_lutin,
+    get_edition_date_repas,
     get_edition_status,
     get_latest_edition_year,
     get_lutin_presence,
@@ -32,6 +33,7 @@ from .defi import (
     is_manche_unlocked,
     validate_grille_solution,
 )
+from .helper import format_date_repas
 from .tokens import get_lutin_by_token
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
@@ -161,6 +163,10 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
         if status in ("drawn", "revealed"):
             beneficiaire = get_beneficiaire_for_lutin(db_path, lutin_id, year)
 
+        # Date du Repas de Noël
+        date_repas_raw = get_edition_date_repas(db_path, year)
+        date_repas_info = format_date_repas(date_repas_raw)
+
         classement = standings if standings else get_scores_classement(db_path, year)
 
         return templates.TemplateResponse(
@@ -169,6 +175,7 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
             context={
                 "lutin": lutin_info,
                 "edition": year,
+                "date_repas_info": date_repas_info,
                 "presence": presence,
                 "is_locked": is_locked,
                 "status": status,

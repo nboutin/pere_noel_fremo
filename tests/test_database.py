@@ -8,6 +8,7 @@ from pere_noel_fremo.database import (
     get_attributions,
     get_beneficiaire_for_lutin,
     get_confirmed_lutins,
+    get_edition_date_repas,
     get_edition_status,
     get_lutin_exclusions,
     get_lutin_history,
@@ -391,3 +392,66 @@ def test_backfill_historical_attributions_idempotent(tmp_path: Path) -> None:
     # Vérification de l'idempotence
     res2 = backfill_historical_attributions(db_path, res_dir=res_dir, purge_2026=True)
     assert res2["attributions"] == 233
+
+
+def test_init_db_adds_date_repas_column_and_migration(tmp_path: Path) -> None:
+    import sqlite3
+
+    db_path = tmp_path / "legacy_editions.db"
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("CREATE TABLE editions (year INTEGER PRIMARY KEY, status TEXT NOT NULL DEFAULT 'draft');")
+    conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
+    conn.commit()
+    conn.close()
+
+    # init_db doit migrer la table pour ajouter date_repas
+    conn_migrated = init_db(db_path)
+    cols = [row[1] for row in conn_migrated.execute("PRAGMA table_info(editions);").fetchall()]
+    conn_migrated.close()
+    assert "date_repas" in cols
+
+
+def test_import_yaml_data_with_edition_metadata(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo_meta.db"
+    data_in_path = tmp_path / "data_in.yml"
+    secure_data_path = tmp_path / "secure_data.yml"
+
+    sample_data = {
+        "_edition": {
+            "date_repas": "2026-12-05",
+        },
+        "lutin_1": {
+            "fullname": "Lutin Un",
+            "email": "l1@example.com",
+            "exclude": [],
+            "history": [],
+        },
+        "lutin_2": {
+            "fullname": "Lutin Deux",
+            "email": "l2@example.com",
+            "exclude": [],
+            "history": [],
+        },
+    }
+    with open(data_in_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(sample_data, f)
+
+    res = import_yaml_data(db_path, data_in_path, secure_data_path, year=2026)
+    assert res["lutins"] == 2
+
+    # Vérifier que _edition n'est pas inséré comme lutin
+    lutins = get_lutins(db_path)
+    lutin_ids = list(lutins.keys())
+    assert "_edition" not in lutin_ids
+    assert "lutin_1" in lutin_ids
+    assert "lutin_2" in lutin_ids
+
+    # Vérifier que date_repas est bien persistée dans editions
+    date_repas = get_edition_date_repas(db_path, 2026)
+    assert date_repas == "2026-12-05"
+
+
+def test_get_edition_date_repas_non_existent(tmp_path: Path) -> None:
+    db_path = tmp_path / "empty.db"
+    init_db(db_path)
+    assert get_edition_date_repas(db_path, 2099) is None

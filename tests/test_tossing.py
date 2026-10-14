@@ -187,6 +187,7 @@ def test_tossing_cli_parser_dry_run_and_no_email() -> None:
 def test_tossing_main_dry_run(monkeypatch: pytest.MonkeyPatch, sample_lutins_data: dict[str, Any]) -> None:
     mock_send = MagicMock()
     mock_dump = MagicMock()
+    monkeypatch.setattr(email_tossing, "_configure_logger", lambda filename: None)
     monkeypatch.setattr(email_tossing.helper, "gmail_send_email", mock_send)
     monkeypatch.setattr("yaml.dump", mock_dump)
     monkeypatch.setattr("builtins.open", MagicMock())

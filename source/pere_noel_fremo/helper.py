@@ -145,5 +145,68 @@ def gmail_send_email(sender_email: str, subject: str, body: str, toaddr: str) ->
         logger.info(f"Sent to {toaddr}")
     except Exception as error:
         logger.error(f"An error occurred: {error}")
-        send_message = None
     return send_message
+
+
+FRENCH_DAYS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
+FRENCH_MONTHS = [
+    "janvier",
+    "février",
+    "mars",
+    "avril",
+    "mai",
+    "juin",
+    "juillet",
+    "août",
+    "septembre",
+    "octobre",
+    "novembre",
+    "décembre",
+]
+
+
+def format_date_repas(
+    date_str: str | None,
+    now: Any = None,
+) -> dict[str, Any] | None:
+    """Formate la date ISO du Repas de Noël en français et calcule le compte à rebours J-xx.
+
+    Zéro dépendance externe.
+    """
+    if not date_str or not str(date_str).strip():
+        return None
+
+    clean_str = str(date_str).strip()[:10]
+    try:
+        from datetime import date, datetime, timezone
+
+        d = date.fromisoformat(clean_str)
+    except Exception:
+        return None
+
+    if now is None:
+        today = datetime.now(timezone.utc).date()
+    elif isinstance(now, datetime):
+        today = now.date()
+    else:
+        today = now
+
+    delta_days = (d - today).days
+
+    jour_nom = FRENCH_DAYS[d.weekday()]
+    mois_nom = FRENCH_MONTHS[d.month - 1]
+    formatted = f"{jour_nom} {d.day} {mois_nom} {d.year}"
+
+    if delta_days > 0:
+        countdown = f"J-{delta_days}"
+    elif delta_days == 0:
+        countdown = "Aujourd'hui ! 🎅"
+    else:
+        countdown = "Passé"
+
+    return {
+        "raw": date_str,
+        "formatted": formatted,
+        "delta_days": delta_days,
+        "countdown": countdown,
+    }

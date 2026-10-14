@@ -40,8 +40,8 @@ def create_parser() -> argparse.ArgumentParser:
     init_db_parser.add_argument(
         "--data-in",
         type=Path,
-        default=DEFAULT_DATA_IN,
-        help="Chemin du fichier data_in.yml source (défaut: res/2025/data_in.yml)",
+        default=None,
+        help="Chemin du fichier data_in.yml source (défaut: res/{year}/data_in.yml ou res/2025/data_in.yml)",
     )
     init_db_parser.add_argument(
         "--secure-data",
@@ -208,8 +208,12 @@ def create_parser() -> argparse.ArgumentParser:
 
 def handle_init_db(args: argparse.Namespace) -> int:
     db_path: Path = args.db_path
-    data_in_path: Path = args.data_in
+    data_in_path: Path | None = args.data_in
     secure_data_path: Path = args.secure_data
+
+    if data_in_path is None:
+        candidate_data_in = RES_DIR / str(args.year) / "data_in.yml"
+        data_in_path = candidate_data_in if candidate_data_in.exists() else DEFAULT_DATA_IN
 
     if not data_in_path.exists():
         print(f"Erreur: Fichier de données introuvable : {data_in_path}")
