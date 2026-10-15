@@ -36,7 +36,7 @@
                     </thead>
                     <tbody>
                         {% for entry in classement %}
-                            <tr class="{% if my_pseudo and entry.pseudo_lugeur == my_pseudo %}my-score-row{% endif %}">
+                            <tr class="{% if my_pseudo and entry.pseudo_lutin == my_pseudo %}my-score-row{% endif %}">
                                 <td class="rank-col">
                                     {% if loop.index == 1 %}🥇
                                     {% elif loop.index == 2 %}🥈
@@ -45,8 +45,8 @@
                                     {% endif %}
                                 </td>
                                 <td class="pseudo-col">
-                                    <strong>{{ entry.pseudo_lugeur }}</strong>
-                                    {% if my_pseudo and entry.pseudo_lugeur == my_pseudo %}
+                                    <strong>{{ entry.pseudo_lutin }}</strong>
+                                    {% if my_pseudo and entry.pseudo_lutin == my_pseudo %}
                                         <span class="badge-you">(Toi)</span>
                                     {% endif %}
                                 </td>

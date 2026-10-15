@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS scores_defi (
     lutin_id TEXT NOT NULL REFERENCES lutins(id) ON DELETE CASCADE,
     year INTEGER NOT NULL REFERENCES editions(year) ON DELETE CASCADE,
     manche_id INTEGER NOT NULL DEFAULT 1,
-    pseudo_lugeur TEXT NOT NULL,
+    pseudo_lutin TEXT NOT NULL,
     started_at TIMESTAMP,
     solved BOOLEAN NOT NULL DEFAULT 0,
     time_seconds REAL,
@@ -123,6 +123,9 @@ def init_db(db_path: Path | str) -> None:
             table_info = conn.execute("PRAGMA table_info(scores_defi);").fetchall()
             if table_info:
                 cols = [c[1] for c in table_info]
+                if "pseudo_lugeur" in cols and "pseudo_lutin" not in cols:
+                    # Migration (ticket #43) : ancien nom de colonne du schéma <= 2.0.0, renommé selon le glossaire.
+                    conn.execute("ALTER TABLE scores_defi RENAME COLUMN pseudo_lugeur TO pseudo_lutin;")
                 pk_cols = {c[1] for c in table_info if c[5] > 0}
                 if "started_at" not in cols:
                     conn.execute("ALTER TABLE scores_defi ADD COLUMN started_at TIMESTAMP;")
@@ -134,7 +137,7 @@ def init_db(db_path: Path | str) -> None:
                             lutin_id TEXT NOT NULL REFERENCES lutins(id) ON DELETE CASCADE,
                             year INTEGER NOT NULL REFERENCES editions(year) ON DELETE CASCADE,
                             manche_id INTEGER NOT NULL DEFAULT 1,
-                            pseudo_lugeur TEXT NOT NULL,
+                            pseudo_lutin TEXT NOT NULL,
                             started_at TIMESTAMP,
                             solved BOOLEAN NOT NULL DEFAULT 0,
                             time_seconds REAL,
@@ -147,33 +150,33 @@ def init_db(db_path: Path | str) -> None:
                     if "manche_id" in old_cols and "started_at" in old_cols:
                         conn.execute("""
                             INSERT INTO scores_defi (
-                                lutin_id, year, manche_id, pseudo_lugeur,
+                                lutin_id, year, manche_id, pseudo_lutin,
                                 started_at, solved, time_seconds, completed_at, attempts
                             )
                             SELECT
-                                lutin_id, year, COALESCE(manche_id, 1), pseudo_lugeur, started_at,
+                                lutin_id, year, COALESCE(manche_id, 1), pseudo_lutin, started_at,
                                 solved, time_seconds, completed_at, CASE WHEN solved = 1 THEN 1 ELSE 0 END
                             FROM _scores_defi_old;
                         """)
                     elif "started_at" in old_cols:
                         conn.execute("""
                             INSERT INTO scores_defi (
-                                lutin_id, year, manche_id, pseudo_lugeur,
+                                lutin_id, year, manche_id, pseudo_lutin,
                                 started_at, solved, time_seconds, completed_at, attempts
                             )
                             SELECT
-                                lutin_id, year, 1, pseudo_lugeur, started_at,
+                                lutin_id, year, 1, pseudo_lutin, started_at,
                                 solved, time_seconds, completed_at, CASE WHEN solved = 1 THEN 1 ELSE 0 END
                             FROM _scores_defi_old;
                         """)
                     else:
                         conn.execute("""
                             INSERT INTO scores_defi (
-                                lutin_id, year, manche_id, pseudo_lugeur,
+                                lutin_id, year, manche_id, pseudo_lutin,
                                 started_at, solved, time_seconds, completed_at, attempts
                             )
                             SELECT
-                                lutin_id, year, 1, pseudo_lugeur, COALESCE(completed_at, '2026-01-01 00:00:00'),
+                                lutin_id, year, 1, pseudo_lutin, COALESCE(completed_at, '2026-01-01 00:00:00'),
                                 solved, time_seconds, completed_at, CASE WHEN solved = 1 THEN 1 ELSE 0 END
                             FROM _scores_defi_old;
                         """)
@@ -215,7 +218,7 @@ def init_db(db_path: Path | str) -> None:
             if scores_table_info:
                 missing_scores_lutins = conn.execute(
                     """
-                    SELECT DISTINCT s.year, s.lutin_id, s.pseudo_lugeur
+                    SELECT DISTINCT s.year, s.lutin_id, s.pseudo_lutin
                     FROM scores_defi s
                     WHERE NOT EXISTS (
                         SELECT 1 FROM pseudos p WHERE p.year = s.year AND p.lutin_id = s.lutin_id
@@ -227,7 +230,7 @@ def init_db(db_path: Path | str) -> None:
                 for r in missing_scores_lutins:
                     yr = int(r["year"])
                     lid = str(r["lutin_id"])
-                    existing_pseudo = str(r["pseudo_lugeur"]) if r["pseudo_lugeur"] else None
+                    existing_pseudo = str(r["pseudo_lutin"]) if r["pseudo_lutin"] else None
 
                     assigned_p = None
                     if existing_pseudo:
@@ -249,21 +252,21 @@ def init_db(db_path: Path | str) -> None:
                         assigned_p = get_or_assign_pseudo(conn, lid, yr)
 
                     conn.execute(
-                        "UPDATE scores_defi SET pseudo_lugeur = ? WHERE year = ? AND lutin_id = ?;",
+                        "UPDATE scores_defi SET pseudo_lutin = ? WHERE year = ? AND lutin_id = ?;",
                         (assigned_p, yr, lid),
                     )
 
                 conn.execute(
                     """
                     UPDATE scores_defi
-                    SET pseudo_lugeur = (
+                    SET pseudo_lutin = (
                         SELECT p.pseudo FROM pseudos p
                         WHERE p.year = scores_defi.year AND p.lutin_id = scores_defi.lutin_id
                     )
                     WHERE EXISTS (
                         SELECT 1 FROM pseudos p
                         WHERE p.year = scores_defi.year AND p.lutin_id = scores_defi.lutin_id
-                        AND p.pseudo != scores_defi.pseudo_lugeur
+                        AND p.pseudo != scores_defi.pseudo_lutin
                     );
                     """
                 )
@@ -702,7 +705,7 @@ def get_or_assign_pseudo(
     year: int,
 ) -> str:
     """Vérifie si un pseudo est déjà persisté pour (year, lutin_id), sinon en tire un aléatoirement sans remise."""
-    from .defi import ADJECTIFS_FESTIFS, ANIMAUX_LUGEURS
+    from .defi import ADJECTIFS_FESTIFS, ANIMAUX_LUTINS
 
     conn: sqlite3.Connection
     close_after: bool
@@ -740,7 +743,7 @@ def get_or_assign_pseudo(
                 ).fetchall()
                 assigned = {str(r["pseudo"]) for r in assigned_rows}
 
-                all_combinations = [f"{animal} {adj}" for animal in ANIMAUX_LUGEURS for adj in ADJECTIFS_FESTIFS]
+                all_combinations = [f"{animal} {adj}" for animal in ANIMAUX_LUTINS for adj in ADJECTIFS_FESTIFS]
                 available = [p for p in all_combinations if p not in assigned]
                 if not available:
                     raise RuntimeError(
@@ -798,7 +801,7 @@ get_pseudo_for_lutin = get_lutin_pseudo
 def _get_score_entry(conn: Any, lutin_id: str, year: int, manche_id: int = 1) -> dict[str, Any]:
     row = conn.execute(
         """
-        SELECT lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at, attempts
+        SELECT lutin_id, year, manche_id, pseudo_lutin, started_at, solved, time_seconds, completed_at, attempts
         FROM scores_defi
         WHERE lutin_id = ? AND year = ? AND manche_id = ?;
         """,
@@ -807,7 +810,6 @@ def _get_score_entry(conn: Any, lutin_id: str, year: int, manche_id: int = 1) ->
     if not row:
         return {}
     res = dict(row)
-    res["pseudo_lutin"] = res.get("pseudo_lugeur")
     return res
 
 
@@ -829,17 +831,17 @@ def get_or_create_score_defi(
     db_path: Path | str,
     lutin_id: str,
     year: int,
-    pseudo_lugeur: str | None = None,
+    pseudo_lutin: str | None = None,
     manche_id: int = 1,
 ) -> dict[str, Any]:
     """Récupère ou initialise la ligne score_defi pour un Lutin, une édition et une manche."""
     conn = get_db_connection(db_path)
     try:
         with conn:
-            if pseudo_lugeur is None:
+            if pseudo_lutin is None:
                 pseudo = get_or_assign_pseudo(conn, lutin_id, year)
             else:
-                pseudo = pseudo_lugeur
+                pseudo = pseudo_lutin
                 row = conn.execute(
                     "SELECT pseudo FROM pseudos WHERE year = ? AND lutin_id = ?;",
                     (year, lutin_id),
@@ -857,7 +859,7 @@ def get_or_create_score_defi(
 
             conn.execute(
                 """
-                INSERT OR IGNORE INTO scores_defi (lutin_id, year, manche_id, pseudo_lugeur, solved)
+                INSERT OR IGNORE INTO scores_defi (lutin_id, year, manche_id, pseudo_lutin, solved)
                 VALUES (?, ?, ?, ?, 0);
                 """,
                 (lutin_id, year, manche_id, pseudo),
@@ -871,7 +873,7 @@ def start_score_defi(
     db_path: Path | str,
     lutin_id: str,
     year: int,
-    pseudo_lugeur: str | None = None,
+    pseudo_lutin: str | None = None,
     manche_id: int = 1,
     now: datetime | None = None,
 ) -> dict[str, Any]:
@@ -886,7 +888,7 @@ def start_score_defi(
             now_dt = parse_iso_or_legacy(now) if now is not None else datetime.now(timezone.utc)
             now_str = now_dt.isoformat()
 
-            pseudo = get_or_assign_pseudo(conn, lutin_id, year) if pseudo_lugeur is None else pseudo_lugeur
+            pseudo = get_or_assign_pseudo(conn, lutin_id, year) if pseudo_lutin is None else pseudo_lutin
 
             row = conn.execute(
                 """
@@ -900,7 +902,7 @@ def start_score_defi(
             if row is None:
                 conn.execute(
                     """
-                    INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lugeur, started_at, solved)
+                    INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lutin, started_at, solved)
                     VALUES (?, ?, ?, ?, ?, 0);
                     """,
                     (lutin_id, year, manche_id, pseudo, now_str),
@@ -1128,7 +1130,7 @@ def get_scores_classement(
     conn = get_db_connection(db_path)
     try:
         query = """
-            SELECT lutin_id, pseudo_lugeur, manche_id, solved, time_seconds, completed_at, attempts, started_at
+            SELECT lutin_id, pseudo_lutin, manche_id, solved, time_seconds, completed_at, attempts, started_at
             FROM scores_defi
             WHERE year = ?
               AND (? IS NULL OR manche_id = ?)
@@ -1142,7 +1144,6 @@ def get_scores_classement(
         result: list[dict[str, Any]] = []
         for r in rows:
             entry = dict(r)
-            entry["pseudo_lutin"] = entry.get("pseudo_lugeur")
             result.append(entry)
         return result
     finally:

@@ -250,7 +250,6 @@ def create_app(
                 "is_locked": is_locked,
                 "status": status,
                 "score_info": active_score,
-                "pseudo_lugeur": pseudo,
                 "pseudo_lutin": pseudo,
                 "active_manche": display_manche,
                 "active_manche_id": active_manche_id,
@@ -340,17 +339,16 @@ def create_app(
             db_path,
             lutin_id,
             year,
-            pseudo_lugeur=pseudo,
+            pseudo_lutin=pseudo,
             manche_id=manche_id,
             now=clock_fn(),
         )
-        assigned_pseudo = updated.get("pseudo_lutin") or updated.get("pseudo_lugeur", pseudo)
+        assigned_pseudo = updated.get("pseudo_lutin") or pseudo
         return JSONResponse(
             {
                 "ok": True,
                 "manche_id": manche_id,
                 "pseudo_lutin": assigned_pseudo,
-                "pseudo_lugeur": assigned_pseudo,
                 "started_at": updated.get("started_at"),
                 "solved": bool(updated.get("solved", 0)),
                 "indices": list(manche.get("indices") or []),
@@ -427,12 +425,7 @@ def create_app(
                 detail=f"La manche {manche_id} est déjà terminée (essai unique officiel).",
             )
 
-        pseudo = (
-            score_entry.get("pseudo_lutin")
-            or score_entry.get("pseudo_lugeur")
-            or get_pseudo_for_lutin(db_path, lutin_id, year)
-            or "Lutin"
-        )
+        pseudo = score_entry.get("pseudo_lutin") or get_pseudo_for_lutin(db_path, lutin_id, year) or "Lutin"
 
         if result.get("solved"):
             return JSONResponse(
@@ -443,7 +436,6 @@ def create_app(
                     "attempts": result["attempts"],
                     "time_seconds": result["time_seconds"],
                     "pseudo_lutin": pseudo,
-                    "pseudo_lugeur": pseudo,
                 }
             )
 
@@ -491,20 +483,14 @@ def create_app(
             )
 
         updated = abandon_score_defi(db_path, lutin_id, year, manche_id=manche_id, now=clock_fn())
-        pseudo = (
-            score_entry.get("pseudo_lutin")
-            or score_entry.get("pseudo_lugeur")
-            or get_pseudo_for_lutin(db_path, lutin_id, year)
-            or "Lutin"
-        )
-        abandoned_pseudo = updated.get("pseudo_lutin") or updated.get("pseudo_lugeur", pseudo)
+        pseudo = score_entry.get("pseudo_lutin") or get_pseudo_for_lutin(db_path, lutin_id, year) or "Lutin"
+        abandoned_pseudo = updated.get("pseudo_lutin") or pseudo
         return JSONResponse(
             {
                 "ok": True,
                 "manche_id": manche_id,
                 "abandoned": True,
                 "pseudo_lutin": abandoned_pseudo,
-                "pseudo_lugeur": abandoned_pseudo,
             }
         )
 

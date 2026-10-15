@@ -296,7 +296,7 @@
                     <tbody>
                         {% for entry in classement %}
                             {% set current_rank = entry.rank if (entry.rank is defined and entry.rank is not none) else loop.index %}
-                            <tr class="{% if (entry.pseudo_lutin or entry.pseudo_lugeur) == (pseudo_lutin or pseudo_lugeur) %}my-score-row{% endif %}">
+                            <tr class="{% if (entry.pseudo_lutin or entry.pseudo_lutin) == (pseudo_lutin or pseudo_lutin) %}my-score-row{% endif %}">
                                 <td class="rank-col">
                                     {% if current_rank == 1 %}🥇
                                     {% elif current_rank == 2 %}🥈
@@ -305,8 +305,8 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {{ entry.pseudo_lutin or entry.pseudo_lugeur }}
-                                    {% if (entry.pseudo_lutin or entry.pseudo_lugeur) == (pseudo_lutin or pseudo_lugeur) %}
+                                    {{ entry.pseudo_lutin or entry.pseudo_lutin }}
+                                    {% if (entry.pseudo_lutin or entry.pseudo_lutin) == (pseudo_lutin or pseudo_lutin) %}
                                         <span class="badge-you">(Toi)</span>
                                     {% endif %}
                                 </td>
@@ -334,7 +334,7 @@
                     </tbody>
                 </table>
             {% else %}
-                <p><em>Aucun lugeur n'a encore enregistré de score.</em></p>
+                <p><em>Aucun lutin n'a encore enregistré de score.</em></p>
             {% endif %}
             <div style="text-align: right; margin-top: 1rem;">
                 <a href="/scores/{{ edition }}" target="_blank" style="color: var(--color-gold); font-size: 0.9rem;">

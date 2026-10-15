@@ -250,7 +250,7 @@ def test_scores_defi_and_beneficiaire_operations(tmp_path: Path) -> None:
     # 2. Score Défi cycle de vie
     score = get_or_create_score_defi(db_path, "l1", 2026, "Renne Agile")
     assert score["lutin_id"] == "l1"
-    assert score["pseudo_lugeur"] == "Renne Agile"
+    assert score["pseudo_lutin"] == "Renne Agile"
     assert score["solved"] == 0
     assert score["started_at"] is None
 
@@ -274,9 +274,9 @@ def test_scores_defi_and_beneficiaire_operations(tmp_path: Path) -> None:
     classement = get_scores_classement(db_path, 2026)
     assert len(classement) == 2
     # l2 (30.0s) doit être 1er devant l1 (42.5s)
-    assert classement[0]["pseudo_lugeur"] == "Lutin Givré"
+    assert classement[0]["pseudo_lutin"] == "Lutin Givré"
     assert classement[0]["time_seconds"] == 30.0
-    assert classement[1]["pseudo_lugeur"] == "Renne Agile"
+    assert classement[1]["pseudo_lutin"] == "Renne Agile"
     assert classement[1]["time_seconds"] == 42.5
 
 
@@ -309,15 +309,15 @@ def test_scores_defi_multi_manches(tmp_path: Path) -> None:
     # Classement Manche 1
     classement_m1 = get_scores_classement(db_path, 2026, manche_id=1)
     assert len(classement_m1) == 2
-    assert classement_m1[0]["pseudo_lugeur"] == "Lutin Givré"
+    assert classement_m1[0]["pseudo_lutin"] == "Lutin Givré"
     assert classement_m1[0]["time_seconds"] == 25.0
-    assert classement_m1[1]["pseudo_lugeur"] == "Renne Agile"
+    assert classement_m1[1]["pseudo_lutin"] == "Renne Agile"
     assert classement_m1[1]["time_seconds"] == 50.0
 
     # Classement Manche 2
     classement_m2 = get_scores_classement(db_path, 2026, manche_id=2)
     assert len(classement_m2) == 1
-    assert classement_m2[0]["pseudo_lugeur"] == "Renne Agile"
+    assert classement_m2[0]["pseudo_lutin"] == "Renne Agile"
     assert classement_m2[0]["time_seconds"] == 35.0
 
 
@@ -357,7 +357,7 @@ def test_scores_defi_schema_migration_idempotent(tmp_path: Path) -> None:
     # Vérification que le score existant a manche_id = 1
     scores_m1 = get_scores_classement(db_path, 2026, manche_id=1)
     assert len(scores_m1) == 1
-    assert scores_m1[0]["pseudo_lugeur"] == "Lutin Ancien"
+    assert scores_m1[0]["pseudo_lutin"] == "Lutin Ancien"
     assert scores_m1[0]["time_seconds"] == 45.0
     assert scores_m1[0]["manche_id"] == 1
 
@@ -751,12 +751,12 @@ def test_get_or_assign_pseudo_all_26_lutins_from_res_2025_get_unique_pseudos(tmp
 
 def test_get_or_assign_pseudo_raises_when_space_exhausted(tmp_path: Path) -> None:
     from pere_noel_fremo.database import get_or_assign_pseudo
-    from pere_noel_fremo.defi import ADJECTIFS_FESTIFS, ANIMAUX_LUGEURS
+    from pere_noel_fremo.defi import ADJECTIFS_FESTIFS, ANIMAUX_LUTINS
 
     db_path = tmp_path / "fremo.db"
     init_db(db_path)
 
-    max_pseudos = len(ANIMAUX_LUGEURS) * len(ADJECTIFS_FESTIFS)
+    max_pseudos = len(ANIMAUX_LUTINS) * len(ADJECTIFS_FESTIFS)
     assert max_pseudos == 180
 
     for i in range(max_pseudos):
@@ -807,11 +807,11 @@ def test_migration_scores_defi_with_duplicate_pseudos_assigns_unique_pseudos(tmp
     assert p_jdenis["pseudo"] != p_mdenis["pseudo"]
 
     # scores_defi doit refléter ces pseudos distincts
-    row_j = conn2.execute("SELECT pseudo_lugeur FROM scores_defi WHERE lutin_id = 'jdenis';").fetchone()
-    row_m = conn2.execute("SELECT pseudo_lugeur FROM scores_defi WHERE lutin_id = 'mdenis';").fetchone()
-    assert row_j["pseudo_lugeur"] == p_jdenis["pseudo"]
-    assert row_m["pseudo_lugeur"] == p_mdenis["pseudo"]
-    assert row_j["pseudo_lugeur"] != row_m["pseudo_lugeur"]
+    row_j = conn2.execute("SELECT pseudo_lutin FROM scores_defi WHERE lutin_id = 'jdenis';").fetchone()
+    row_m = conn2.execute("SELECT pseudo_lutin FROM scores_defi WHERE lutin_id = 'mdenis';").fetchone()
+    assert row_j["pseudo_lutin"] == p_jdenis["pseudo"]
+    assert row_m["pseudo_lutin"] == p_mdenis["pseudo"]
+    assert row_j["pseudo_lutin"] != row_m["pseudo_lutin"]
     conn2.close()
 
 
@@ -825,12 +825,12 @@ def test_get_scores_classement_includes_lutin_id(tmp_path: Path) -> None:
         conn.execute("INSERT INTO lutins (id, fullname) VALUES ('jdenis', 'Jean Denis');")
     conn.close()
 
-    start_score_defi(db_path, "jdenis", 2026, pseudo_lugeur="Renne Agile", manche_id=1)
+    start_score_defi(db_path, "jdenis", 2026, pseudo_lutin="Renne Agile", manche_id=1)
     scores = get_scores_classement(db_path, 2026, manche_id=1)
     assert len(scores) == 1
     assert "lutin_id" in scores[0]
     assert scores[0]["lutin_id"] == "jdenis"
-    assert scores[0]["pseudo_lugeur"] == "Renne Agile"
+    assert scores[0]["pseudo_lutin"] == "Renne Agile"
     assert scores[0]["pseudo_lutin"] == "Renne Agile"
 
 
@@ -868,14 +868,14 @@ def test_migration_purges_unstarted_scores(tmp_path: Path) -> None:
         conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l3', 'Lutin 3');")
         # Row 1: non démarré (started_at IS NULL)
         conn.execute(
-            "INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lugeur, started_at, solved) "
+            "INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lutin, started_at, solved) "
             "VALUES ('l1', 2026, 1, 'Lutin Un', NULL, 0);"
         )
         # Row 2: démarré et résolu
         conn.execute(
             """
             INSERT INTO scores_defi (
-                lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at
+                lutin_id, year, manche_id, pseudo_lutin, started_at, solved, time_seconds, completed_at
             ) VALUES (
                 'l2', 2026, 1, 'Lutin Deux', '2026-10-14T20:00:00.123456+00:00',
                 1, 35.2, '2026-10-14T20:00:35.323456+00:00'
@@ -884,7 +884,7 @@ def test_migration_purges_unstarted_scores(tmp_path: Path) -> None:
         )
         # Row 3: démarré en cours (format legacy)
         conn.execute(
-            "INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lugeur, started_at, solved) "
+            "INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lutin, started_at, solved) "
             "VALUES ('l3', 2026, 1, 'Lutin Trois', '2026-10-14 20:00:00', 0);"
         )
     conn.close()
@@ -914,12 +914,12 @@ def test_get_scores_classement_filters_unstarted_participants(tmp_path: Path) ->
         conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l2', 'Lutin 2');")
         # Ingestion manuelle sans started_at (pour contourner init_db purge)
         conn.execute(
-            "INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lugeur, started_at, solved) "
+            "INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lutin, started_at, solved) "
             "VALUES ('l1', 2026, 1, 'Lutin Un', NULL, 0);"
         )
         # Participant ayant démarré
         conn.execute(
-            "INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds) "
+            "INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lutin, started_at, solved, time_seconds) "
             "VALUES ('l2', 2026, 1, 'Lutin Deux', '2026-10-14T20:00:00+00:00', 1, 28.5);"
         )
     conn.close()
@@ -1032,3 +1032,43 @@ def test_get_db_connection_has_explicit_busy_timeout(tmp_path: Path) -> None:
         assert conn.execute("PRAGMA busy_timeout;").fetchone()[0] == 5000
     finally:
         conn.close()
+
+
+def test_init_db_renames_pseudo_lugeur_column_idempotently(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo_200.db"
+    conn = sqlite3.connect(str(db_path))
+    conn.executescript("""
+        CREATE TABLE editions (year INTEGER PRIMARY KEY, status TEXT NOT NULL DEFAULT 'draft');
+        CREATE TABLE lutins (
+            id TEXT PRIMARY KEY, fullname TEXT NOT NULL, email TEXT,
+            is_active BOOLEAN NOT NULL DEFAULT 1
+        );
+        CREATE TABLE scores_defi (
+            lutin_id TEXT NOT NULL REFERENCES lutins(id),
+            year INTEGER NOT NULL REFERENCES editions(year),
+            manche_id INTEGER NOT NULL DEFAULT 1,
+            pseudo_lugeur TEXT NOT NULL,
+            started_at TIMESTAMP,
+            solved BOOLEAN NOT NULL DEFAULT 0,
+            time_seconds REAL,
+            completed_at TIMESTAMP,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (lutin_id, year, manche_id)
+        );
+        INSERT INTO editions (year, status) VALUES (2026, 'draft');
+        INSERT INTO lutins (id, fullname) VALUES ('l1', 'Lutin 1');
+        INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, attempts)
+        VALUES ('l1', 2026, 1, 'Lutin Ancien', '2026-10-19 19:00:00', 1, 45.0, 1);
+    """)
+    conn.close()
+
+    init_db(db_path)
+    init_db(db_path)
+
+    conn = sqlite3.connect(str(db_path))
+    cols = [c[1] for c in conn.execute("PRAGMA table_info(scores_defi);").fetchall()]
+    row = conn.execute("SELECT pseudo_lutin, time_seconds FROM scores_defi WHERE lutin_id = 'l1';").fetchone()
+    conn.close()
+    assert "pseudo_lugeur" not in cols
+    assert "pseudo_lutin" in cols
+    assert row == ("Lutin Ancien", 45.0)

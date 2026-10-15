@@ -3,25 +3,11 @@ from pathlib import Path
 
 from pere_noel_fremo.defi import (
     calculate_points_for_rank,
-    generate_pseudo_lugeur,
     get_all_manches,
     get_manche,
     get_or_load_grille,
     validate_grille_solution,
 )
-
-
-def test_generate_pseudo_lugeur_is_deterministic_and_festive() -> None:
-    # Doit être stable pour un lutin et une année donnés
-    p1 = generate_pseudo_lugeur("lutin_1", 2026)
-    p2 = generate_pseudo_lugeur("lutin_1", 2026)
-    assert p1 == p2
-    assert isinstance(p1, str)
-    assert len(p1.split()) >= 2  # ex: "Lutin Givré"
-
-    # Deux lutins différents ont des pseudos différents
-    p3 = generate_pseudo_lugeur("lutin_2", 2026)
-    assert p1 != p3
 
 
 def test_get_or_load_grille_provides_default_festive_grid(tmp_path: Path) -> None:
@@ -121,25 +107,25 @@ def test_calculate_manche_points_awards_grand_prix_points() -> None:
     from pere_noel_fremo.defi import calculate_manche_points
 
     classement = [
-        {"pseudo_lugeur": "Lutin Rapide", "solved": 1, "time_seconds": 22.1},
-        {"pseudo_lugeur": "Renne Agile", "solved": 1, "time_seconds": 35.4},
-        {"pseudo_lugeur": "Pingouin Lent", "solved": 0, "time_seconds": None},
+        {"pseudo_lutin": "Lutin Rapide", "solved": 1, "time_seconds": 22.1},
+        {"pseudo_lutin": "Renne Agile", "solved": 1, "time_seconds": 35.4},
+        {"pseudo_lutin": "Pingouin Lent", "solved": 0, "time_seconds": None},
     ]
     attributed = calculate_manche_points(classement)
 
     assert len(attributed) == 3
     # 1er résolu
-    assert attributed[0]["pseudo_lugeur"] == "Lutin Rapide"
+    assert attributed[0]["pseudo_lutin"] == "Lutin Rapide"
     assert attributed[0]["rank"] == 1
     assert attributed[0]["points"] == 10
 
     # 2e résolu
-    assert attributed[1]["pseudo_lugeur"] == "Renne Agile"
+    assert attributed[1]["pseudo_lutin"] == "Renne Agile"
     assert attributed[1]["rank"] == 2
     assert attributed[1]["points"] == 8
 
     # Non résolu
-    assert attributed[2]["pseudo_lugeur"] == "Pingouin Lent"
+    assert attributed[2]["pseudo_lutin"] == "Pingouin Lent"
     assert attributed[2]["rank"] is None
     assert attributed[2]["points"] == 0
 
@@ -213,14 +199,14 @@ def test_calculate_championship_standings_aggregates_points_and_ties(tmp_path: P
     second = standings[1]
 
     assert first["pseudo_lutin"] == "Lutin Givré"
-    assert first["pseudo_lugeur"] == "Lutin Givré"
+    assert first["pseudo_lutin"] == "Lutin Givré"
     assert first["rank"] == 1
     assert first["total_points"] == 18
     assert round(first["total_time_seconds"], 1) == 65.0
     assert first["manches_resolved_count"] == 2
 
     assert second["pseudo_lutin"] == "Renne Agile"
-    assert second["pseudo_lugeur"] == "Renne Agile"
+    assert second["pseudo_lutin"] == "Renne Agile"
     assert second["rank"] == 2
     assert second["total_points"] == 18
     assert round(second["total_time_seconds"], 1) == 70.0
@@ -263,13 +249,13 @@ def test_calculate_manche_points_participation_and_voluntary_abandon() -> None:
     from pere_noel_fremo.defi import calculate_manche_points
 
     classement = [
-        {"pseudo_lugeur": "Lutin Rapide", "solved": 1, "time_seconds": 22.1, "attempts": 1},
+        {"pseudo_lutin": "Lutin Rapide", "solved": 1, "time_seconds": 22.1, "attempts": 1},
         # Lutin ayant échoué à 3 essais -> 1 point de participation au championnat
-        {"pseudo_lugeur": "Lutin Persistant", "solved": 0, "time_seconds": None, "attempts": 3},
+        {"pseudo_lutin": "Lutin Persistant", "solved": 0, "time_seconds": None, "attempts": 3},
         # Lutin ayant abandonné volontairement avant 3 essais -> 0 point
-        {"pseudo_lugeur": "Lutin Découragé", "solved": 0, "time_seconds": None, "attempts": 1},
+        {"pseudo_lutin": "Lutin Découragé", "solved": 0, "time_seconds": None, "attempts": 1},
         # Lutin ayant abandonné sans aucun essai -> 0 point
-        {"pseudo_lugeur": "Lutin Fantôme", "solved": 0, "time_seconds": None, "attempts": 0},
+        {"pseudo_lutin": "Lutin Fantôme", "solved": 0, "time_seconds": None, "attempts": 0},
     ]
 
     scored = calculate_manche_points(classement)
@@ -313,18 +299,18 @@ def test_championship_standings_tie_breaker_resolved_over_failed_attempts(tmp_pa
             conn.execute(
                 """
                 INSERT INTO scores_defi (
-                    lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at, attempts
+                    lutin_id, year, manche_id, pseudo_lutin, started_at, solved, time_seconds, completed_at, attempts
                 )
                 VALUES (?, 2026, 1, ?, '2026-10-14 20:00:00', 1, ?, '2026-10-14 20:01:00', 1);
                 """,
-                (f"l_fast_{i}", f"Fast Lugeur {i}", 10.0 + i),
+                (f"l_fast_{i}", f"Fast Lutin {i}", 10.0 + i),
             )
 
         # l_resolved résout en 9e position (temps 120s) -> 1 point, 1 manche résolue
         conn.execute(
             """
             INSERT INTO scores_defi (
-                lutin_id, year, manche_id, pseudo_lugeur,
+                lutin_id, year, manche_id, pseudo_lutin,
                 started_at, solved, time_seconds, completed_at, attempts
             )
             VALUES (
@@ -338,7 +324,7 @@ def test_championship_standings_tie_breaker_resolved_over_failed_attempts(tmp_pa
         conn.execute(
             """
             INSERT INTO scores_defi (
-                lutin_id, year, manche_id, pseudo_lugeur,
+                lutin_id, year, manche_id, pseudo_lutin,
                 started_at, solved, time_seconds, completed_at, attempts
             )
             VALUES (
@@ -353,8 +339,8 @@ def test_championship_standings_tie_breaker_resolved_over_failed_attempts(tmp_pa
     standings = calculate_championship_standings(db_path, 2026, now=simulated_now)
 
     # Trouver les deux lutins à 1 point
-    lutin_res = next(s for s in standings if s["pseudo_lugeur"] == "Lutin Persévérant")
-    lutin_fail = next(s for s in standings if s["pseudo_lugeur"] == "Lutin Malchanceux")
+    lutin_res = next(s for s in standings if s["pseudo_lutin"] == "Lutin Persévérant")
+    lutin_fail = next(s for s in standings if s["pseudo_lutin"] == "Lutin Malchanceux")
 
     assert lutin_res["total_points"] == 1
     assert lutin_res["manches_resolved_count"] == 1
@@ -384,7 +370,7 @@ def test_calculate_championship_standings_aggregates_by_lutin_id(tmp_path: Path)
         conn.execute(
             """
             INSERT INTO scores_defi (
-                lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at, attempts
+                lutin_id, year, manche_id, pseudo_lutin, started_at, solved, time_seconds, completed_at, attempts
             )
             VALUES ('jdenis', 2026, 1, 'Lutin A', '2026-10-14 20:00:00', 1, 30.0, '2026-10-14 20:00:30', 1);
             """
@@ -392,7 +378,7 @@ def test_calculate_championship_standings_aggregates_by_lutin_id(tmp_path: Path)
         conn.execute(
             """
             INSERT INTO scores_defi (
-                lutin_id, year, manche_id, pseudo_lugeur, started_at, solved, time_seconds, completed_at, attempts
+                lutin_id, year, manche_id, pseudo_lutin, started_at, solved, time_seconds, completed_at, attempts
             )
             VALUES ('mdenis', 2026, 1, 'Lutin B', '2026-10-14 20:00:00', 1, 45.0, '2026-10-14 20:00:45', 1);
             """

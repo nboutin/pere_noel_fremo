@@ -1,4 +1,3 @@
-import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -45,7 +44,7 @@ ADJECTIFS_FESTIFS = [
     "Argenté",
 ]
 
-ANIMAUX_LUGEURS = [
+ANIMAUX_LUTINS = [
     "Lutin",
     "Renne",
     "Pingouin",
@@ -81,25 +80,6 @@ DEFAULT_GRILLE_2026: dict[str, Any] = {
         "Gaspard": {"luge": "Éclair Vert", "friandise": "Canne de sucre"},
     },
 }
-
-
-def generate_pseudo_lugeur(lutin_id: str, year: int) -> str:
-    """[DEPRECATED / LEGACY] Génère de façon pseudo-aléatoire mais stable un Pseudo de lugeur festif.
-
-    Réservé aux tests et à la rétrocompatibilité legacy.
-    Utiliser get_or_assign_pseudo pour l'attribution persistée sans remise (ADR 0006).
-    """
-    seed = f"fremo_luge:{year}:{lutin_id}".encode()
-    digest = hashlib.sha256(seed).hexdigest()
-
-    idx_animal = int(digest[:8], 16) % len(ANIMAUX_LUGEURS)
-    idx_adjectif = int(digest[8:16], 16) % len(ADJECTIFS_FESTIFS)
-
-    return f"{ANIMAUX_LUGEURS[idx_animal]} {ADJECTIFS_FESTIFS[idx_adjectif]}"
-
-
-# Alias conforme au GLOSSARY (Pseudo de lutin)
-generate_pseudo_lutin = generate_pseudo_lugeur
 
 
 # Barème officiel Grand Prix F1 / Mario Kart (1er=10, 2e=8, etc., prime de complétion=1)
@@ -161,12 +141,11 @@ def calculate_championship_standings(
         scored_entries = calculate_manche_points(manche_scores)
 
         for entry in scored_entries:
-            pseudo = str(entry.get("pseudo_lutin") or entry.get("pseudo_lugeur") or "")
+            pseudo = str(entry.get("pseudo_lutin") or "")
             lutin_key = str(entry.get("lutin_id") or pseudo)
             if lutin_key not in standings_map:
                 standings_map[lutin_key] = {
                     "pseudo_lutin": pseudo,
-                    "pseudo_lugeur": pseudo,
                     "lutin_id": entry.get("lutin_id"),
                     "total_points": 0,
                     "total_time_seconds": 0.0,
@@ -176,7 +155,6 @@ def calculate_championship_standings(
 
             lutin_entry = standings_map[lutin_key]
             lutin_entry["pseudo_lutin"] = pseudo
-            lutin_entry["pseudo_lugeur"] = pseudo
             points = int(entry.get("points", 0))
             lutin_entry["total_points"] += points
 

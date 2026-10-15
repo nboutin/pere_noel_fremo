@@ -137,9 +137,9 @@ def test_defi_de_la_luge_flow(client: TestClient, test_db: Path) -> None:
     assert resp_start.status_code == 200
     data_start = resp_start.json()
     assert data_start["ok"] is True
-    assert "pseudo_lugeur" in data_start
     assert "pseudo_lutin" in data_start
-    assert data_start["pseudo_lutin"] == data_start["pseudo_lugeur"]
+    assert "pseudo_lutin" in data_start
+    assert data_start["pseudo_lutin"] == data_start["pseudo_lutin"]
     assert data_start["started_at"] is not None
 
     # 4. Soumettre une mauvaise solution
@@ -160,7 +160,7 @@ def test_defi_de_la_luge_flow(client: TestClient, test_db: Path) -> None:
     assert data_solve["solved"] is True
     assert data_solve["time_seconds"] >= 0
     assert "pseudo_lutin" in data_solve
-    assert data_solve["pseudo_lutin"] == data_solve["pseudo_lugeur"]
+    assert data_solve["pseudo_lutin"] == data_solve["pseudo_lutin"]
 
     # 6. La page Espace Lutin affiche le statut résolu et le pseudo
     page = client.get(f"/lutin/{token}")
@@ -255,7 +255,7 @@ def test_defi_multi_manches_api_flow(client: TestClient, test_db: Path) -> None:
     # 6. Vérification de l'actualisation dynamique du classement en direct
     resp_scores = client.get("/scores/2025")
     assert resp_scores.status_code == 200
-    assert data_m1["pseudo_lugeur"] in resp_scores.text
+    assert data_m1["pseudo_lutin"] in resp_scores.text
 
 
 def test_locked_manche_refuses_start_and_solve(client: TestClient, test_db: Path) -> None:
@@ -397,8 +397,8 @@ def test_abandon_defi_flow(client: TestClient, test_db: Path) -> None:
     data_abandon = resp_abandon.json()
     assert data_abandon["abandoned"] is True
     assert "pseudo_lutin" in data_abandon
-    assert "pseudo_lugeur" in data_abandon
-    assert data_abandon["pseudo_lutin"] == data_abandon["pseudo_lugeur"]
+    assert "pseudo_lutin" in data_abandon
+    assert data_abandon["pseudo_lutin"] == data_abandon["pseudo_lutin"]
 
     # Vérification que la page affiche le statut abandonné
     page = client.get(f"/lutin/{token}?manche=1")
@@ -749,11 +749,11 @@ def test_solve_defi_attempts_and_penalties_lifecycle(client: TestClient, test_db
     from pere_noel_fremo.defi import calculate_championship_standings
 
     standings = calculate_championship_standings(test_db, 2025)
-    p_third = next(s for s in standings if s["pseudo_lugeur"] == row3["pseudo_lugeur"])
+    p_third = next(s for s in standings if s["pseudo_lutin"] == row3["pseudo_lutin"])
     conn = get_db_connection(test_db)
-    pseudo_4 = conn.execute("SELECT pseudo_lugeur FROM scores_defi WHERE lutin_id = 'cbernard';").fetchone()[0]
+    pseudo_4 = conn.execute("SELECT pseudo_lutin FROM scores_defi WHERE lutin_id = 'cbernard';").fetchone()[0]
     conn.close()
-    p_fourth = next(s for s in standings if s["pseudo_lugeur"] == pseudo_4)
+    p_fourth = next(s for s in standings if s["pseudo_lutin"] == pseudo_4)
 
     # 3 essais faux donne 1 point de participation
     assert p_third["total_points"] == 1
@@ -1061,7 +1061,7 @@ def test_chrono_legacy_started_at_read_correctly(tmp_path: Path) -> None:
         conn.execute("INSERT INTO editions (year, status) VALUES (2025, 'draft');")
         # Insertion d'un score démarré au format legacy SQLite
         conn.execute(
-            "INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lugeur, started_at, solved) "
+            "INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lutin, started_at, solved) "
             "VALUES ('fbonnet', 2025, 1, 'Renne Agile', '2025-12-24 18:00:00', 0);"
         )
     conn.close()
