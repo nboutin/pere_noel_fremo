@@ -9,7 +9,9 @@ from .audit import audit_tirage
 from .database import (
     get_confirmed_lutins,
     get_edition_status,
+    restore_attributions,
     save_attributions,
+    snapshot_attributions,
 )
 
 logger = logging.getLogger(__name__)
@@ -140,6 +142,16 @@ def solve_tirage(
     return None
 
 
+def _summarize_categories(categories: list[str]) -> str:
+    """Regroupe les catégories d'erreur d'audit (sans identifiant) avec leur nombre d'occurrences."""
+    if not categories:
+        return "non précisées"
+    counts: dict[str, int] = {}
+    for cat in categories:
+        counts[cat] = counts.get(cat, 0) + 1
+    return " ; ".join(f"{cat} (x{n})" if n > 1 else cat for cat, n in counts.items())
+
+
 def run_tirage(
     db_path: Path | str,
     year: int,
@@ -186,18 +198,25 @@ def run_tirage(
         )
 
     if not dry_run:
+        previous_attributions = snapshot_attributions(db_path, year)
+        previous_status = status
         save_attributions(db_path, year, pairs)
         audit = audit_tirage(db_path, year)
         if not audit.is_valid:
-            logger.error(f"Audit du tirage {year} invalide ({len(audit.errors)} erreur(s)).")
+            # Le tirage invalide ne doit jamais rester visible des Lutins : retour à l'état antérieur.
+            restore_attributions(db_path, year, previous_attributions, previous_status)
+            # Les erreurs détaillées nomment des paires : on n'expose que des catégories sans identifiant.
+            categories = _summarize_categories(audit.error_categories)
+            logger.error(f"Audit du tirage {year} invalide ({len(audit.errors)} erreur(s)) : {categories}")
             return TirageResult(
                 success=False,
                 year=year,
                 confirmed_count=confirmed_count,
-                # Les erreurs détaillées nomment des paires : on n'expose que leur nombre (Admin aveugle).
                 message=(
-                    f"Audit du tirage invalide ({len(audit.errors)} erreur(s) détectée(s)). "
-                    "Les détails ne sont pas affichés pour préserver l'Admin aveugle."
+                    f"Audit du tirage invalide ({len(audit.errors)} erreur(s) détectée(s)) ; "
+                    "le tirage a été annulé, l'état précédent est restauré. "
+                    f"Catégories : {categories}. "
+                    "Les identifiants ne sont pas affichés pour préserver l'Admin aveugle."
                 ),
             )
 

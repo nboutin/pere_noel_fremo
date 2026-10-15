@@ -27,7 +27,7 @@ Initialement, le ticket 13 suggérait que la résolution de la grille conditionn
    - Un seul essai officiel est consigné dans `scores_defi`. Une fois résolue, la grille reste consultable mais le temps n'est plus modifiable.
 
 4. **Pseudos de lutin uniques tirés sans remise et anonymes** :
-   - Chaque Lutin se voit attribuer un Pseudo de lutin festif unique par édition via un tirage aléatoire cryptographique sans remise (`secrets.choice`) parmi les combinaisons cartésiennes disponibles (`ANIMAUX_LUGEURS` × `ADJECTIFS_FESTIFS`), remplaçant l'ancien hachage pseudo-salé qui provoquait des collisions entre participants.
+   - Chaque Lutin se voit attribuer un Pseudo de lutin festif unique par édition via un tirage aléatoire cryptographique sans remise (`secrets.choice`) parmi les combinaisons cartésiennes disponibles (`ANIMAUX_LUTINS` × `ADJECTIFS_FESTIFS` ; `ANIMAUX_LUTINS` s'appelait auparavant `ANIMAUX_LUGEURS`), remplaçant l'ancien hachage pseudo-salé qui provoquait des collisions entre participants.
    - Les attributions sont scellées et persistées dans une table dédiée `pseudos(year, lutin_id, pseudo)` avec contrainte d'unicité `UNIQUE(year, pseudo)` et répercutées dans `scores_defi`.
    - Le classement du championnat est indexé et agrégé par `lutin_id` (garantissant l'intégrité des points individuels) tout en n'exposant que les Pseudos de lutin sur les interfaces publiques afin de préserver l'anonymat.
 

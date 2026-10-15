@@ -4,6 +4,7 @@ from email import message_from_bytes
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 from pere_noel_fremo.helper import (
     LOGS_DIR,
     build_gmail_service,
@@ -11,7 +12,25 @@ from pere_noel_fremo.helper import (
     create_message,
     gmail_send_email,
     load_credentials,
+    try_build_gmail_service,
 )
+
+
+def test_try_build_gmail_service_returns_service_on_success() -> None:
+    with patch("pere_noel_fremo.helper.build_gmail_service", return_value="svc") as mock_build:
+        service, error = try_build_gmail_service("Annonce", interactive=True)
+    assert (service, error) == ("svc", None)
+    mock_build.assert_called_once_with(interactive=True)
+
+
+def test_try_build_gmail_service_returns_error_and_logs_on_failure(caplog: pytest.LogCaptureFixture) -> None:
+    boom = RuntimeError("pas de jeton")
+    with patch("pere_noel_fremo.helper.build_gmail_service", side_effect=boom), caplog.at_level(logging.ERROR):
+        service, error = try_build_gmail_service("Révélation")
+    assert service is None
+    assert error is boom
+    assert "Révélation" in caplog.text
+    assert "service Gmail indisponible" in caplog.text
 
 
 def test_create_message_structure_without_image() -> None:

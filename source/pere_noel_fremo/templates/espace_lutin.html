@@ -171,6 +171,10 @@
                     <div class="presence-status status-unknown" style="border-color: #f87171; color: #f87171; background: rgba(239, 68, 68, 0.1);">
                         🏳️ Tu as abandonné la Manche #{{ active_manche_id }}. Ton statut est scellé pour cette manche.
                     </div>
+                {% elif active_manche.grille_invalide %}
+                    <div class="presence-status status-unknown" style="border-color: #f87171; color: #f87171; background: rgba(239, 68, 68, 0.1);">
+                        ⚠️ La grille de cette manche est mal configurée : elle ne peut pas démarrer pour le moment. Préviens l'organisateur !
+                    </div>
                 {% else %}
                     <!-- Écran préparatoire avant lancement -->
                     <div id="defi-start-box" style="{% if score_info.started_at %}display:none;{% endif %} margin: 1.5rem 0; padding: 1.2rem; background: rgba(212, 175, 55, 0.08); border: 1px solid var(--color-gold); border-radius: 8px;">
@@ -296,7 +300,7 @@
                     <tbody>
                         {% for entry in classement %}
                             {% set current_rank = entry.rank if (entry.rank is defined and entry.rank is not none) else loop.index %}
-                            <tr class="{% if (entry.pseudo_lutin or entry.pseudo_lutin) == (pseudo_lutin or pseudo_lutin) %}my-score-row{% endif %}">
+                            <tr class="{% if entry.pseudo_lutin == pseudo_lutin %}my-score-row{% endif %}">
                                 <td class="rank-col">
                                     {% if current_rank == 1 %}🥇
                                     {% elif current_rank == 2 %}🥈
@@ -305,8 +309,8 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {{ entry.pseudo_lutin or entry.pseudo_lutin }}
-                                    {% if (entry.pseudo_lutin or entry.pseudo_lutin) == (pseudo_lutin or pseudo_lutin) %}
+                                    {{ entry.pseudo_lutin }}
+                                    {% if entry.pseudo_lutin == pseudo_lutin %}
                                         <span class="badge-you">(Toi)</span>
                                     {% endif %}
                                 </td>
@@ -352,7 +356,7 @@
         const IS_LOCKED = {{ 'true' if is_locked else 'false' }};
         const LUTIN_NAMES = {{ (active_manche.categories.lutins if (active_manche.categories and active_manche.categories.lutins) else []) | tojson }};
         const ATTRIBUTE_KEYS = {{ (active_manche.attributes | map(attribute='key') | list if active_manche.attributes else []) | tojson }};
-        const INDICES_COUNT ={{ indices_count }};
+        const INDICES_COUNT = {{ indices_count }};
 
         // Indices transmis dynamiquement via l'API lors du démarrage ou de la reprise d'une manche
         let CLUES = [];

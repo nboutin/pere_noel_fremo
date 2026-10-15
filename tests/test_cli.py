@@ -951,3 +951,43 @@ def test_cli_unknown_argument_returns_2_without_exception(capsys: pytest.Capture
 def test_cli_without_command_returns_non_zero_without_exception(capsys: pytest.CaptureFixture[str]) -> None:
     assert main([]) == 2
     capsys.readouterr()
+
+
+def test_cli_tirage_invalid_audit_shows_categories_without_ids(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], caplog: pytest.LogCaptureFixture
+) -> None:
+    from pere_noel_fremo import tirage as tirage_module
+    from pere_noel_fremo.audit import AuditResult
+    from pere_noel_fremo.database import import_yaml_data, init_db, set_lutin_presence
+
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+    data_in_path = tmp_path / "data_in.yml"
+    secure_data_path = tmp_path / "secure_data.yml"
+    ids = ["alice_x", "bob_y", "carl_z", "dora_w"]
+    sample_data: dict[str, Any] = {i: {"fullname": i, "email": None, "exclude": [], "history": []} for i in ids}
+    sample_secure = {"personnes": {i: {"email": f"{i}@test.org"} for i in ids}}
+    with open(data_in_path, "w", encoding="utf-8") as f:
+        yaml.dump(sample_data, f)
+    with open(secure_data_path, "w", encoding="utf-8") as f:
+        yaml.dump(sample_secure, f)
+    import_yaml_data(db_path, data_in_path, secure_data_path, year=2026)
+    for i in ids:
+        set_lutin_presence(db_path, i, 2026, present=True)
+
+    def fake_audit(db_path: Path | str, year: int) -> AuditResult:
+        return AuditResult(
+            is_valid=False,
+            total_lutins=4,
+            errors=["Violation d'exclusion : 'alice_x' s'est vu attribuer 'bob_y', qui est exclu."],
+            error_categories=["Violation d'exclusion"],
+        )
+
+    with patch.object(tirage_module, "audit_tirage", fake_audit):
+        ret = main(["tirage", "--db-path", str(db_path), "--year", "2026"])
+
+    assert ret == 1
+    out = capsys.readouterr().out + caplog.text
+    assert "Violation d'exclusion" in out
+    for lutin_id in ids:
+        assert lutin_id not in out

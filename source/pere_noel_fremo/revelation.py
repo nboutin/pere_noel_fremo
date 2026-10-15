@@ -190,11 +190,7 @@ def send_revelations(
     service: Any = None
     service_error: Exception | None = None
     if not (dry_run or no_email):
-        try:
-            service = helper.build_gmail_service()
-        except Exception as exc:
-            service_error = exc
-            logger.error(f"Campagne de Révélation interrompue : service Gmail indisponible ({exc})")
+        service, service_error = helper.try_build_gmail_service("Révélation")
 
     sent_count = 0
     sans_email_count = 0

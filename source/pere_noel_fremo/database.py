@@ -637,6 +637,44 @@ def save_attributions(db_path: Path | str, year: int, attributions_map: dict[str
         conn.close()
 
 
+def snapshot_attributions(db_path: Path | str, year: int) -> list[tuple[str, str, int | None]]:
+    """Capture les lignes d'attribution brutes (donneur, bénéficiaire, order_index) d'une édition."""
+    conn = get_db_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT donneur_id, beneficiaire_id, order_index FROM attributions WHERE year = ? ORDER BY id;",
+            (year,),
+        ).fetchall()
+        return [(r["donneur_id"], r["beneficiaire_id"], r["order_index"]) for r in rows]
+    finally:
+        conn.close()
+
+
+def restore_attributions(
+    db_path: Path | str,
+    year: int,
+    snapshot: list[tuple[str, str, int | None]],
+    status: str | None,
+) -> None:
+    """Restaure, en une transaction, les attributions et le statut d'édition capturés avant un tirage.
+
+    Si `status` est None (édition inconnue avant le tirage), le statut revient à 'draft'
+    (la ligne n'est pas supprimée : les présences et jetons en dépendent en cascade).
+    """
+    conn = get_db_connection(db_path)
+    try:
+        with conn:
+            conn.execute("DELETE FROM attributions WHERE year = ?;", (year,))
+            for donneur_id, beneficiaire_id, order_index in snapshot:
+                conn.execute(
+                    "INSERT INTO attributions (donneur_id, beneficiaire_id, year, order_index) VALUES (?, ?, ?, ?);",
+                    (donneur_id, beneficiaire_id, year, order_index),
+                )
+            conn.execute("UPDATE editions SET status = ? WHERE year = ?;", (status or "draft", year))
+    finally:
+        conn.close()
+
+
 def get_attributions(db_path: Path | str, year: int) -> dict[str, str]:
     """Récupère le dictionnaire des attributions {donneur_id: beneficiaire_id} pour une édition."""
     conn = get_db_connection(db_path)
@@ -793,9 +831,6 @@ def get_lutin_pseudo(
     finally:
         if close_after:
             conn.close()
-
-
-get_pseudo_for_lutin = get_lutin_pseudo
 
 
 def _get_score_entry(conn: Any, lutin_id: str, year: int, manche_id: int = 1) -> dict[str, Any]:

@@ -19,8 +19,8 @@ from .database import (
     get_edition_status,
     get_latest_edition_year,
     get_lutin_presence,
+    get_lutin_pseudo,
     get_or_assign_pseudo,
-    get_pseudo_for_lutin,
     get_score_defi,
     get_scores_classement,
     init_db,
@@ -150,7 +150,7 @@ def create_app(
         is_locked = status in ("drawn", "revealed")
 
         # Lecture seule : on ne génère pas de pseudo s'il n'existe pas encore
-        pseudo = get_pseudo_for_lutin(db_path, lutin_id, year)
+        pseudo = get_lutin_pseudo(db_path, lutin_id, year)
 
         # 1. Calendrier des manches et statuts pour ce lutin
         all_manches = get_all_manches(year=year, res_dir=res_dir, now=now_dt, only_unlocked=False)
@@ -209,7 +209,11 @@ def create_app(
                 attributes = get_manche_attributes(active_manche)
             except GrilleInvalideError:
                 attributes = []
+                grille_invalide = True
+            else:
+                grille_invalide = False
             display_manche = {
+                "grille_invalide": grille_invalide,
                 "attributes": [{"key": cle, "category": categorie} for cle, categorie in attributes],
                 "id": active_manche.get("id", active_manche_id),
                 "title": active_manche.get("title"),
@@ -425,7 +429,7 @@ def create_app(
                 detail=f"La manche {manche_id} est déjà terminée (essai unique officiel).",
             )
 
-        pseudo = score_entry.get("pseudo_lutin") or get_pseudo_for_lutin(db_path, lutin_id, year) or "Lutin"
+        pseudo = score_entry.get("pseudo_lutin") or get_lutin_pseudo(db_path, lutin_id, year) or "Lutin"
 
         if result.get("solved"):
             return JSONResponse(
@@ -483,7 +487,7 @@ def create_app(
             )
 
         updated = abandon_score_defi(db_path, lutin_id, year, manche_id=manche_id, now=clock_fn())
-        pseudo = score_entry.get("pseudo_lutin") or get_pseudo_for_lutin(db_path, lutin_id, year) or "Lutin"
+        pseudo = score_entry.get("pseudo_lutin") or get_lutin_pseudo(db_path, lutin_id, year) or "Lutin"
         abandoned_pseudo = updated.get("pseudo_lutin") or pseudo
         return JSONResponse(
             {

@@ -511,6 +511,27 @@ def test_espace_lutin_unlocked_manche_not_started_no_clues(client: TestClient, t
     assert "obf_clues" not in page_text
 
 
+def test_espace_lutin_invalid_grid_shows_explicit_message(
+    client: TestClient, test_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pere_noel_fremo import web as web_module
+    from pere_noel_fremo.database import set_lutin_presence
+    from pere_noel_fremo.defi import GrilleInvalideError
+
+    token = create_or_get_token(test_db, "fbonnet", 2025)
+    set_lutin_presence(test_db, "fbonnet", 2025, present=True)
+
+    def _boom(_manche: object) -> list[tuple[str, str]]:
+        raise GrilleInvalideError("incohérente")
+
+    monkeypatch.setattr(web_module, "get_manche_attributes", _boom)
+
+    response = client.get(f"/lutin/{token}?manche=1")
+    assert response.status_code == 200
+    assert "mal configurée" in response.text
+    assert 'id="btn-start-defi"' not in response.text
+
+
 def test_start_defi_returns_indices_and_guards(client: TestClient, test_db: Path) -> None:
     conn = get_db_connection(test_db)
     with conn:

@@ -16,3 +16,8 @@ Pour enrichir l'expérience rituelle (cartes à gratter, énigmes de la luge) et
 5. **Cycle de vie en deux phases** :
    - *Phase 1 (Annonce)* : Email avec Lien magique permettant à chaque Lutin de valider ou décliner sa présence.
    - *Phase 2 (Tirage et Défi)* : Déclenchement du tirage parmi les Lutins confirmés, email invitant à se reconnecter à l'Espace Lutin pour résoudre le Défi de logique/énigme et gratter sa carte de Bénéficiaire.
+
+## Amendement (spec #36) : garde du tirage et audit avec annulation
+- Un tirage sur une édition au statut `drawn` ou `revealed` est refusé sans aucune écriture, sauf avec `--force-retirage` (qui avertit que les Cartes à gratter déjà vues deviennent fausses). `--dry-run` reste autorisé.
+- L'audit (`audit_tirage`) est lancé juste après le scellement. S'il est invalide, les attributions et le statut antérieurs sont restaurés (`restore_attributions`) : un tirage invalide n'est jamais visible des Lutins.
+- En cas d'échec, la console et les logs n'affichent que des catégories d'erreur sans identifiant (`AuditResult.error_categories`) afin de préserver l'Admin aveugle. Le détail nominatif reste réservé à la commande `audit-tirage`.

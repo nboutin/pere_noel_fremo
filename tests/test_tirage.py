@@ -8,6 +8,7 @@ from pere_noel_fremo.audit import (
 )
 from pere_noel_fremo.database import (
     get_db_connection,
+    get_edition_status,
     import_yaml_data,
     init_db,
     save_attributions,
@@ -381,3 +382,69 @@ def test_run_tirage_fails_when_audit_invalid(
     result = tirage_module.run_tirage(db_path=db_path, year=2026, cheaters=[])
     assert result.success is False
     assert "audit" in result.message.lower()
+
+
+def _fake_invalid_audit(db_path: Path | str, year: int) -> AuditResult:
+    return AuditResult(
+        is_valid=False,
+        total_lutins=4,
+        errors=["Violation d'exclusion : 'lutin_1' s'est vu attribuer 'lutin_2', qui est exclu."],
+        error_categories=["Violation d'exclusion", "Violation d'exclusion", "Auto-cadeau détecté"],
+    )
+
+
+def test_invalid_audit_rolls_back_fresh_draw(
+    test_db_setup: tuple[Path, Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pere_noel_fremo import tirage as tirage_module
+
+    db_path, _, _ = test_db_setup
+    _confirm_all(db_path, 2026, ["lutin_1", "lutin_2", "lutin_3", "lutin_4"])
+    status_before = get_edition_status(db_path, 2026)
+    monkeypatch.setattr(tirage_module, "audit_tirage", _fake_invalid_audit)
+
+    result = tirage_module.run_tirage(db_path=db_path, year=2026, cheaters=[])
+
+    assert result.success is False
+    assert _dump_year(db_path, 2026) == []
+    assert get_edition_status(db_path, 2026) == (status_before or "draft")
+    assert get_edition_status(db_path, 2026) != "drawn"
+    # catégories affichées, sans identifiant de Lutin
+    assert "Violation d'exclusion (x2)" in result.message
+    assert "Auto-cadeau détecté" in result.message
+    assert "lutin_" not in result.message
+
+
+def test_invalid_audit_on_force_retirage_restores_previous_draw(
+    test_db_setup: tuple[Path, Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pere_noel_fremo import tirage as tirage_module
+
+    db_path, _, _ = test_db_setup
+    _confirm_all(db_path, 2026, ["lutin_1", "lutin_2", "lutin_3", "lutin_4", "lutin_5"])
+    assert run_tirage(db_path=db_path, year=2026, cheaters=[]).success is True
+    set_edition_status(db_path, 2026, "revealed")
+    before = _dump_year(db_path, 2026)
+    monkeypatch.setattr(tirage_module, "audit_tirage", _fake_invalid_audit)
+
+    result = tirage_module.run_tirage(db_path=db_path, year=2026, cheaters=[], force=True)
+
+    assert result.success is False
+    assert _dump_year(db_path, 2026) == before
+    assert get_edition_status(db_path, 2026) == "revealed"
+
+
+def test_invalid_audit_without_categories_reports_unspecified(
+    test_db_setup: tuple[Path, Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pere_noel_fremo import tirage as tirage_module
+
+    db_path, _, _ = test_db_setup
+    _confirm_all(db_path, 2026, ["lutin_1", "lutin_2", "lutin_3", "lutin_4"])
+    monkeypatch.setattr(
+        tirage_module,
+        "audit_tirage",
+        lambda db_path, year: AuditResult(is_valid=False, total_lutins=4, errors=["x"]),
+    )
+    result = tirage_module.run_tirage(db_path=db_path, year=2026, cheaters=[])
+    assert "non précisées" in result.message

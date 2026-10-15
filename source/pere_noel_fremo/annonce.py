@@ -207,11 +207,7 @@ def send_annonces(
     service: Any = None
     service_error: Exception | None = None
     if not (dry_run or no_email):
-        try:
-            service = helper.build_gmail_service(interactive=interactive_auth)
-        except Exception as exc:
-            service_error = exc
-            logger.error(f"Campagne d'Annonce interrompue : service Gmail indisponible ({exc})")
+        service, service_error = helper.try_build_gmail_service("l'Annonce", interactive=interactive_auth)
 
     sent_count = 0
     absent_count = 0

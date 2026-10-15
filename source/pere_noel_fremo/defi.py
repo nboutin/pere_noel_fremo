@@ -6,7 +6,6 @@ from zoneinfo import ZoneInfo
 import yaml
 
 from .config import resolve_res_dir
-from .database import get_or_assign_pseudo as get_or_assign_pseudo
 
 PARIS_TZ = ZoneInfo("Europe/Paris")
 

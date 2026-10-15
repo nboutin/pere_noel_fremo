@@ -113,6 +113,19 @@ def build_gmail_service(interactive: bool = False) -> Any:
     return build("gmail", "v1", credentials=creds)
 
 
+def try_build_gmail_service(campagne: str, interactive: bool = False) -> tuple[Any, Exception | None]:
+    """Construit le service Gmail une seule fois pour une campagne, sans lever d'exception.
+
+    Retourne `(service, None)` en cas de succès, ou `(None, erreur)` après journalisation
+    de l'interruption de la campagne `campagne` (ex. "Annonce", "Révélation").
+    """
+    try:
+        return build_gmail_service(interactive=interactive), None
+    except Exception as exc:
+        logger.error(f"Campagne de {campagne} interrompue : service Gmail indisponible ({exc})")
+        return None, exc
+
+
 def create_message(
     sender_email: str,
     subject: str,

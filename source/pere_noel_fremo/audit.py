@@ -15,6 +15,8 @@ class AuditResult:
     is_valid: bool
     total_lutins: int
     errors: list[str] = field(default_factory=list)
+    # Catégories d'erreurs sans identifiant de Lutin ni paire : affichables en Admin aveugle.
+    error_categories: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     attributions_count: int = 0
     # Details accessible to the agent:
@@ -36,7 +38,12 @@ def audit_tirage(db_path: Path | str, year: int) -> AuditResult:
     attributions = get_attributions(db_path, year)
 
     errors: list[str] = []
+    error_categories: list[str] = []
     warnings: list[str] = []
+
+    def add_error(detail: str, category: str) -> None:
+        errors.append(detail)
+        error_categories.append(category)
 
     confirmed_ids = set(confirmed_lutins.keys())
     donneurs = set(attributions.keys())
@@ -52,9 +59,10 @@ def audit_tirage(db_path: Path | str, year: int) -> AuditResult:
             cand for cand in confirmed_ids if cand != lutin_id and cand not in exclusions and cand not in history
         ]
         if not eligible:
-            errors.append(
+            add_error(
                 f"Impasse de graphe : le Lutin '{lutin_id}' n'a aucun Bénéficiaire admissible "
-                "parmi les Lutins confirmés."
+                "parmi les Lutins confirmés.",
+                "Impasse de graphe : un Lutin n'a aucun Bénéficiaire admissible",
             )
         elif len(eligible) == 1:
             warnings.append(
@@ -65,51 +73,69 @@ def audit_tirage(db_path: Path | str, year: int) -> AuditResult:
 
     # 2. Vérification de la présence
     if not confirmed_ids:
-        errors.append(f"Aucun Lutin confirmé présent pour l'édition {year}.")
+        add_error(
+            f"Aucun Lutin confirmé présent pour l'édition {year}.",
+            "Aucun Lutin confirmé présent pour l'édition",
+        )
 
     # Vérification que tous les donneurs sont bien des participants confirmés
     unconfirmed_donneurs = donneurs - confirmed_ids
     if unconfirmed_donneurs:
-        errors.append(f"Donneurs non confirmés présents dans le tirage : {sorted(list(unconfirmed_donneurs))}")
+        add_error(
+            f"Donneurs non confirmés présents dans le tirage : {sorted(list(unconfirmed_donneurs))}",
+            "Donneurs non confirmés présents dans le tirage",
+        )
 
     unconfirmed_beneficiaires = beneficiaires - confirmed_ids
     if unconfirmed_beneficiaires:
-        errors.append(
-            f"Bénéficiaires non confirmés présents dans le tirage : {sorted(list(unconfirmed_beneficiaires))}"
+        add_error(
+            f"Bénéficiaires non confirmés présents dans le tirage : {sorted(list(unconfirmed_beneficiaires))}",
+            "Bénéficiaires non confirmés présents dans le tirage",
         )
 
     # 3. Vérification de la bijection
     missing_donneurs = confirmed_ids - donneurs
     if missing_donneurs:
-        errors.append(f"Lutins confirmés sans attribution de don : {sorted(list(missing_donneurs))}")
+        add_error(
+            f"Lutins confirmés sans attribution de don : {sorted(list(missing_donneurs))}",
+            "Lutins confirmés sans attribution de don",
+        )
 
     missing_beneficiaires = confirmed_ids - beneficiaires
     if missing_beneficiaires:
-        errors.append(f"Lutins confirmés sans attribution de cadeau : {sorted(list(missing_beneficiaires))}")
+        add_error(
+            f"Lutins confirmés sans attribution de cadeau : {sorted(list(missing_beneficiaires))}",
+            "Lutins confirmés sans attribution de cadeau",
+        )
 
     if len(donneurs) != len(beneficiaires):
-        errors.append(
-            f"Non-bijection détectée: {len(donneurs)} donneurs pour {len(beneficiaires)} bénéficiaires distincts."
+        add_error(
+            f"Non-bijection détectée: {len(donneurs)} donneurs pour {len(beneficiaires)} bénéficiaires distincts.",
+            "Non-bijection détectée entre donneurs et bénéficiaires",
         )
 
     # 4. Vérification des contraintes individuelles sur les attributions scellées
     for donneur_id, beneficiaire_id in attributions.items():
         # Auto-cadeau
         if donneur_id == beneficiaire_id:
-            errors.append(f"Auto-cadeau détecté pour le Lutin '{donneur_id}'.")
+            add_error(f"Auto-cadeau détecté pour le Lutin '{donneur_id}'.", "Auto-cadeau détecté")
 
         # Exclusions
         donneur_exclusions = get_lutin_exclusions(db_path, donneur_id)
         if beneficiaire_id in donneur_exclusions:
-            errors.append(
-                f"Violation d'exclusion : '{donneur_id}' s'est vu attribuer '{beneficiaire_id}', qui est exclu."
+            add_error(
+                f"Violation d'exclusion : '{donneur_id}' s'est vu attribuer '{beneficiaire_id}', qui est exclu.",
+                "Violation d'exclusion",
             )
 
         # Historique strict
         donneur_history = get_lutin_history(db_path, donneur_id)
         matching_count = donneur_history.count(beneficiaire_id)
         if matching_count > 1:
-            errors.append(f"Violation d'historique : '{donneur_id}' a déjà offert à '{beneficiaire_id}' par le passé.")
+            add_error(
+                f"Violation d'historique : '{donneur_id}' a déjà offert à '{beneficiaire_id}' par le passé.",
+                "Violation d'historique",
+            )
 
     is_valid = len(errors) == 0
     return AuditResult(
@@ -117,6 +143,7 @@ def audit_tirage(db_path: Path | str, year: int) -> AuditResult:
         total_lutins=len(confirmed_ids),
         attributions_count=len(attributions),
         errors=errors,
+        error_categories=error_categories,
         warnings=warnings,
         graph_details={
             "year": year,
