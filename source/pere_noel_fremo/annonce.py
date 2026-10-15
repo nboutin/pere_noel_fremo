@@ -1,3 +1,4 @@
+import html
 import logging
 from pathlib import Path
 from typing import Any
@@ -127,7 +128,7 @@ Rendez-vous sur l'Espace Lutin pour préparer les festivités !</p>
 def format_annonce_body(template: str, fullname: str, magic_url: str, year: int) -> str:
     """Injecte le nom, l'année et le Lien magique dans le modèle d'email d'Annonce."""
     content = (
-        template.replace("{fullname}", fullname)
+        template.replace("{fullname}", html.escape(fullname))
         .replace("{lien_magique}", magic_url)
         .replace("{magic_url}", magic_url)
         .replace("{year}", str(year))
@@ -174,6 +175,7 @@ def send_annonces(
     skip: list[str] | None = None,
     target_lutins: list[str] | None = None,
     recipient_override: str | None = None,
+    interactive_auth: bool = False,
 ) -> dict[str, int]:
     """Exécute la campagne d'envoi de l'Annonce aux Lutins actifs et consigne l'état d'envoi en base."""
     secure_data: dict[str, Any] = {}
@@ -200,6 +202,16 @@ def send_annonces(
     targets_set = set(target_lutins) if target_lutins else None
 
     lutins = get_lutins(db_path, active_only=True)
+
+    # Service Gmail construit une seule fois, hors simulation, en mode non interactif par défaut.
+    service: Any = None
+    service_error: Exception | None = None
+    if not (dry_run or no_email):
+        try:
+            service = helper.build_gmail_service(interactive=interactive_auth)
+        except Exception as exc:
+            service_error = exc
+            logger.error(f"Campagne d'Annonce interrompue : service Gmail indisponible ({exc})")
 
     sent_count = 0
     absent_count = 0
@@ -237,8 +249,13 @@ def send_annonces(
             sent_count += 1
             continue
 
+        if service_error is not None:
+            echecs_count += 1
+            continue
+
         try:
             helper.gmail_send_email(
+                service,
                 sender_email=sender_email,
                 subject=email_subject,
                 body=body,

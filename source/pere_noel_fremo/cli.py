@@ -125,6 +125,11 @@ def create_parser() -> argparse.ArgumentParser:
         default=None,
         help="Redirige l'envoi de tous les courriels vers cette adresse de test",
     )
+    annonce_parser.add_argument(
+        "--interactive-auth",
+        action="store_true",
+        help="Autorise la ré-authentification Gmail locale (ouvre un navigateur ; à éviter sur le Homelab)",
+    )
 
     # Subcommand: serve
     serve_parser = subparsers.add_parser(
@@ -372,6 +377,7 @@ def handle_annonce(args: argparse.Namespace) -> int:
             absents=absents_list,
             target_lutins=list(args.lutin) if args.lutin else None,
             recipient_override=args.override_email,
+            interactive_auth=args.interactive_auth,
         )
 
         if args.dry_run or args.no_email:

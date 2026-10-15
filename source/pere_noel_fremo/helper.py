@@ -73,7 +73,16 @@ def configure_logger(filename: str) -> None:
         root_logger.addHandler(console_handler)
 
 
-def load_credentials() -> Credentials:
+class EmailSendError(Exception):
+    """Exception levée en cas d'échec lors de l'envoi d'un courriel via Gmail."""
+
+
+def load_credentials(interactive: bool = False) -> Credentials:
+    """Charge les identifiants Gmail.
+
+    En mode non interactif (défaut), un jeton absent ou non rafraîchissable lève ``EmailSendError``
+    au lieu d'ouvrir un navigateur (``run_local_server`` est bloquant et sans délai d'expiration).
+    """
     creds = None
     token_path = get_token_path()
     credentials_path = get_credentials_path()
@@ -88,6 +97,8 @@ def load_credentials() -> Credentials:
             except Exception as e:
                 logger.warning(f"Impossible de rafraîchir le jeton expiré ({e}), ré-authentification requise.")
         if not refreshed:
+            if not interactive:
+                raise EmailSendError("Jeton Gmail invalide : ré-authentifier en local")
             flow = InstalledAppFlow.from_client_secrets_file(str(credentials_path), SCOPES)
             creds = flow.run_local_server(port=0)
         if creds:
@@ -96,8 +107,10 @@ def load_credentials() -> Credentials:
     return cast(Credentials, creds)
 
 
-class EmailSendError(Exception):
-    """Exception levée en cas d'échec lors de l'envoi d'un courriel via Gmail."""
+def build_gmail_service(interactive: bool = False) -> Any:
+    """Construit le service Gmail (une seule fois par campagne)."""
+    creds = load_credentials(interactive=interactive)
+    return build("gmail", "v1", credentials=creds)
 
 
 def create_message(
@@ -143,6 +156,7 @@ def create_message(
 
 
 def gmail_send_email(
+    service: Any,
     sender_email: str,
     subject: str,
     body: str,
@@ -150,8 +164,6 @@ def gmail_send_email(
     text_body: str | None = None,
 ) -> Any:
     try:
-        creds = load_credentials()
-        service = build("gmail", "v1", credentials=creds)
         message = create_message(sender_email, subject, body, toaddr, None, text_body=text_body)
         # message = create_message(sender_email, subject, body, toaddr, IMG_FILEPATH)
         send_message = service.users().messages().send(userId="me", body=message).execute()

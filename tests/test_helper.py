@@ -1,9 +1,17 @@
 import base64
 import logging
 from email import message_from_bytes
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from pere_noel_fremo.helper import LOGS_DIR, configure_logger, create_message, gmail_send_email
+from pere_noel_fremo.helper import (
+    LOGS_DIR,
+    build_gmail_service,
+    configure_logger,
+    create_message,
+    gmail_send_email,
+    load_credentials,
+)
 
 
 def test_create_message_structure_without_image() -> None:
@@ -45,28 +53,23 @@ def test_create_message_with_image(tmp_path) -> None:  # type: ignore[no-untyped
     assert "image/png" in content_types or any("image" in ct for ct in content_types)
 
 
-@patch("pere_noel_fremo.helper.load_credentials")
-@patch("pere_noel_fremo.helper.build")
-def test_gmail_send_email_mocked(mock_build: MagicMock, mock_load_credentials: MagicMock) -> None:
-    mock_creds = MagicMock()
-    mock_load_credentials.return_value = mock_creds
-
+def test_gmail_send_email_uses_injected_service() -> None:
     mock_service = MagicMock()
-    mock_users = MagicMock()
-    mock_messages = MagicMock()
-    mock_send = MagicMock()
+    mock_service.users.return_value.messages.return_value.send.return_value.execute.return_value = {
+        "id": "12345",
+        "status": "SENT",
+    }
 
-    mock_build.return_value = mock_service
-    mock_service.users.return_value = mock_users
-    mock_users.messages.return_value = mock_messages
-    mock_messages.send.return_value = mock_send
-    mock_send.execute.return_value = {"id": "12345", "status": "SENT"}
-
-    res = gmail_send_email("from@test.com", "Test Subject", "Test Body", "to@test.com")
+    with (
+        patch("pere_noel_fremo.helper.load_credentials") as mock_load,
+        patch("pere_noel_fremo.helper.build") as mock_build,
+    ):
+        res = gmail_send_email(mock_service, "from@test.com", "Test Subject", "Test Body", "to@test.com")
 
     assert res == {"id": "12345", "status": "SENT"}
-    mock_build.assert_called_once_with("gmail", "v1", credentials=mock_creds)
-    mock_messages.send.assert_called_once()
+    mock_load.assert_not_called()
+    mock_build.assert_not_called()
+    mock_service.users.return_value.messages.return_value.send.assert_called_once()
 
 
 def test_create_message_with_text_body() -> None:
@@ -93,18 +96,84 @@ def test_create_message_with_text_body() -> None:
     assert "Bonjour Lutin" in plain_parts[0]
 
 
-@patch("pere_noel_fremo.helper.load_credentials")
-def test_gmail_send_email_raises_email_send_error_on_failure(mock_load_credentials: MagicMock) -> None:
+def test_gmail_send_email_raises_email_send_error_on_failure() -> None:
     import pytest
     from pere_noel_fremo.helper import EmailSendError
 
-    mock_load_credentials.side_effect = RuntimeError("OAuth credential failure")
+    mock_service = MagicMock()
+    mock_service.users.return_value.messages.return_value.send.return_value.execute.side_effect = RuntimeError(
+        "Quota Gmail dépassé"
+    )
 
     with pytest.raises(EmailSendError) as exc_info:
-        gmail_send_email("from@test.com", "Subject", "Body", "target@test.com")
+        gmail_send_email(mock_service, "from@test.com", "Subject", "Body", "target@test.com")
 
     assert "target@test.com" in str(exc_info.value)
-    assert "OAuth credential failure" in str(exc_info.value)
+    assert "Quota Gmail dépassé" in str(exc_info.value)
+
+
+def test_build_gmail_service_builds_service_from_credentials() -> None:
+    with (
+        patch("pere_noel_fremo.helper.load_credentials") as mock_load,
+        patch("pere_noel_fremo.helper.build") as mock_build,
+    ):
+        service = build_gmail_service()
+
+    mock_load.assert_called_once_with(interactive=False)
+    mock_build.assert_called_once_with("gmail", "v1", credentials=mock_load.return_value)
+    assert service is mock_build.return_value
+
+
+def test_load_credentials_non_interactive_without_token_raises_and_never_opens_browser(tmp_path: Path) -> None:
+    import pytest
+    from pere_noel_fremo.helper import EmailSendError
+
+    with (
+        patch("pere_noel_fremo.helper.get_token_path", return_value=tmp_path / "absent.json"),
+        patch("pere_noel_fremo.helper.get_credentials_path", return_value=tmp_path / "secret.json"),
+        patch("pere_noel_fremo.helper.InstalledAppFlow") as mock_flow,
+        pytest.raises(EmailSendError, match="Jeton Gmail invalide : ré-authentifier en local"),
+    ):
+        load_credentials()
+
+    mock_flow.from_client_secrets_file.assert_not_called()
+
+
+def test_load_credentials_non_interactive_with_unrefreshable_token_never_opens_browser(tmp_path: Path) -> None:
+    import pytest
+    from pere_noel_fremo.helper import EmailSendError
+
+    token_path = tmp_path / "token.json"
+    token_path.write_text("{}", encoding="utf-8")
+    expired = MagicMock(valid=False, expired=True, refresh_token=None)
+
+    with (
+        patch("pere_noel_fremo.helper.get_token_path", return_value=token_path),
+        patch("pere_noel_fremo.helper.Credentials") as mock_creds_cls,
+        patch("pere_noel_fremo.helper.InstalledAppFlow") as mock_flow,
+    ):
+        mock_creds_cls.from_authorized_user_file.return_value = expired
+        with pytest.raises(EmailSendError, match="Jeton Gmail invalide"):
+            load_credentials()
+
+    mock_flow.from_client_secrets_file.assert_not_called()
+
+
+def test_load_credentials_interactive_opens_local_server_when_token_absent(tmp_path: Path) -> None:
+    fake_creds = MagicMock()
+    fake_creds.to_json.return_value = "{}"
+    token_path = tmp_path / "token.json"
+
+    with (
+        patch("pere_noel_fremo.helper.get_token_path", return_value=token_path),
+        patch("pere_noel_fremo.helper.get_credentials_path", return_value=tmp_path / "secret.json"),
+        patch("pere_noel_fremo.helper.InstalledAppFlow") as mock_flow,
+    ):
+        mock_flow.from_client_secrets_file.return_value.run_local_server.return_value = fake_creds
+        creds = load_credentials(interactive=True)
+
+    assert creds is fake_creds
+    assert token_path.exists()
 
 
 def test_configure_logger_creates_file_in_logs_dir() -> None:

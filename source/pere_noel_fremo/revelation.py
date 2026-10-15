@@ -186,6 +186,16 @@ def send_revelations(
     confirmed_lutins = get_confirmed_lutins(db_path, year)
     targets_set = set(target_lutins) if target_lutins else None
 
+    # Service Gmail construit une seule fois, hors simulation, en mode non interactif.
+    service: Any = None
+    service_error: Exception | None = None
+    if not (dry_run or no_email):
+        try:
+            service = helper.build_gmail_service()
+        except Exception as exc:
+            service_error = exc
+            logger.error(f"Campagne de Révélation interrompue : service Gmail indisponible ({exc})")
+
     sent_count = 0
     sans_email_count = 0
     echecs_count = 0
@@ -220,8 +230,13 @@ def send_revelations(
             sent_count += 1
             continue
 
+        if service_error is not None:
+            echecs_count += 1
+            continue
+
         try:
             helper.gmail_send_email(
+                service,
                 sender_email=sender_email,
                 subject=email_subject,
                 body=body,

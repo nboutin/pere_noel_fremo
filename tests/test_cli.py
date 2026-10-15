@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
@@ -770,3 +771,61 @@ def test_cli_export_nominal_and_overwrite(tmp_path: Path, capsys: pytest.Capture
         ]
     )
     assert ret_over == 0
+
+
+def _seed_single_lutin_campaign(tmp_path: Path) -> tuple[Path, Path]:
+    from pere_noel_fremo.database import import_yaml_data, init_db
+
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+    data_in_path = tmp_path / "data_in.yml"
+    secure_data_path = tmp_path / "secure_data.yml"
+    sample_data: dict[str, Any] = {
+        "lutin_1": {"fullname": "Lutin Un", "email": None, "exclude": [], "history": []},
+    }
+    sample_secure = {
+        "sender_email": "pere.noel@fremo.org",
+        "personnes": {"lutin_1": {"email": "lutin1@fremo.org"}},
+    }
+    with open(data_in_path, "w", encoding="utf-8") as f:
+        yaml.dump(sample_data, f)
+    with open(secure_data_path, "w", encoding="utf-8") as f:
+        yaml.dump(sample_secure, f)
+    import_yaml_data(db_path, data_in_path, secure_data_path)
+    return db_path, secure_data_path
+
+
+def test_cli_annonce_defaults_to_non_interactive_auth(tmp_path: Path, fake_gmail_service: MagicMock) -> None:
+    db_path, secure_data_path = _seed_single_lutin_campaign(tmp_path)
+
+    with patch("pere_noel_fremo.helper.gmail_send_email"):
+        ret = main(["annonce", "--db-path", str(db_path), "--secure-data", str(secure_data_path)])
+
+    assert ret == 0
+    fake_gmail_service.assert_called_once_with(interactive=False)
+
+
+def test_cli_annonce_interactive_auth_flag_enables_local_reauthentication(
+    tmp_path: Path, fake_gmail_service: MagicMock
+) -> None:
+    db_path, secure_data_path = _seed_single_lutin_campaign(tmp_path)
+
+    with patch("pere_noel_fremo.helper.gmail_send_email"):
+        ret = main(["annonce", "--db-path", str(db_path), "--secure-data", str(secure_data_path), "--interactive-auth"])
+
+    assert ret == 0
+    fake_gmail_service.assert_called_once_with(interactive=True)
+
+
+def test_cli_annonce_invalid_token_exits_with_code_1(
+    tmp_path: Path, fake_gmail_service: MagicMock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from pere_noel_fremo.helper import EmailSendError
+
+    db_path, secure_data_path = _seed_single_lutin_campaign(tmp_path)
+    fake_gmail_service.side_effect = EmailSendError("Jeton Gmail invalide : ré-authentifier en local")
+
+    ret = main(["annonce", "--db-path", str(db_path), "--secure-data", str(secure_data_path)])
+
+    assert ret == 1
+    assert "1 échecs" in capsys.readouterr().out
