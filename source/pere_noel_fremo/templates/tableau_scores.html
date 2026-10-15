@@ -96,7 +96,7 @@
                             {% if m.is_unlocked %}
                                 <span class="badge-solved">Débloquée 🚀</span>
                             {% else %}
-                                🔒 {{ m.unlock_at }}
+                                🔒 {{ m.unlock_at | unlock_fr }}
                             {% endif %}
                         </span>
                     </div>

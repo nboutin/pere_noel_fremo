@@ -2,11 +2,30 @@ import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import yaml
 
 from .config import resolve_res_dir
 from .database import get_or_assign_pseudo as get_or_assign_pseudo
+
+PARIS_TZ = ZoneInfo("Europe/Paris")
+
+_JOURS_FR = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
+_MOIS_FR = [
+    "janvier",
+    "février",
+    "mars",
+    "avril",
+    "mai",
+    "juin",
+    "juillet",
+    "août",
+    "septembre",
+    "octobre",
+    "novembre",
+    "décembre",
+]
 
 ADJECTIFS_FESTIFS = [
     "Givré",
@@ -189,6 +208,26 @@ def calculate_championship_standings(
     return standings
 
 
+def _parse_unlock_at(value: Any) -> datetime:
+    """Interprète un unlock_at : naïf -> Europe/Paris, avec décalage explicite -> respecté tel quel."""
+    val_str = str(value).strip()
+    unlock_dt = datetime.fromisoformat(val_str) if "T" in val_str else datetime.strptime(val_str, "%Y-%m-%d %H:%M:%S")
+    if unlock_dt.tzinfo is None:
+        unlock_dt = unlock_dt.replace(tzinfo=PARIS_TZ)
+    return unlock_dt
+
+
+def format_unlock_at(value: Any) -> str:
+    """Formate un unlock_at en français lisible (« lundi 19 octobre, 19h00 », heure de Paris)."""
+    if not value:
+        return ""
+    try:
+        dt = _parse_unlock_at(value).astimezone(PARIS_TZ)
+    except Exception:
+        return str(value)
+    return f"{_JOURS_FR[dt.weekday()]} {dt.day} {_MOIS_FR[dt.month - 1]}, {dt.hour}h{dt.minute:02d}"
+
+
 def is_manche_unlocked(manche: dict[str, Any], now: datetime | None = None) -> bool:
     """Vérifie si une manche est débloquée temporellement (fail-closed si format invalide)."""
     unlock_at_val = manche.get("unlock_at")
@@ -197,15 +236,7 @@ def is_manche_unlocked(manche: dict[str, Any], now: datetime | None = None) -> b
 
     now_dt = now or datetime.now(timezone.utc)
     try:
-        val_str = str(unlock_at_val).strip()
-        if "T" in val_str:
-            unlock_dt = datetime.fromisoformat(val_str)
-        else:
-            unlock_dt = datetime.strptime(val_str, "%Y-%m-%d %H:%M:%S")
-
-        if unlock_dt.tzinfo is None:
-            unlock_dt = unlock_dt.replace(tzinfo=timezone.utc)
-
+        unlock_dt = _parse_unlock_at(unlock_at_val)
         return unlock_dt <= now_dt
     except Exception:
         # En cas d'erreur de parsing, fail-closed par sécurité

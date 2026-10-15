@@ -414,3 +414,48 @@ def test_calculate_championship_standings_aggregates_by_lutin_id(tmp_path: Path)
     assert second["lutin_id"] == "mdenis"
     assert second["total_points"] == 8
     assert second["rank"] == 2
+
+
+def _paris(y: int, mo: int, d: int, h: int, mi: int):  # type: ignore[no-untyped-def]
+    from zoneinfo import ZoneInfo
+
+    return datetime(y, mo, d, h, mi, tzinfo=ZoneInfo("Europe/Paris"))
+
+
+def test_naive_unlock_at_is_paris_time_in_summer() -> None:
+    from pere_noel_fremo.defi import is_manche_unlocked
+
+    manche = {"unlock_at": "2026-10-19 19:00:00"}
+    assert is_manche_unlocked(manche, now=_paris(2026, 10, 19, 18, 59)) is False
+    assert is_manche_unlocked(manche, now=_paris(2026, 10, 19, 19, 1)) is True
+    # 17h30 UTC = 19h30 CEST : ouverte ; 16h59 UTC = 18h59 CEST : fermée
+    assert is_manche_unlocked(manche, now=datetime(2026, 10, 19, 16, 59, tzinfo=timezone.utc)) is False
+    assert is_manche_unlocked(manche, now=datetime(2026, 10, 19, 17, 1, tzinfo=timezone.utc)) is True
+
+
+def test_naive_unlock_at_is_paris_time_in_winter() -> None:
+    from pere_noel_fremo.defi import is_manche_unlocked
+
+    manche = {"unlock_at": "2026-10-26 19:00:00"}
+    assert is_manche_unlocked(manche, now=_paris(2026, 10, 26, 18, 59)) is False
+    assert is_manche_unlocked(manche, now=_paris(2026, 10, 26, 19, 1)) is True
+    assert is_manche_unlocked(manche, now=datetime(2026, 10, 26, 17, 59, tzinfo=timezone.utc)) is False
+    assert is_manche_unlocked(manche, now=datetime(2026, 10, 26, 18, 1, tzinfo=timezone.utc)) is True
+
+
+def test_explicit_offset_unlock_at_is_respected() -> None:
+    from pere_noel_fremo.defi import is_manche_unlocked
+
+    manche = {"unlock_at": "2026-10-19T19:00:00+00:00"}
+    assert is_manche_unlocked(manche, now=datetime(2026, 10, 19, 18, 59, tzinfo=timezone.utc)) is False
+    assert is_manche_unlocked(manche, now=datetime(2026, 10, 19, 19, 1, tzinfo=timezone.utc)) is True
+
+
+def test_format_unlock_at_french() -> None:
+    from pere_noel_fremo.defi import format_unlock_at
+
+    assert format_unlock_at("2026-10-19 19:00:00") == "lundi 19 octobre, 19h00"
+    assert format_unlock_at("2026-12-04 19:00:00") == "vendredi 4 décembre, 19h00"
+    assert format_unlock_at("2026-10-19T19:00:00+00:00") == "lundi 19 octobre, 21h00"
+    assert format_unlock_at("n'importe quoi") == "n'importe quoi"
+    assert format_unlock_at(None) == ""

@@ -32,6 +32,7 @@ from .defi import (
     MAX_ESSAIS_PAR_MANCHE,
     PENALITE_ESSAI_FAUX_SECONDES,
     calculate_championship_standings,
+    format_unlock_at,
     get_all_manches,
     get_manche,
     get_or_load_grille,
@@ -98,6 +99,7 @@ def create_app(
         app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+    templates.env.filters["unlock_fr"] = format_unlock_at
 
     @app.get("/", response_class=RedirectResponse)
     async def get_root() -> RedirectResponse:

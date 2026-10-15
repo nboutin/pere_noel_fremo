@@ -152,7 +152,7 @@
             <h2>🧩 {{ active_manche.title or ("Manche #" ~ active_manche_id) }}</h2>
             {% if not active_manche.is_unlocked %}
                 <div class="presence-status status-unknown" style="border-color: #64748b; color: #94a3b8; margin-top: 1rem;">
-                    🔒 Cette manche est encore verrouillée. Rendez-vous le {{ active_manche.unlock_at }} !
+                    🔒 Cette manche est encore verrouillée. Rendez-vous le {{ active_manche.unlock_at | unlock_fr }} !
                 </div>
             {% else %}
                 <p>{{ active_manche.description or "Résous la grille logique pour inscrire ton pseudo et tenter d'ouvrir ton cadeau en premier !" }}</p>

@@ -457,7 +457,8 @@ def test_espace_lutin_locked_manche_no_clues_no_categories(client: TestClient, t
 
     # Titre et unlock_at doivent être affichés
     assert "Manche 2 : La Ronde des Étoiles" in page_text
-    assert "2026-10-19 19:00:00" in page_text
+    assert "lundi 19 octobre, 19h00" in page_text
+    assert "2026-10-19 19:00:00" not in page_text
     assert "Cette manche est encore verrouillée" in page_text
 
     # Aucun indice, ni en clair ni en base64
@@ -1085,3 +1086,15 @@ def test_chrono_legacy_started_at_read_correctly(tmp_path: Path) -> None:
     assert data_solve["solved"] is True
     # round(42.46, 1) == 42.5
     assert data_solve["time_seconds"] == 42.5
+
+
+def test_scores_page_shows_french_unlock_time_for_locked_manche(client: TestClient, test_db: Path) -> None:
+    conn = get_db_connection(test_db)
+    with conn:
+        conn.execute("INSERT OR IGNORE INTO editions (year, status) VALUES (2026, 'draft');")
+    conn.close()
+
+    resp = client.get("/scores/2026")
+    assert resp.status_code == 200
+    assert "19h00" in resp.text
+    assert "lundi 19 octobre, 19h00" in resp.text
