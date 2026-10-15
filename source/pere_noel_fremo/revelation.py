@@ -109,19 +109,19 @@ text-align: center; font-size: 13px; color: #64748b;">
 """
 
 
-def format_revelation_body(template: str, fullname: str, magic_url: str, year: int) -> str:
+def format_revelation_body(template: str, fullname: str, lien_magique: str, year: int) -> str:
     """Injecte le nom, l'année et le Lien magique dans le modèle d'email de Révélation."""
     content = (
         template.replace("{fullname}", fullname)
-        .replace("{lien_magique}", magic_url)
-        .replace("{magic_url}", magic_url)
+        .replace("{lien_magique}", lien_magique)
+        .replace("{magic_url}", lien_magique)
         .replace("{year}", str(year))
     )
 
-    if magic_url not in content:
+    if lien_magique not in content:
         cta_html = (
             f'\n<p style="margin-top: 20px;">'
-            f'👉 <a href="{magic_url}" style="font-weight: bold; color: #047857;">'
+            f'👉 <a href="{lien_magique}" style="font-weight: bold; color: #047857;">'
             f"Accéder à mon Espace Lutin et découvrir mon Bénéficiaire</a>"
             f"</p>\n"
         )
@@ -133,13 +133,13 @@ def format_revelation_body(template: str, fullname: str, magic_url: str, year: i
     return content
 
 
-def format_revelation_text(fullname: str, magic_url: str, year: int) -> str:
+def format_revelation_text(fullname: str, lien_magique: str, year: int) -> str:
     """Génère la version texte brut (plain text) de l'email de Révélation."""
     return (
         f"HOHOHO {fullname},\n\n"
         f"Le grand Tirage au sort de l'édition {year} du Père Noël de la Frémo a été réalisé !\n\n"
         "Connecte-toi à ton Espace Lutin pour dévoiler ton Bénéficiaire sous la Carte à gratter :\n"
-        f"{magic_url}\n\n"
+        f"{lien_magique}\n\n"
         "Ce lien est magique et strictement personnel (aucun mot de passe requis).\n\n"
         "Le Père Noël de la Frémo 🎅"
     )
@@ -195,16 +195,16 @@ def send_revelations(
             continue
 
         token = create_or_get_token(db_path, lutin_id, year)
-        magic_url = build_lien_magique_url(effective_base_url, token)
+        lien_magique = build_lien_magique_url(effective_base_url, token)
         body = format_revelation_body(
             template=template_body,
             fullname=params.get("fullname", lutin_id),
-            magic_url=magic_url,
+            lien_magique=lien_magique,
             year=year,
         )
         text_body = format_revelation_text(
             fullname=params.get("fullname", lutin_id),
-            magic_url=magic_url,
+            lien_magique=lien_magique,
             year=year,
         )
 
@@ -237,8 +237,9 @@ def send_revelations(
             echecs_count += 1
             logger.error(f"Erreur inattendue lors de la Révélation au Lutin '{lutin_id}' ({to_addr}): {exc}")
 
-    # Transition du statut de l'édition : 'revealed' sur envoi nominal
-    if not (dry_run or no_email) and echecs_count == 0 and sent_count > 0:
+    # Transition du statut de l'édition : 'revealed' sur envoi nominal uniquement
+    is_targeted_run = target_lutins is not None and len(target_lutins) > 0
+    if not (dry_run or no_email) and not is_targeted_run and echecs_count == 0 and sent_count > 0:
         set_edition_status(db_path, year, "revealed")
 
     return {

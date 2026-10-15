@@ -139,3 +139,56 @@ def test_export_absent_lutin_keeps_past_history_without_current_attribution(tmp_
     assert data["lutin_c"]["history"] == []
     assert data["lutin_a"]["history"] == ["lutin_z", "lutin_b"]
     assert data["lutin_b"]["history"] == ["lutin_x", "lutin_y", "lutin_a"]
+
+
+def test_export_preserves_chronological_ordering_without_removing_prior_historical_entries(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+
+    data_in_path = tmp_path / "data_in.yml"
+    secure_data_path = tmp_path / "secure_data.yml"
+
+    sample_data: dict[str, Any] = {
+        "lutin_1": {
+            "fullname": "Lutin 1",
+            "email": None,
+            "exclude": [],
+            "history": ["lutin_2", "lutin_3"],
+        },
+        "lutin_2": {
+            "fullname": "Lutin 2",
+            "email": None,
+            "exclude": [],
+            "history": [],
+        },
+        "lutin_3": {
+            "fullname": "Lutin 3",
+            "email": None,
+            "exclude": [],
+            "history": [],
+        },
+    }
+    sample_secure = {
+        "personnes": {
+            "lutin_1": {"email": "l1@fremo.org"},
+            "lutin_2": {"email": "l2@fremo.org"},
+            "lutin_3": {"email": "l3@fremo.org"},
+        }
+    }
+
+    with open(data_in_path, "w", encoding="utf-8") as f:
+        yaml.dump(sample_data, f)
+    with open(secure_data_path, "w", encoding="utf-8") as f:
+        yaml.dump(sample_secure, f)
+
+    import_yaml_data(db_path, data_in_path, secure_data_path, year=2026)
+
+    # Attribution 2026 : lutin_1 offre à nouveau à lutin_2
+    save_attributions(db_path, 2026, {"lutin_1": "lutin_2"})
+
+    data = build_edition_export_data(db_path, 2026)
+
+    # L'entrée antérieure 'lutin_2' ne doit PAS avoir été supprimée de son rang initial
+    assert data["lutin_1"]["history"] == ["lutin_2", "lutin_3"]

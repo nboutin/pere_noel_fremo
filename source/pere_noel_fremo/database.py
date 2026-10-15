@@ -354,13 +354,20 @@ def import_yaml_data(
 
             # 3. Synchronisation idempotente de l'historique d'attributions
             for lutin_id, params in data_in.items():
-                for order_idx, historical_id in enumerate(params.get("history") or []):
+                hist_items = params.get("history") or []
+                for order_idx, historical_id in enumerate(hist_items):
+                    hist_year = (year - len(hist_items) + order_idx) if year is not None else None
+                    if hist_year is not None:
+                        conn.execute(
+                            "INSERT OR IGNORE INTO editions (year, status) VALUES (?, 'drawn');",
+                            (hist_year,),
+                        )
                     conn.execute(
                         """
                         INSERT OR IGNORE INTO attributions (donneur_id, beneficiaire_id, year, order_index)
-                        VALUES (?, ?, NULL, ?);
+                        VALUES (?, ?, ?, ?);
                         """,
-                        (lutin_id, historical_id, order_idx),
+                        (lutin_id, historical_id, hist_year, order_idx),
                     )
 
             exclusion_count = conn.execute("SELECT COUNT(*) FROM exclusions;").fetchone()[0]
@@ -628,6 +635,27 @@ def get_attributions(db_path: Path | str, year: int) -> dict[str, str]:
             (year,),
         ).fetchall()
         return {row["donneur_id"]: row["beneficiaire_id"] for row in rows}
+    finally:
+        conn.close()
+
+
+def get_past_attributions(db_path: Path | str, year: int) -> dict[str, list[str]]:
+    """Récupère l'historique des attributions passées (strictement antérieures à l'année donnée, ADR-0008)."""
+    conn = get_db_connection(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT donneur_id, beneficiaire_id
+            FROM attributions
+            WHERE year < ?
+            ORDER BY order_index ASC, id ASC;
+            """,
+            (year,),
+        ).fetchall()
+        past_map: dict[str, list[str]] = {}
+        for row in rows:
+            past_map.setdefault(row["donneur_id"], []).append(row["beneficiaire_id"])
+        return past_map
     finally:
         conn.close()
 

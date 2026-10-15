@@ -3,7 +3,7 @@ from typing import Any
 
 import yaml
 
-from .database import get_attributions, get_db_connection
+from .database import get_attributions, get_lutins, get_past_attributions
 
 
 def build_edition_export_data(db_path: Path | str, year: int) -> dict[str, dict[str, Any]]:
@@ -15,64 +15,38 @@ def build_edition_export_data(db_path: Path | str, year: int) -> dict[str, dict[
       - fullname: nom complet du lutin
       - history: liste ordonnée des anciens bénéficiaires se terminant par le bénéficiaire de l'édition courante
     """
-    conn = get_db_connection(db_path)
-    try:
-        # 1. Lutins actifs triés par id
-        lutins_rows = conn.execute("SELECT id, fullname FROM lutins WHERE is_active = 1 ORDER BY id ASC;").fetchall()
+    # 1. Lutins actifs avec leurs exclusions (ordonnés par id ASC)
+    active_lutins = get_lutins(db_path, active_only=True)
 
-        # 2. Exclusions triées
-        exclusions_rows = conn.execute(
-            "SELECT lutin_id, excluded_lutin_id FROM exclusions ORDER BY excluded_lutin_id ASC;"
-        ).fetchall()
-        exclusions_map: dict[str, list[str]] = {}
-        for row in exclusions_rows:
-            exclusions_map.setdefault(row["lutin_id"], []).append(row["excluded_lutin_id"])
+    # 2. Attributions de l'année courante
+    current_attributions = get_attributions(db_path, year)
 
-        # 3. Attributions de l'année courante
-        current_attributions = get_attributions(db_path, year)
+    # 3. Historique passé (strictement antérieur à l'année courante, ADR-0008)
+    past_history_map = get_past_attributions(db_path, year)
 
-        # 4. Historique passé (hors année courante)
-        past_rows = conn.execute(
-            """
-            SELECT donneur_id, beneficiaire_id
-            FROM attributions
-            WHERE year != ? OR year IS NULL
-            ORDER BY order_index ASC, id ASC;
-            """,
-            (year,),
-        ).fetchall()
-        past_history_map: dict[str, list[str]] = {}
-        for row in past_rows:
-            past_history_map.setdefault(row["donneur_id"], []).append(row["beneficiaire_id"])
+    export_data: dict[str, dict[str, Any]] = {}
+    for lutin_id, lutin_info in active_lutins.items():
+        past_history = past_history_map.get(lutin_id, [])
 
-        export_data: dict[str, dict[str, Any]] = {}
-        for row in lutins_rows:
-            lutin_id = row["id"]
-            past_history = past_history_map.get(lutin_id, [])
+        # Déduplication de l'historique tout en préservant l'ordre chronologique
+        history: list[str] = []
+        for b_id in past_history:
+            if b_id not in history:
+                history.append(b_id)
 
-            # Déduplication de l'historique tout en préservant l'ordre
-            history: list[str] = []
-            for b_id in past_history:
-                if b_id not in history:
-                    history.append(b_id)
+        # Ajout du Bénéficiaire de l'édition courante en fin d'historique s'il n'y figure pas déjà
+        current_beneficiaire = current_attributions.get(lutin_id)
+        if current_beneficiaire and current_beneficiaire not in history:
+            history.append(current_beneficiaire)
 
-            # Ajout du Bénéficiaire de l'édition courante en fin d'historique
-            current_beneficiaire = current_attributions.get(lutin_id)
-            if current_beneficiaire:
-                if current_beneficiaire in history:
-                    history.remove(current_beneficiaire)
-                history.append(current_beneficiaire)
+        export_data[lutin_id] = {
+            "email": None,
+            "exclude": lutin_info.get("exclude", []),
+            "fullname": lutin_info["fullname"],
+            "history": history,
+        }
 
-            export_data[lutin_id] = {
-                "email": None,
-                "exclude": exclusions_map.get(lutin_id, []),
-                "fullname": row["fullname"],
-                "history": history,
-            }
-
-        return export_data
-    finally:
-        conn.close()
+    return export_data
 
 
 def export_edition_yaml(

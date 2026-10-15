@@ -21,11 +21,11 @@ from pere_noel_fremo.revelation import (
 
 
 def test_format_revelation_body_injects_placeholders() -> None:
-    template = "<p>Bonjour {fullname}, révèle ton bénéficiaire : <a href='{magic_url}'>Lien</a> pour {year}</p>"
+    template = "<p>Bonjour {fullname}, révèle ton bénéficiaire : <a href='{lien_magique}'>Lien</a> pour {year}</p>"
     formatted = format_revelation_body(
         template=template,
         fullname="Lutin Test",
-        magic_url="https://noel.fremo.fr/lutin/tok123",
+        lien_magique="https://noel.fremo.fr/lutin/tok123",
         year=2026,
     )
     assert "Lutin Test" in formatted
@@ -38,17 +38,17 @@ def test_format_revelation_body_appends_magic_url_if_missing() -> None:
     formatted = format_revelation_body(
         template=template,
         fullname="Lutin Test",
-        magic_url="https://noel.fremo.fr/lutin/tok123",
+        lien_magique="https://noel.fremo.fr/lutin/tok123",
         year=2026,
     )
     assert "https://noel.fremo.fr/lutin/tok123" in formatted
     assert "Espace Lutin" in formatted
 
 
-def test_format_revelation_text_contains_magic_url_and_scratchcard() -> None:
+def test_format_revelation_text_contains_lien_magique_and_carte_a_gratter() -> None:
     text = format_revelation_text(
         fullname="Lutin Test",
-        magic_url="https://noel.fremo.fr/lutin/tok123",
+        lien_magique="https://noel.fremo.fr/lutin/tok123",
         year=2026,
     )
     assert "HOHOHO Lutin Test" in text
@@ -199,6 +199,9 @@ def test_send_revelations_target_lutin_and_override_email(tmp_path: Path) -> Non
         call_kwargs = mock_send.call_args.kwargs
         assert call_kwargs["toaddr"] == "override@fremo.org"
         assert call_kwargs["subject"] == "Mon Sujet Révélation"
+
+        # Targeted run with target_lutins must NOT transition edition status to 'revealed'
+        assert get_edition_status(db_path, 2026) == "drawn"
 
 
 def test_send_revelations_custom_template(tmp_path: Path) -> None:
