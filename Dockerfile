@@ -7,12 +7,13 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Copie des fichiers de configuration et du code source
-COPY pyproject.toml .
-COPY source/ ./source/
+# Dependances : versions exactes issues de uv.lock (build reproductible)
+COPY pyproject.toml uv.lock ./
+RUN pip install --no-cache-dir uv &&     uv export --frozen --no-dev --no-emit-project --no-hashes -o requirements.lock &&     pip install --no-cache-dir -r requirements.lock &&     pip uninstall -y uv
 
-# Installation du package pere-noel-fremo en mode production
-RUN pip install --no-cache-dir .
+# Installation du package pere-noel-fremo (sans re-resoudre les dependances)
+COPY source/ ./source/
+RUN pip install --no-cache-dir --no-deps .
 
 # Création de l'utilisateur non privilégié lutin et des répertoires de travail
 RUN groupadd -g 1000 lutin && \

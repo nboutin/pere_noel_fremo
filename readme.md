@@ -2,7 +2,15 @@
 
 ## Dependencies
 
-    pip install --upgrade --user -r requirements.txt
+    uv sync --extra dev          # cree .venv depuis uv.lock (recommande)
+    # ou : python -m venv .venv && .venv/bin/pip install -e .[dev]
+
+Le verrou `uv.lock` est suivi dans git ; l'image Docker installe ces versions exactes.
+Apres modification des dependances : `uv lock`, puis `uv lock --check` pour verifier.
+
+## Tests
+
+    pytest    # affiche la couverture et echoue sous le seuil (--cov-fail-under)
 
 ## Email annonce
 
