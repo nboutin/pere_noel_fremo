@@ -514,3 +514,157 @@ def test_cli_serve_installs_token_masking_filter(tmp_path: Path) -> None:
             assert has_masking_filter is True
     finally:
         access_logger.filters = initial_filters
+
+
+def test_cli_revelation_refuses_when_not_drawn(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from pere_noel_fremo.database import init_db, set_edition_status
+
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+    set_edition_status(db_path, 2026, "announced")
+
+    ret = main(
+        [
+            "revelation",
+            "--db-path",
+            str(db_path),
+            "--year",
+            "2026",
+            "--dry-run",
+        ]
+    )
+    assert ret != 0
+    captured = capsys.readouterr()
+    assert "Erreur d'intégrité" in captured.out or "statut" in captured.out
+
+
+def test_cli_revelation_nominal_and_dry_run(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from unittest.mock import patch
+
+    from pere_noel_fremo.database import (
+        get_edition_status,
+        import_yaml_data,
+        init_db,
+        save_attributions,
+        set_lutin_presence,
+    )
+
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+    data_in = tmp_path / "data_in.yml"
+    sec_data = tmp_path / "secure_data.yml"
+
+    sample: dict[str, Any] = {"lutin_1": {"fullname": "Lutin 1", "email": None, "exclude": [], "history": []}}
+    sec: dict[str, Any] = {"personnes": {"lutin_1": {"email": "l1@fremo.org"}}}
+
+    with open(data_in, "w", encoding="utf-8") as f:
+        yaml.dump(sample, f)
+    with open(sec_data, "w", encoding="utf-8") as f:
+        yaml.dump(sec, f)
+
+    import_yaml_data(db_path, data_in, sec_data, year=2026)
+    set_lutin_presence(db_path, "lutin_1", 2026, True)
+    save_attributions(db_path, 2026, {"lutin_1": "lutin_1"})
+    assert get_edition_status(db_path, 2026) == "drawn"
+
+    # Dry-run
+    ret_dry = main(
+        [
+            "revelation",
+            "--db-path",
+            str(db_path),
+            "--secure-data",
+            str(sec_data),
+            "--year",
+            "2026",
+            "--dry-run",
+        ]
+    )
+    assert ret_dry == 0
+    assert get_edition_status(db_path, 2026) == "drawn"
+
+    # Nominal execution
+    with patch("pere_noel_fremo.helper.gmail_send_email") as mock_send:
+        ret_nom = main(
+            [
+                "revelation",
+                "--db-path",
+                str(db_path),
+                "--secure-data",
+                str(sec_data),
+                "--year",
+                "2026",
+            ]
+        )
+        assert ret_nom == 0
+        assert mock_send.call_count == 1
+        assert get_edition_status(db_path, 2026) == "revealed"
+
+
+def test_cli_export_nominal_and_overwrite(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from pere_noel_fremo.database import (
+        import_yaml_data,
+        init_db,
+        save_attributions,
+    )
+
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+    data_in = tmp_path / "data_in.yml"
+    sec_data = tmp_path / "secure_data.yml"
+    out_file = tmp_path / "exports" / "data_out.yml"
+
+    sample: dict[str, Any] = {"lutin_1": {"fullname": "Lutin 1", "email": None, "exclude": [], "history": []}}
+    with open(data_in, "w", encoding="utf-8") as f:
+        yaml.dump(sample, f)
+    with open(sec_data, "w", encoding="utf-8") as f:
+        yaml.dump({"personnes": {}}, f)
+
+    import_yaml_data(db_path, data_in, sec_data, year=2026)
+    save_attributions(db_path, 2026, {"lutin_1": "lutin_1"})
+
+    # Export nominal
+    ret = main(
+        [
+            "export",
+            "--db-path",
+            str(db_path),
+            "--year",
+            "2026",
+            "--output",
+            str(out_file),
+        ]
+    )
+    assert ret == 0
+    assert out_file.exists()
+
+    # Re-exporting without --overwrite fails
+    ret_fail = main(
+        [
+            "export",
+            "--db-path",
+            str(db_path),
+            "--year",
+            "2026",
+            "--data-out",
+            str(out_file),
+        ]
+    )
+    assert ret_fail != 0
+    captured = capsys.readouterr()
+    assert "existe déjà" in captured.out or "Erreur" in captured.out
+
+    # Re-exporting with --overwrite succeeds
+    ret_over = main(
+        [
+            "export",
+            "--db-path",
+            str(db_path),
+            "--year",
+            "2026",
+            "--output",
+            str(out_file),
+            "--overwrite",
+        ]
+    )
+    assert ret_over == 0

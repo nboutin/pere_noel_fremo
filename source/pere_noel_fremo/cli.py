@@ -203,6 +203,105 @@ def create_parser() -> argparse.ArgumentParser:
         help="Année de l'édition (défaut: 2026)",
     )
 
+    # Subcommand: revelation
+    revelation_parser = subparsers.add_parser(
+        "revelation",
+        help="Envoie le courriel de Révélation avec Lien magique vers la Carte à gratter",
+    )
+    revelation_parser.add_argument(
+        "--db-path",
+        type=Path,
+        default=default_db,
+        help="Chemin de la base de données SQLite (défaut: res/fremo.db)",
+    )
+    revelation_parser.add_argument(
+        "--secure-data",
+        type=Path,
+        default=default_secure_data,
+        help="Chemin du fichier secure_data.yml (défaut: res/secure_data.yml)",
+    )
+    revelation_parser.add_argument(
+        "--year",
+        type=int,
+        default=2026,
+        help="Année de l'édition (défaut: 2026)",
+    )
+    revelation_parser.add_argument(
+        "--base-url",
+        type=str,
+        default=None,
+        help="URL racine pour les Liens magiques (surcharge la configuration)",
+    )
+    revelation_parser.add_argument(
+        "--template",
+        type=Path,
+        default=None,
+        help="Chemin vers le gabarit d'email (défaut: gabarit de l'année ou intégré)",
+    )
+    revelation_parser.add_argument(
+        "--subject",
+        type=str,
+        default=None,
+        help="Objet personnalisé de l'email",
+    )
+    revelation_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Simule l'envoi sans contacter Gmail",
+    )
+    revelation_parser.add_argument(
+        "--no-email",
+        action="store_true",
+        help="Désactive l'envoi effectif des emails",
+    )
+    revelation_parser.add_argument(
+        "--lutin",
+        action="append",
+        default=[],
+        help="Cible uniquement un identifiant de Lutin spécifique pour un envoi test (peut être répété)",
+    )
+    revelation_parser.add_argument(
+        "--override-email",
+        type=str,
+        default=None,
+        help="Redirige l'envoi de tous les courriels vers cette adresse de test",
+    )
+
+    # Subcommand: export
+    export_parser = subparsers.add_parser(
+        "export",
+        help="Exporte les attributions et l'historique de l'édition au format YAML d'archive",
+    )
+    export_parser.add_argument(
+        "--db-path",
+        type=Path,
+        default=default_db,
+        help="Chemin de la base de données SQLite (défaut: res/fremo.db)",
+    )
+    export_parser.add_argument(
+        "--year",
+        type=int,
+        default=2026,
+        help="Année de l'édition (défaut: 2026)",
+    )
+    export_parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Chemin du fichier YAML d'export (défaut: res/{year}/data_out.yml)",
+    )
+    export_parser.add_argument(
+        "--data-out",
+        type=Path,
+        default=None,
+        help="Alias de compatibilité pour --output",
+    )
+    export_parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Autorise l'écrasement du fichier d'export s'il existe déjà",
+    )
+
     return parser
 
 
@@ -368,6 +467,88 @@ def handle_audit_tirage(args: argparse.Namespace) -> int:
     return 0 if audit_result.is_valid else 1
 
 
+def handle_revelation(args: argparse.Namespace) -> int:
+    from .revelation import send_revelations
+
+    db_path: Path = args.db_path
+    secure_data_path: Path = args.secure_data
+
+    # Resolve default template path if not provided
+    template_path = args.template
+    if template_path is None:
+        res_dir = resolve_res_dir()
+        candidate_template = res_dir / str(args.year) / "revelation.txt"
+        if candidate_template.exists():
+            template_path = candidate_template
+        elif (res_dir / str(args.year) / "revelation.html").exists():
+            template_path = res_dir / str(args.year) / "revelation.html"
+
+    try:
+        stats = send_revelations(
+            db_path=db_path,
+            secure_data_path=secure_data_path,
+            year=args.year,
+            base_url=args.base_url,
+            template_path=template_path,
+            subject=args.subject,
+            dry_run=args.dry_run,
+            no_email=args.no_email,
+            target_lutins=list(args.lutin) if args.lutin else None,
+            recipient_override=args.override_email,
+        )
+
+        if args.dry_run or args.no_email:
+            print(
+                f"Simulation Révélation : {stats['sent']} courriels préparés (mode simulation) "
+                f"pour {stats['total']} lutins confirmés."
+            )
+            return 0
+
+        echecs = stats.get("echecs", 0)
+        print(
+            f"Campagne de Révélation terminée : {stats['sent']} courriels envoyés, "
+            f"{echecs} échecs sur {stats['total']} lutins confirmés."
+        )
+        if echecs > 0:
+            print(f"Alerte : {echecs} échec(s) d'envoi détecté(s) lors de la campagne de Révélation.")
+            return 1
+        return 0
+    except ValueError as exc:
+        print(f"Erreur d'intégrité : {exc}")
+        return 1
+    except Exception as exc:
+        print(f"Erreur lors de la campagne de Révélation : {exc}")
+        return 1
+
+
+def handle_export(args: argparse.Namespace) -> int:
+    from .export import export_edition_yaml
+
+    db_path: Path = args.db_path
+    year: int = args.year
+    output_path = args.output or args.data_out
+
+    if output_path is None:
+        res_dir = resolve_res_dir()
+        output_path = res_dir / str(year) / "data_out.yml"
+
+    try:
+        exported_file = export_edition_yaml(
+            db_path=db_path,
+            year=year,
+            output_path=output_path,
+            overwrite=args.overwrite,
+        )
+        print(f"Exportation d'archive réussie : {exported_file}")
+        return 0
+    except FileExistsError as exc:
+        print(f"Erreur : {exc}")
+        return 1
+    except Exception as exc:
+        print(f"Erreur lors de l'exportation : {exc}")
+        return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = create_parser()
     if argv is None:
@@ -388,6 +569,10 @@ def main(argv: list[str] | None = None) -> int:
         return handle_tirage(args)
     if args.command == "audit-tirage":
         return handle_audit_tirage(args)
+    if args.command == "revelation":
+        return handle_revelation(args)
+    if args.command == "export":
+        return handle_export(args)
 
     return 0
 
