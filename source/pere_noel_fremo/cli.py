@@ -184,6 +184,11 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Simule le tirage sans enregistrer en base",
     )
+    tirage_parser.add_argument(
+        "--force-retirage",
+        action="store_true",
+        help="Autorise un re-tirage d'une édition déjà tirée ou révélée (les Cartes à gratter vues deviennent fausses)",
+    )
 
     # Subcommand: audit-tirage
     audit_parser = subparsers.add_parser(
@@ -434,13 +439,24 @@ def handle_tirage(args: argparse.Namespace) -> int:
             d, b = item.split(":", 1)
             cheaters_list.append({"donneur": d.strip(), "beneficiaire": b.strip()})
 
+    force = bool(getattr(args, "force_retirage", False))
+    if force:
+        print(
+            "AVERTISSEMENT : re-tirage forcé. Les Cartes à gratter déjà vues par les Lutins deviendront fausses.",
+            file=sys.stderr,
+        )
+
     result = run_tirage(
         db_path=args.db_path,
         year=args.year,
         organizer_id=args.organizer,
         cheaters=cheaters_list if cheaters_list else None,
         dry_run=args.dry_run,
+        force=force,
     )
+    if not result.success:
+        print(result.message)
+        return 1
     print(result.get_masked_summary(organizer_id=args.organizer, dry_run=args.dry_run))
     return 0 if result.success else 1
 

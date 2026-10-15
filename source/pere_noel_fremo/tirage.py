@@ -5,8 +5,10 @@ from pathlib import Path
 from random import randint
 from typing import Any
 
+from .audit import audit_tirage
 from .database import (
     get_confirmed_lutins,
+    get_edition_status,
     save_attributions,
 )
 
@@ -144,8 +146,24 @@ def run_tirage(
     organizer_id: str | None = None,
     cheaters: list[dict[str, str]] | None = None,
     dry_run: bool = False,
+    force: bool = False,
 ) -> TirageResult:
-    """Extrait les Lutins confirmés présents, applique le solveur, scelle en SQLite et retourne le résultat."""
+    """Extrait les Lutins confirmés présents, applique le solveur, scelle en SQLite et retourne le résultat.
+
+    Le tirage est une transition d'état gardée : sur une édition `drawn` ou `revealed`, il est refusé
+    (sans écriture) sauf si `force` est vrai. Après scellement, un audit est lancé automatiquement.
+    """
+    status = get_edition_status(db_path, year)
+    if status in ("drawn", "revealed") and not force and not dry_run:
+        return TirageResult(
+            success=False,
+            year=year,
+            message=(
+                f"L'édition {year} est déjà au statut '{status}' : un nouveau tirage changerait les "
+                "Bénéficiaires déjà consultables. Utilisez --force-retirage pour le forcer explicitement."
+            ),
+        )
+
     confirmed_lutins = get_confirmed_lutins(db_path, year)
     confirmed_count = len(confirmed_lutins)
 
@@ -169,6 +187,19 @@ def run_tirage(
 
     if not dry_run:
         save_attributions(db_path, year, pairs)
+        audit = audit_tirage(db_path, year)
+        if not audit.is_valid:
+            logger.error(f"Audit du tirage {year} invalide ({len(audit.errors)} erreur(s)).")
+            return TirageResult(
+                success=False,
+                year=year,
+                confirmed_count=confirmed_count,
+                # Les erreurs détaillées nomment des paires : on n'expose que leur nombre (Admin aveugle).
+                message=(
+                    f"Audit du tirage invalide ({len(audit.errors)} erreur(s) détectée(s)). "
+                    "Les détails ne sont pas affichés pour préserver l'Admin aveugle."
+                ),
+            )
 
     # En mode admin aveugle, logger les informations d'exécution sans divulguer les paires
     logger.info(

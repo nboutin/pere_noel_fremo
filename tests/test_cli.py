@@ -364,6 +364,48 @@ def test_cli_tirage_admin_aveugle(tmp_path: Path, capsys: pytest.CaptureFixture[
     assert "-> l1" not in captured.out
 
 
+def _setup_drawn_cli_db(tmp_path: Path) -> Path:
+    from pere_noel_fremo.database import import_yaml_data, init_db, set_lutin_presence
+
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+    data_in_path = tmp_path / "data_in.yml"
+    secure_data_path = tmp_path / "secure_data.yml"
+    sample_data: dict[str, Any] = {
+        f"l{i}": {"fullname": f"Lutin {i}", "email": None, "exclude": [], "history": []} for i in range(1, 5)
+    }
+    with open(data_in_path, "w", encoding="utf-8") as f:
+        yaml.dump(sample_data, f)
+    with open(secure_data_path, "w", encoding="utf-8") as f:
+        yaml.dump({"personnes": {}}, f)
+    import_yaml_data(db_path, data_in_path, secure_data_path, year=2026)
+    for i in range(1, 5):
+        set_lutin_presence(db_path, f"l{i}", 2026, present=True)
+    assert main(["tirage", "--db-path", str(db_path), "--year", "2026"]) == 0
+    return db_path
+
+
+def test_cli_tirage_on_drawn_edition_refused_then_forced(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    db_path = _setup_drawn_cli_db(tmp_path)
+    capsys.readouterr()
+
+    assert main(["tirage", "--db-path", str(db_path), "--year", "2026"]) == 1
+    refused = capsys.readouterr()
+    assert "--force-retirage" in refused.out
+
+    assert main(["tirage", "--db-path", str(db_path), "--year", "2026", "--force-retirage"]) == 0
+    forced = capsys.readouterr()
+    assert "Cartes à gratter" in forced.out + forced.err
+    assert "*** SECRET ***" in forced.out
+    assert "->" not in forced.out
+
+
+def test_cli_tirage_dry_run_allowed_on_drawn_edition(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    db_path = _setup_drawn_cli_db(tmp_path)
+    capsys.readouterr()
+    assert main(["tirage", "--db-path", str(db_path), "--year", "2026", "--dry-run"]) == 0
+
+
 def test_cli_audit_tirage_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     from pere_noel_fremo.database import import_yaml_data, init_db, set_lutin_presence
 

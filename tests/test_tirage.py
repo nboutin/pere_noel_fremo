@@ -11,6 +11,7 @@ from pere_noel_fremo.database import (
     import_yaml_data,
     init_db,
     save_attributions,
+    set_edition_status,
     set_lutin_presence,
 )
 from pere_noel_fremo.tirage import (
@@ -290,3 +291,93 @@ def test_solve_tirage_imposed_cheaters() -> None:
     result = solve_tirage(data, cheaters=cheaters)
     assert result is not None
     assert result["lutin_1"] == "lutin_3"
+
+
+def _confirm_all(db_path: Path, year: int, ids: list[str]) -> None:
+    for lutin_id in ids:
+        set_lutin_presence(db_path, lutin_id, year, present=True)
+
+
+def _dump_year(db_path: Path, year: int) -> list[tuple[str, str, int]]:
+    conn = get_db_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT donneur_id, beneficiaire_id, order_index FROM attributions WHERE year = ? ORDER BY donneur_id;",
+            (year,),
+        ).fetchall()
+        return [(r["donneur_id"], r["beneficiaire_id"], r["order_index"]) for r in rows]
+    finally:
+        conn.close()
+
+
+def test_second_tirage_without_force_is_refused_and_leaves_db_untouched(
+    test_db_setup: tuple[Path, Path, Path],
+) -> None:
+    db_path, _, _ = test_db_setup
+    _confirm_all(db_path, 2026, ["lutin_1", "lutin_2", "lutin_3", "lutin_4", "lutin_5"])
+
+    first = run_tirage(db_path=db_path, year=2026, cheaters=[])
+    assert first.success is True
+    before = _dump_year(db_path, 2026)
+
+    second = run_tirage(db_path=db_path, year=2026, cheaters=[])
+    assert second.success is False
+    assert "force" in second.message.lower()
+    assert _dump_year(db_path, 2026) == before
+
+
+def test_second_tirage_refused_when_revealed(test_db_setup: tuple[Path, Path, Path]) -> None:
+    db_path, _, _ = test_db_setup
+    _confirm_all(db_path, 2026, ["lutin_1", "lutin_2", "lutin_3", "lutin_4"])
+    assert run_tirage(db_path=db_path, year=2026, cheaters=[]).success is True
+    set_edition_status(db_path, 2026, "revealed")
+    before = _dump_year(db_path, 2026)
+
+    result = run_tirage(db_path=db_path, year=2026, cheaters=[])
+    assert result.success is False
+    assert _dump_year(db_path, 2026) == before
+
+
+def test_dry_run_allowed_on_drawn_edition_and_writes_nothing(test_db_setup: tuple[Path, Path, Path]) -> None:
+    db_path, _, _ = test_db_setup
+    _confirm_all(db_path, 2026, ["lutin_1", "lutin_2", "lutin_3", "lutin_4"])
+    assert run_tirage(db_path=db_path, year=2026, cheaters=[]).success is True
+    before = _dump_year(db_path, 2026)
+
+    result = run_tirage(db_path=db_path, year=2026, cheaters=[], dry_run=True)
+    assert result.success is True
+    assert _dump_year(db_path, 2026) == before
+
+
+def test_force_retirage_replaces_whole_year_without_stale_rows(test_db_setup: tuple[Path, Path, Path]) -> None:
+    db_path, _, _ = test_db_setup
+    _confirm_all(db_path, 2026, ["lutin_1", "lutin_2", "lutin_3", "lutin_4", "lutin_5"])
+    assert run_tirage(db_path=db_path, year=2026, cheaters=[]).success is True
+
+    # lutin_5 n'est plus confirmé : sa ligne du premier tirage ne doit pas survivre
+    set_lutin_presence(db_path, "lutin_5", 2026, present=False)
+
+    result = run_tirage(db_path=db_path, year=2026, cheaters=[], force=True)
+    assert result.success is True
+
+    rows = _dump_year(db_path, 2026)
+    assert sorted(r[0] for r in rows) == ["lutin_1", "lutin_2", "lutin_3", "lutin_4"]
+    assert sorted(r[1] for r in rows) == ["lutin_1", "lutin_2", "lutin_3", "lutin_4"]
+    assert audit_tirage(db_path, year=2026).is_valid is True
+
+
+def test_run_tirage_fails_when_audit_invalid(
+    test_db_setup: tuple[Path, Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pere_noel_fremo import tirage as tirage_module
+
+    db_path, _, _ = test_db_setup
+    _confirm_all(db_path, 2026, ["lutin_1", "lutin_2", "lutin_3", "lutin_4"])
+    monkeypatch.setattr(
+        tirage_module,
+        "audit_tirage",
+        lambda db_path, year: AuditResult(is_valid=False, total_lutins=4, errors=["Violation d'exclusion"]),
+    )
+    result = tirage_module.run_tirage(db_path=db_path, year=2026, cheaters=[])
+    assert result.success is False
+    assert "audit" in result.message.lower()

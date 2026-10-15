@@ -602,14 +602,11 @@ def save_attributions(db_path: Path | str, year: int, attributions_map: dict[str
     conn = get_db_connection(db_path)
     try:
         with conn:
+            # 0. Remplacer l'année entière (aucune ligne périmée) dans la même transaction
+            conn.execute("DELETE FROM attributions WHERE year = ?;", (year,))
+
             # 1. Obtenir pour chaque donneur le prochain index d'ordre
             for donneur_id, beneficiaire_id in attributions_map.items():
-                # Supprimer une attribution existante pour cette année et ce donneur si elle existe déjà
-                conn.execute(
-                    "DELETE FROM attributions WHERE donneur_id = ? AND year = ?;",
-                    (donneur_id, year),
-                )
-
                 cur = conn.execute(
                     "SELECT COALESCE(MAX(order_index), -1) + 1 FROM attributions WHERE donneur_id = ?;",
                     (donneur_id,),
