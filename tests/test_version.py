@@ -9,8 +9,8 @@ def test_version_matches_pyproject() -> None:
     with open(pyproject_path, "rb") as f:
         data = tomllib.load(f)
     pyproject_version = data["project"]["version"]
-    assert pere_noel_fremo.__version__ == "2.0.0"
-    assert pyproject_version == "2.0.0"
+    assert pere_noel_fremo.__version__ == "2.0.1"
+    assert pyproject_version == "2.0.1"
     assert pere_noel_fremo.__version__ == pyproject_version
 
 
