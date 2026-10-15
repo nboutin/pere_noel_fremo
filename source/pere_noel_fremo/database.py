@@ -80,8 +80,19 @@ CREATE TABLE IF NOT EXISTS attributions (
 """
 
 
+# Délai d'attente (secondes) d'un verrou d'écriture SQLite avant l'erreur "database is locked".
+# Explicite pour ne pas dépendre du défaut de la bibliothèque : 5 s couvrent largement les
+# transactions courtes de l'application tout en échouant vite en cas de blocage réel.
+DB_TIMEOUT_SECONDS = 5.0
+
+
+def begin_immediate(conn: sqlite3.Connection) -> None:
+    """Ouvre une transaction d'écriture (verrou pris d'emblée) pour rendre un lire-puis-écrire indivisible."""
+    conn.execute("BEGIN IMMEDIATE;")
+
+
 def get_db_connection(db_path: Path | str) -> sqlite3.Connection:
-    conn = sqlite3.connect(str(db_path))
+    conn = sqlite3.connect(str(db_path), timeout=DB_TIMEOUT_SECONDS)
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.row_factory = sqlite3.Row
     return conn
@@ -874,6 +885,7 @@ def start_score_defi(
     conn = get_db_connection(db_path)
     try:
         with conn:
+            begin_immediate(conn)
             now_dt = parse_iso_or_legacy(now) if now is not None else datetime.now(timezone.utc)
             now_str = now_dt.isoformat()
 
@@ -925,6 +937,7 @@ def complete_score_defi(
     conn = get_db_connection(db_path)
     try:
         with conn:
+            begin_immediate(conn)
             now_dt = parse_iso_or_legacy(now) if now is not None else datetime.now(timezone.utc)
             now_str = now_dt.isoformat()
 
@@ -969,6 +982,7 @@ def abandon_score_defi(
     conn = get_db_connection(db_path)
     try:
         with conn:
+            begin_immediate(conn)
             now_dt = parse_iso_or_legacy(now) if now is not None else datetime.now(timezone.utc)
             now_str = now_dt.isoformat()
 
@@ -1006,6 +1020,7 @@ def register_solve_attempt(
     conn = get_db_connection(db_path)
     try:
         with conn:
+            begin_immediate(conn)
             row = conn.execute(
                 """
                 SELECT started_at, solved, completed_at, attempts

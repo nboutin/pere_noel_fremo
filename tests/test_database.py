@@ -945,3 +945,90 @@ def test_set_edition_status_validation(tmp_path: Path) -> None:
     # Bogus status should raise ValueError
     with pytest.raises(ValueError, match="Statut d'édition invalide"):
         set_edition_status(db_path, 2026, "bogus")
+
+
+def _seed_started_manche(db_path: Path) -> None:
+    init_db(db_path)
+    conn = get_db_connection(db_path)
+    with conn:
+        conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
+        conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l1', 'Lutin 1');")
+    conn.close()
+    start_score_defi(db_path, "l1", 2026, manche_id=1)
+
+
+def test_register_solve_attempt_concurrent_wrong_answers_cap_at_three(tmp_path: Path) -> None:
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    from pere_noel_fremo.database import register_solve_attempt
+
+    db_path = tmp_path / "concurrent.db"
+    _seed_started_manche(db_path)
+    nb_threads = 10
+    barrier = threading.Barrier(nb_threads)
+
+    def submit() -> dict[str, object]:
+        barrier.wait()
+        return register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=False)
+
+    with ThreadPoolExecutor(max_workers=nb_threads) as pool:
+        results = list(pool.map(lambda _: submit(), range(nb_threads)))
+
+    conn = get_db_connection(db_path)
+    row = conn.execute("SELECT attempts, completed_at, solved FROM scores_defi WHERE lutin_id = 'l1';").fetchone()
+    conn.close()
+    assert row["attempts"] == 3
+    assert row["completed_at"] is not None
+    assert row["solved"] == 0
+    restants = [r for r in results if not r["already_completed"] and not r["sealed"]]
+    scellees = [r for r in results if not r["already_completed"] and r["sealed"]]
+    deja = [r for r in results if r["already_completed"]]
+    assert len(restants) == 2
+    assert len(scellees) == 1
+    assert len(deja) == nb_threads - 3
+
+
+def test_register_solve_attempt_and_abandon_concurrent_single_winner(tmp_path: Path) -> None:
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    from pere_noel_fremo.database import abandon_score_defi, register_solve_attempt
+
+    db_path = tmp_path / "race.db"
+    _seed_started_manche(db_path)
+    barrier = threading.Barrier(2)
+
+    def solve() -> dict[str, object]:
+        barrier.wait()
+        return register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=True)
+
+    def abandon() -> dict[str, object]:
+        barrier.wait()
+        return abandon_score_defi(db_path, "l1", 2026, manche_id=1)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f_solve = pool.submit(solve)
+        f_abandon = pool.submit(abandon)
+        res_solve = f_solve.result()
+        f_abandon.result()
+
+    conn = get_db_connection(db_path)
+    row = conn.execute("SELECT attempts, completed_at, solved, time_seconds FROM scores_defi;").fetchone()
+    conn.close()
+    assert row["completed_at"] is not None
+    if row["solved"]:
+        assert res_solve["solved"] is True
+        assert row["time_seconds"] is not None
+        assert row["attempts"] == 1
+    else:
+        assert res_solve["already_completed"] is True
+        assert row["time_seconds"] is None
+
+
+def test_get_db_connection_has_explicit_busy_timeout(tmp_path: Path) -> None:
+    conn = get_db_connection(tmp_path / "t.db")
+    try:
+        assert conn.execute("PRAGMA busy_timeout;").fetchone()[0] == 5000
+    finally:
+        conn.close()
