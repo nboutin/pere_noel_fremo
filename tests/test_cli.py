@@ -829,3 +829,125 @@ def test_cli_annonce_invalid_token_exits_with_code_1(
 
     assert ret == 1
     assert "1 échecs" in capsys.readouterr().out
+
+
+def test_cli_init_db_inconsistent_yaml_returns_error(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    data_in_path = tmp_path / "data_in.yml"
+    data_in_path.write_text(
+        yaml.dump({"l1": {"fullname": "L1", "email": None, "exclude": ["fantome"], "history": []}}),
+        encoding="utf-8",
+    )
+
+    ret = main(
+        [
+            "init-db",
+            "--db-path",
+            str(tmp_path / "fremo.db"),
+            "--data-in",
+            str(data_in_path),
+            "--secure-data",
+            str(tmp_path / "secure_data.yml"),
+        ]
+    )
+
+    assert ret == 1
+    assert "fantome" in capsys.readouterr().out
+
+
+def test_cli_init_db_missing_file_message(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    ret = main(["init-db", "--db-path", str(tmp_path / "fremo.db"), "--data-in", str(tmp_path / "absent.yml")])
+
+    assert ret == 1
+    assert "introuvable" in capsys.readouterr().out
+
+
+def test_cli_init_db_default_data_in_falls_back_to_2025(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    res_dir = tmp_path / "res"
+    (res_dir / "2025").mkdir(parents=True)
+    (res_dir / "2025" / "data_in.yml").write_text(
+        yaml.dump({"l1": {"fullname": "L1", "email": None, "exclude": [], "history": []}}), encoding="utf-8"
+    )
+    monkeypatch.setenv("FREMO_RES_DIR", str(res_dir))
+
+    ret = main(["init-db", "--db-path", str(tmp_path / "fremo.db"), "--year", "2026"])
+
+    assert ret == 0
+    assert "1 lutins" in capsys.readouterr().out
+
+
+def test_cli_annonce_send_annonces_raising_returns_1(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    db_path, secure_data_path = _seed_single_lutin_campaign(tmp_path)
+
+    with patch("pere_noel_fremo.cli.send_annonces", side_effect=RuntimeError("boom")):
+        ret = main(["annonce", "--db-path", str(db_path), "--secure-data", str(secure_data_path)])
+
+    assert ret == 1
+    assert "boom" in capsys.readouterr().out
+
+
+def _annonce_template_used(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, years_with_template: tuple[str, ...]
+) -> Path | None:
+    res_dir = tmp_path / "res"
+    res_dir.mkdir()
+    for year in years_with_template:
+        (res_dir / year).mkdir()
+        (res_dir / year / "annonce.txt").write_text("gabarit", encoding="utf-8")
+    monkeypatch.setenv("FREMO_RES_DIR", str(res_dir))
+    stats = {"sent": 0, "absents": 0, "total": 0}
+    with patch("pere_noel_fremo.cli.send_annonces", return_value=stats) as mock_send:
+        ret = main(["annonce", "--db-path", str(tmp_path / "fremo.db"), "--year", "2026", "--dry-run"])
+    assert ret == 0
+    template: Path | None = mock_send.call_args.kwargs["template_path"]
+    return template
+
+
+def test_cli_annonce_defaults_to_year_template(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    template = _annonce_template_used(tmp_path, monkeypatch, ("2026", "2025"))
+    assert template == tmp_path / "res" / "2026" / "annonce.txt"
+
+
+def test_cli_annonce_falls_back_to_2025_template(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    template = _annonce_template_used(tmp_path, monkeypatch, ("2025",))
+    assert template == tmp_path / "res" / "2025" / "annonce.txt"
+
+
+def test_cli_annonce_without_any_template_uses_builtin(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    assert _annonce_template_used(tmp_path, monkeypatch, ()) is None
+
+
+def test_cli_tirage_failure_returns_1(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from pere_noel_fremo.database import init_db
+
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+
+    ret = main(["tirage", "--db-path", str(db_path), "--year", "2026"])
+
+    assert ret == 1
+    assert "insuffisant" in capsys.readouterr().out
+
+
+def test_cli_tirage_parses_cheater_pairs_and_ignores_malformed_ones(tmp_path: Path) -> None:
+    db_path = _setup_drawn_cli_db(tmp_path)
+
+    with patch("pere_noel_fremo.tirage.run_tirage") as mock_run:
+        mock_run.return_value.success = True
+        mock_run.return_value.get_masked_summary.return_value = "ok"
+        ret = main(["tirage", "--db-path", str(db_path), "--cheater", "invalide", "--cheater", "l1: l2"])
+
+    assert ret == 0
+    assert mock_run.call_args.kwargs["cheaters"] == [{"donneur": "l1", "beneficiaire": "l2"}]
+
+
+def test_cli_unknown_argument_returns_2_without_exception(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["tirage", "--inconnu"]) == 2
+    assert main(["commande-inconnue"]) == 2
+    capsys.readouterr()
+
+
+def test_cli_without_command_returns_non_zero_without_exception(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main([]) == 2
+    capsys.readouterr()

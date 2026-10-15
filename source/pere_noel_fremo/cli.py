@@ -601,19 +601,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
-def __getattr__(name: str) -> Any:
-    if name == "TokenMaskingFilter":
-        from .web import TokenMaskingFilter
-
-        return TokenMaskingFilter
-    if name == "RES_DIR":
-        return resolve_res_dir()
-    if name == "DEFAULT_DB_PATH":
-        return default_db_path()
-    if name == "DEFAULT_DATA_IN":
-        return resolve_res_dir() / "2025" / "data_in.yml"
-    if name == "DEFAULT_SECURE_DATA":
-        return resolve_res_dir() / "secure_data.yml"
-    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
