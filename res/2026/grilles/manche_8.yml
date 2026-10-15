@@ -15,6 +15,9 @@ categories:
   - Livre de contes
   - Poupée de chiffon
   - Train en bois
+attributs:
+  bonnet: bonnets
+  cadeau: cadeaux
 indices:
 - Léon porte le bonnet Vert Sapin.
 - Le porteur du bonnet Bleu Nuit offre le Train en bois.

@@ -31,10 +31,12 @@ from .database import (
 from .defi import (
     MAX_ESSAIS_PAR_MANCHE,
     PENALITE_ESSAI_FAUX_SECONDES,
+    GrilleInvalideError,
     calculate_championship_standings,
     format_unlock_at,
     get_all_manches,
     get_manche,
+    get_manche_attributes,
     get_or_load_grille,
     is_manche_unlocked,
     is_solution_complete,
@@ -203,7 +205,12 @@ def create_app(
         if is_active_unlocked:
             raw_indices = list(active_manche.get("indices") or [])
             indices_count = len(raw_indices)
+            try:
+                attributes = get_manche_attributes(active_manche)
+            except GrilleInvalideError:
+                attributes = []
             display_manche = {
+                "attributes": [{"key": cle, "category": categorie} for cle, categorie in attributes],
                 "id": active_manche.get("id", active_manche_id),
                 "title": active_manche.get("title"),
                 "description": active_manche.get("description"),
@@ -306,6 +313,15 @@ def create_app(
         lutin_info, manche = _get_lutin_and_manche_or_raise(token, manche_id)
         year = lutin_info["year"]
         lutin_id = lutin_info["id"]
+
+        # Garde : une manche incohérente ne doit jamais lancer le chronomètre.
+        try:
+            get_manche_attributes(manche)
+        except GrilleInvalideError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail=f"La manche {manche_id} est mal configurée et ne peut pas démarrer : {exc}",
+            ) from exc
 
         pseudo = get_or_assign_pseudo(db_path, lutin_id, year)
         score_entry = get_score_defi(db_path, lutin_id, year, manche_id=manche_id)

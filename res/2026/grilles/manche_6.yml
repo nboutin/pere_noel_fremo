@@ -15,6 +15,9 @@ categories:
   - Lait chaud
   - Jus de pomme cannelle
   - Tisane polaire
+attributs:
+  instrument: instruments
+  boisson: boissons
 indices:
 - Basile joue de la Clochette.
 - Le joueur de Flûte boit du Lait chaud.

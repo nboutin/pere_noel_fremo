@@ -233,36 +233,31 @@
                             </div>
                         </div>
 
-                        <h3>Associe chaque Lutin à sa luge et sa friandise :</h3>
+                        <h3>Associe chaque Lutin à ses attributs ({% for attr in active_manche.attributes %}{{ attr.key }}{{ ", " if not loop.last }}{% endfor %}) :</h3>
                         <div class="grid-container">
                             <table class="logic-table">
                                 <thead>
                                     <tr>
                                         <th>Lutin</th>
-                                        <th>Luge</th>
-                                        <th>Friandise</th>
+                                        {% for attr in active_manche.attributes %}
+                                            <th>{{ attr.key | capitalize }}</th>
+                                        {% endfor %}
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for lutin_name in active_manche.categories.lutins %}
                                         <tr>
                                             <td><strong>{{ lutin_name }}</strong></td>
-                                            <td>
-                                                <select id="select-luge-{{ lutin_name }}" class="logic-select" onchange="checkGridCompletion()">
-                                                    <option value="">-- Choisir la luge --</option>
-                                                    {% for luge in active_manche.categories.luges %}
-                                                        <option value="{{ luge }}">{{ luge }}</option>
-                                                    {% endfor %}
-                                                </select>
-                                            </td>
-                                            <td>
-                                                <select id="select-friandise-{{ lutin_name }}" class="logic-select" onchange="checkGridCompletion()">
-                                                    <option value="">-- Choisir la friandise --</option>
-                                                    {% for friandise in active_manche.categories.friandises %}
-                                                        <option value="{{ friandise }}">{{ friandise }}</option>
-                                                    {% endfor %}
-                                                </select>
-                                            </td>
+                                            {% for attr in active_manche.attributes %}
+                                                <td>
+                                                    <select id="select-{{ attr.key }}-{{ lutin_name }}" class="logic-select" onchange="checkGridCompletion()">
+                                                        <option value="">-- Choisir : {{ attr.key }} --</option>
+                                                        {% for option in active_manche.categories[attr.category] %}
+                                                            <option value="{{ option }}">{{ option }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </td>
+                                            {% endfor %}
                                         </tr>
                                     {% endfor %}
                                 </tbody>
@@ -356,7 +351,8 @@
         const ACTIVE_MANCHE_ID = {{ active_manche_id }};
         const IS_LOCKED = {{ 'true' if is_locked else 'false' }};
         const LUTIN_NAMES = {{ (active_manche.categories.lutins if (active_manche.categories and active_manche.categories.lutins) else []) | tojson }};
-        const INDICES_COUNT = {{ indices_count }};
+        const ATTRIBUTE_KEYS = {{ (active_manche.attributes | map(attribute='key') | list if active_manche.attributes else []) | tojson }};
+        const INDICES_COUNT ={{ indices_count }};
 
         // Indices transmis dynamiquement via l'API lors du démarrage ou de la reprise d'une manche
         let CLUES = [];
@@ -372,14 +368,16 @@
         function checkGridCompletion() {
             const btn = document.getElementById("btn-submit-defi");
             if (!btn) return;
-            let complete = true;
+            let complete = ATTRIBUTE_KEYS.length > 0;
             for (const name of LUTIN_NAMES) {
-                const lugeSelect = document.getElementById(`select-luge-${name}`);
-                const friandiseSelect = document.getElementById(`select-friandise-${name}`);
-                if (!lugeSelect || !friandiseSelect || !lugeSelect.value || !friandiseSelect.value) {
-                    complete = false;
-                    break;
+                for (const key of ATTRIBUTE_KEYS) {
+                    const select = document.getElementById(`select-${key}-${name}`);
+                    if (!select || !select.value) {
+                        complete = false;
+                        break;
+                    }
                 }
+                if (!complete) break;
             }
             btn.disabled = !complete;
             btn.style.opacity = complete ? "1" : "0.5";
@@ -663,13 +661,16 @@
 
             const solution = {};
             for (const name of LUTIN_NAMES) {
-                const luge = document.getElementById(`select-luge-${name}`).value;
-                const friandise = document.getElementById(`select-friandise-${name}`).value;
-                if (!luge || !friandise) {
-                    showToast(`Merci de compléter les choix pour ${name} !`);
-                    return;
+                const entry = {};
+                for (const key of ATTRIBUTE_KEYS) {
+                    const value = document.getElementById(`select-${key}-${name}`).value;
+                    if (!value) {
+                        showToast(`Merci de compléter les choix pour ${name} !`);
+                        return;
+                    }
+                    entry[key] = value;
                 }
-                solution[name] = { luge: luge, friandise: friandise };
+                solution[name] = entry;
             }
 
             try {

@@ -15,6 +15,9 @@ categories:
   - Pain d'épices
   - Canne de sucre
   - Chocolat chaud
+attributs:
+  luge: luges
+  friandise: friandises
 indices:
 - Le pilote de la Comète Bleue adore le Chocolat chaud.
 - Barnabé ne conduit pas l'Étoile Rouge.

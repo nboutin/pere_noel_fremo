@@ -346,23 +346,85 @@ def validate_grille_solution(grille: dict[str, Any], solution_soumise: dict[str,
     return True
 
 
+class GrilleInvalideError(ValueError):
+    """Grille de manche incohérente (catégories, attributs ou solution contradictoires)."""
+
+
+def _pluriels_candidats(cle: str) -> set[str]:
+    return {f"{cle}s", f"{cle}x"}
+
+
+def get_manche_attributes(manche: dict[str, Any]) -> list[tuple[str, str]]:
+    """Retourne les attributs de la grille sous forme de paires (clé singulière, catégorie plurielle).
+
+    Source : champ explicite `attributs:` (clé singulière -> catégorie plurielle) ou, à défaut,
+    dérivation depuis les clés de `solution` rapprochées des catégories hors `lutins`.
+    Lève GrilleInvalideError si la grille est ambiguë ou incohérente.
+    """
+    categories = manche.get("categories")
+    solution = manche.get("solution")
+    if not isinstance(categories, dict) or not isinstance(solution, dict) or not solution:
+        raise GrilleInvalideError("La grille doit définir 'categories' et 'solution'.")
+
+    lutins = categories.get("lutins")
+    if not isinstance(lutins, list) or sorted(map(str, lutins)) != sorted(map(str, solution.keys())):
+        raise GrilleInvalideError("Les catégories 'lutins' doivent correspondre aux clés de 'solution'.")
+
+    entries = list(solution.values())
+    if not all(isinstance(entry, dict) for entry in entries):
+        raise GrilleInvalideError("Chaque entrée de 'solution' doit être un dictionnaire d'attributs.")
+    solution_keys = list(entries[0].keys())
+    if not solution_keys:
+        raise GrilleInvalideError("La solution ne définit aucun attribut.")
+    if any(set(entry.keys()) != set(solution_keys) for entry in entries):
+        raise GrilleInvalideError("Tous les Lutins doivent avoir les mêmes attributs dans 'solution'.")
+
+    explicit = manche.get("attributs")
+    attributes: list[tuple[str, str]] = []
+    if explicit is not None:
+        if not isinstance(explicit, dict) or not explicit:
+            raise GrilleInvalideError("'attributs' doit associer chaque clé singulière à une catégorie.")
+        attributes = [(str(cle), str(categorie)) for cle, categorie in explicit.items()]
+    else:
+        autres = [name for name in categories if name != "lutins"]
+        for cle in solution_keys:
+            candidates = [name for name in autres if name in _pluriels_candidats(str(cle))]
+            if len(candidates) != 1:
+                raise GrilleInvalideError(f"Impossible de rapprocher l'attribut '{cle}' d'une unique catégorie.")
+            attributes.append((str(cle), candidates[0]))
+
+    if sorted(cle for cle, _ in attributes) != sorted(map(str, solution_keys)):
+        raise GrilleInvalideError("Les attributs ne correspondent pas aux clés de 'solution'.")
+    categories_utilisees = [categorie for _, categorie in attributes]
+    if len(set(categories_utilisees)) != len(categories_utilisees):
+        raise GrilleInvalideError("Deux attributs ne peuvent pas partager la même catégorie.")
+
+    for cle, categorie in attributes:
+        valeurs = categories.get(categorie)
+        if not isinstance(valeurs, list) or not valeurs:
+            raise GrilleInvalideError(f"La catégorie '{categorie}' de l'attribut '{cle}' est absente.")
+        if sorted(entry[cle] for entry in entries) != sorted(valeurs):
+            raise GrilleInvalideError(
+                f"Les valeurs de '{cle}' ne forment pas une permutation de la catégorie '{categorie}'."
+            )
+    return attributes
+
+
 def is_solution_complete(grille: dict[str, Any], solution: dict[str, Any]) -> bool:
-    """Vérifie si une grille soumise est complète (toutes les catégories requises renseignées)."""
+    """Vérifie si une grille soumise est complète (tous les attributs de la grille renseignés)."""
     if not isinstance(solution, dict) or not solution:
         return False
-    categories = grille.get("categories") or {}
-    expected_lutins = categories.get("lutins")
-    if not expected_lutins:
-        expected_lutins = list((grille.get("solution") or {}).keys())
-    if not expected_lutins:
+    try:
+        attributes = get_manche_attributes(grille)
+    except GrilleInvalideError:
         return False
-    for lutin in expected_lutins:
+    for lutin in grille["categories"]["lutins"]:
         if lutin not in solution:
             return False
         entry = solution[lutin]
         if not isinstance(entry, dict):
             return False
-        if not entry.get("luge") or not entry.get("friandise"):
+        if any(not entry.get(cle) for cle, _ in attributes):
             return False
     return True
 
