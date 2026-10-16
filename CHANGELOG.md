@@ -7,6 +7,10 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 ## [Unreleased]
 
+### Fixed
+
+- Une Édition future n'influence plus le tirage ni l'audit : l'Historique est unique (`historique_avant`, millésimes strictement antérieurs), chargé en une requête et partagé par le tirage, l'audit et l'export (#62).
+
 ### Added
 
 - Workflow Forgejo Actions `.forgejo/workflows/ci.yml` (verrou, ruff, mypy, bandit, pytest sur Python 3.12 et 3.10, `uv` 0.12.10) et couverture de branches (`--cov-branch`) ; seuil abaissé de 93 % à 92 %, la mesure lignes+branches donnant 92,73 % (#56).

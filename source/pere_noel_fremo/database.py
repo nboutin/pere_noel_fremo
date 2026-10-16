@@ -1,6 +1,7 @@
 import secrets
 import sqlite3
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -95,6 +96,19 @@ def get_db_connection(db_path: Path | str) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.row_factory = sqlite3.Row
     return conn
+
+
+@contextmanager
+def connection(conn_or_path: Path | str | sqlite3.Connection) -> Iterator[sqlite3.Connection]:
+    """Réutilise une connexion fournie, ou en ouvre une (fermée en sortie) à partir d'un chemin."""
+    if isinstance(conn_or_path, sqlite3.Connection):
+        yield conn_or_path
+        return
+    conn = get_db_connection(conn_or_path)
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 def parse_iso_or_legacy(val: str | datetime) -> datetime:
@@ -397,38 +411,48 @@ def import_yaml_data(
     }
 
 
-def _load_exclusions_and_history(
-    conn: sqlite3.Connection,
-    exclude_year: int | None = None,
-) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
-    """Charge les correspondances d'exclusions et d'historique d'attributions."""
-    exclusions_rows = conn.execute(
-        "SELECT lutin_id, excluded_lutin_id FROM exclusions ORDER BY excluded_lutin_id;"
-    ).fetchall()
+def get_exclusions(conn_or_path: Path | str | sqlite3.Connection) -> dict[str, list[str]]:
+    """Charge en une requête les exclusions de chaque Lutin ({lutin_id: [lutins exclus]})."""
+    with connection(conn_or_path) as conn:
+        rows = conn.execute("SELECT lutin_id, excluded_lutin_id FROM exclusions ORDER BY excluded_lutin_id;").fetchall()
     exclusions_map: dict[str, list[str]] = {}
-    for row in exclusions_rows:
+    for row in rows:
         exclusions_map.setdefault(row["lutin_id"], []).append(row["excluded_lutin_id"])
+    return exclusions_map
 
-    if exclude_year is not None:
-        history_rows = conn.execute(
+
+def _historique(conn: sqlite3.Connection, before_year: int | None) -> dict[str, list[str]]:
+    """Bénéficiaires de chaque Donneur, sans doublon, triés par millésime (None = tous les millésimes)."""
+    if before_year is None:
+        rows = conn.execute(
+            "SELECT donneur_id, beneficiaire_id FROM attributions ORDER BY year ASC, order_index ASC, id ASC;"
+        ).fetchall()
+    else:
+        # Un millésime NULL (import hérité sans année, cf. ADR-0008) est du passé.
+        rows = conn.execute(
             """
             SELECT donneur_id, beneficiaire_id
             FROM attributions
-            WHERE year != ? OR year IS NULL
-            ORDER BY order_index ASC, id ASC;
+            WHERE year < ? OR year IS NULL
+            ORDER BY year ASC, order_index ASC, id ASC;
             """,
-            (exclude_year,),
+            (before_year,),
         ).fetchall()
-    else:
-        history_rows = conn.execute(
-            "SELECT donneur_id, beneficiaire_id FROM attributions ORDER BY order_index ASC, id ASC;"
-        ).fetchall()
+    history: dict[str, list[str]] = {}
+    for row in rows:
+        beneficiaires = history.setdefault(row["donneur_id"], [])
+        if row["beneficiaire_id"] not in beneficiaires:
+            beneficiaires.append(row["beneficiaire_id"])
+    return history
 
-    history_map: dict[str, list[str]] = {}
-    for row in history_rows:
-        history_map.setdefault(row["donneur_id"], []).append(row["beneficiaire_id"])
 
-    return exclusions_map, history_map
+def historique_avant(conn_or_path: Path | str | sqlite3.Connection, year: int) -> dict[str, list[str]]:
+    """Historique d'un Donneur : ses Bénéficiaires des millésimes strictement antérieurs à `year` (ADR-0008).
+
+    Chargé en une requête, sans doublon, trié par millésime. Source unique du tirage, de l'audit et de l'export.
+    """
+    with connection(conn_or_path) as conn:
+        return _historique(conn, year)
 
 
 def get_lutins(db_path: Path | str, active_only: bool = True) -> dict[str, dict[str, Any]]:
@@ -441,7 +465,8 @@ def get_lutins(db_path: Path | str, active_only: bool = True) -> dict[str, dict[
         sql += " ORDER BY id;"
         lutins_rows = conn.execute(sql).fetchall()
 
-        exclusions_map, history_map = _load_exclusions_and_history(conn)
+        exclusions_map = get_exclusions(conn)
+        history_map = _historique(conn, None)
 
         result: dict[str, dict[str, Any]] = {}
         for row in lutins_rows:
@@ -453,32 +478,6 @@ def get_lutins(db_path: Path | str, active_only: bool = True) -> dict[str, dict[
                 "history": history_map.get(lutin_id, []),
             }
         return result
-    finally:
-        conn.close()
-
-
-def get_lutin_history(db_path: Path | str, lutin_id: str) -> list[str]:
-    """Récupère la liste ordonnée de l'historique des bénéficiaires pour un donneur."""
-    conn = get_db_connection(db_path)
-    try:
-        rows = conn.execute(
-            "SELECT beneficiaire_id FROM attributions WHERE donneur_id = ? ORDER BY order_index ASC, id ASC;",
-            (lutin_id,),
-        ).fetchall()
-        return [row["beneficiaire_id"] for row in rows]
-    finally:
-        conn.close()
-
-
-def get_lutin_exclusions(db_path: Path | str, lutin_id: str) -> list[str]:
-    """Récupère la liste des exclusions pour un lutin."""
-    conn = get_db_connection(db_path)
-    try:
-        rows = conn.execute(
-            "SELECT excluded_lutin_id FROM exclusions WHERE lutin_id = ? ORDER BY excluded_lutin_id ASC;",
-            (lutin_id,),
-        ).fetchall()
-        return [row["excluded_lutin_id"] for row in rows]
     finally:
         conn.close()
 
@@ -569,10 +568,9 @@ def set_edition_status(db_path: Path | str, year: int, status: str) -> None:
         conn.close()
 
 
-def get_confirmed_lutins(db_path: Path | str, year: int) -> dict[str, dict[str, Any]]:
+def get_confirmed_lutins(db_path: Path | str | sqlite3.Connection, year: int) -> dict[str, dict[str, Any]]:
     """Récupère les Lutins actifs ayant confirmé leur présence pour une édition donnée."""
-    conn = get_db_connection(db_path)
-    try:
+    with connection(db_path) as conn:
         rows = conn.execute(
             """
             SELECT l.id, l.fullname, l.email
@@ -586,7 +584,8 @@ def get_confirmed_lutins(db_path: Path | str, year: int) -> dict[str, dict[str, 
             (year,),
         ).fetchall()
 
-        exclusions_map, history_map = _load_exclusions_and_history(conn, exclude_year=year)
+        exclusions_map = get_exclusions(conn)
+        history_map = historique_avant(conn, year)
 
         result: dict[str, dict[str, Any]] = {}
         for row in rows:
@@ -598,8 +597,6 @@ def get_confirmed_lutins(db_path: Path | str, year: int) -> dict[str, dict[str, 
                 "history": history_map.get(lutin_id, []),
             }
         return result
-    finally:
-        conn.close()
 
 
 def save_attributions(db_path: Path | str, year: int, attributions_map: dict[str, str]) -> None:
@@ -639,38 +636,14 @@ def save_attributions(db_path: Path | str, year: int, attributions_map: dict[str
         conn.close()
 
 
-def get_attributions(db_path: Path | str, year: int) -> dict[str, str]:
+def get_attributions(db_path: Path | str | sqlite3.Connection, year: int) -> dict[str, str]:
     """Récupère le dictionnaire des attributions {donneur_id: beneficiaire_id} pour une édition."""
-    conn = get_db_connection(db_path)
-    try:
+    with connection(db_path) as conn:
         rows = conn.execute(
             "SELECT donneur_id, beneficiaire_id FROM attributions WHERE year = ? ORDER BY donneur_id;",
             (year,),
         ).fetchall()
-        return {row["donneur_id"]: row["beneficiaire_id"] for row in rows}
-    finally:
-        conn.close()
-
-
-def get_past_attributions(db_path: Path | str, year: int) -> dict[str, list[str]]:
-    """Récupère l'historique des attributions passées (strictement antérieures à l'année donnée, ADR-0008)."""
-    conn = get_db_connection(db_path)
-    try:
-        rows = conn.execute(
-            """
-            SELECT donneur_id, beneficiaire_id
-            FROM attributions
-            WHERE year < ?
-            ORDER BY order_index ASC, id ASC;
-            """,
-            (year,),
-        ).fetchall()
-        past_map: dict[str, list[str]] = {}
-        for row in rows:
-            past_map.setdefault(row["donneur_id"], []).append(row["beneficiaire_id"])
-        return past_map
-    finally:
-        conn.close()
+    return {row["donneur_id"]: row["beneficiaire_id"] for row in rows}
 
 
 def get_beneficiaire_for_lutin(

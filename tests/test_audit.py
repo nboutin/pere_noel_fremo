@@ -1,10 +1,13 @@
 import re
+import sqlite3
 from pathlib import Path
 
+import pere_noel_fremo.database as database_module
 import pytest
 from pere_noel_fremo.audit import AuditResult, audit_tirage
 from pere_noel_fremo.cli import main
 from pere_noel_fremo.database import (
+    get_confirmed_lutins,
     get_db_connection,
     init_db,
     save_attributions,
@@ -121,6 +124,49 @@ def test_audit_critical_constraint_is_a_warning(tmp_path: Path) -> None:
     result = _audit(_seed(tmp_path, exclusions=(("l1", "l3"), ("l1", "l4"))))
     assert result.is_valid is True
     assert any("Contrainte critique" in warn and "l1" in warn and "l2" in warn for warn in result.warnings)
+
+
+def _insert_attribution(db_path: Path, donneur: str, beneficiaire: str, year: int) -> None:
+    conn = get_db_connection(db_path)
+    with conn:
+        conn.execute("INSERT OR IGNORE INTO editions (year, status) VALUES (?, 'drawn');", (year,))
+        conn.execute(
+            "INSERT INTO attributions (donneur_id, beneficiaire_id, year, order_index) VALUES (?, ?, ?, 9);",
+            (donneur, beneficiaire, year),
+        )
+    conn.close()
+
+
+def test_audit_ignores_future_edition_attribution(tmp_path: Path) -> None:
+    db_path = _seed(tmp_path)
+    _insert_attribution(db_path, "l1", "l2", YEAR + 1)
+
+    result = _audit(db_path)
+
+    assert result.is_valid is True
+    assert result.errors == []
+
+
+def test_tirage_ignores_future_edition_attribution(tmp_path: Path) -> None:
+    db_path = _seed(tmp_path, attributions={})
+    _insert_attribution(db_path, "l1", "l2", YEAR + 1)
+
+    assert get_confirmed_lutins(db_path, YEAR)["l1"]["history"] == []
+
+
+def test_audit_tirage_opens_at_most_two_connections(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    db_path = _seed(tmp_path)
+    opened: list[object] = []
+    real = database_module.get_db_connection
+
+    def counting(path: Path | str) -> sqlite3.Connection:
+        opened.append(path)
+        return real(path)
+
+    monkeypatch.setattr(database_module, "get_db_connection", counting)
+
+    assert _audit(db_path).is_valid is True
+    assert len(opened) <= 2
 
 
 def test_cli_audit_tirage_invalid_prints_errors_and_warnings(

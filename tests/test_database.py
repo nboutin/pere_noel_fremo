@@ -13,11 +13,10 @@ from pere_noel_fremo.database import (
     get_db_connection,
     get_edition_date_repas,
     get_edition_status,
-    get_lutin_exclusions,
-    get_lutin_history,
     get_lutins,
     get_score_defi,
     get_scores_classement,
+    historique_avant,
     import_yaml_data,
     init_db,
     register_solve_attempt,
@@ -119,10 +118,6 @@ def test_import_yaml_data_and_get_lutins(tmp_path: Path) -> None:
     assert lutins["lutin_a"]["exclude"] == ["lutin_b"]
     assert lutins["lutin_a"]["history"] == ["lutin_b", "lutin_c"]
 
-    # Verify helper query functions
-    assert get_lutin_history(db_path, "lutin_a") == ["lutin_b", "lutin_c"]
-    assert get_lutin_exclusions(db_path, "lutin_a") == ["lutin_b"]
-
     # Test idempotence: running import a second time updates or preserves without duplicate keys/rows
     counts_repeat = import_yaml_data(db_path, data_in_path, secure_data_path)
     assert counts_repeat["lutins"] == 3
@@ -130,6 +125,37 @@ def test_import_yaml_data_and_get_lutins(tmp_path: Path) -> None:
     lutins_after = get_lutins(db_path)
     assert lutins_after["lutin_a"]["history"] == ["lutin_b", "lutin_c"]
     assert lutins_after["lutin_a"]["exclude"] == ["lutin_b"]
+
+
+def _seed_historique(db_path: Path) -> None:
+    init_db(db_path)
+    conn = get_db_connection(db_path)
+    with conn:
+        for lutin_id in ("a", "b", "c"):
+            conn.execute("INSERT INTO lutins (id, fullname) VALUES (?, ?);", (lutin_id, lutin_id))
+        for year in (2024, 2025, 2026, 2027):
+            conn.execute("INSERT INTO editions (year, status) VALUES (?, 'drawn');", (year,))
+        rows = [("a", "b", 2024, 0), ("a", "c", 2025, 1), ("a", "b", 2026, 2), ("a", "c", 2027, 3)]
+        for donneur, beneficiaire, year, idx in rows:
+            conn.execute(
+                "INSERT INTO attributions (donneur_id, beneficiaire_id, year, order_index) VALUES (?, ?, ?, ?);",
+                (donneur, beneficiaire, year, idx),
+            )
+    conn.close()
+
+
+def test_historique_avant_is_strictly_before_year_and_deduplicated(tmp_path: Path) -> None:
+    db_path = tmp_path / "t.db"
+    _seed_historique(db_path)
+
+    assert historique_avant(db_path, 2026) == {"a": ["b", "c"]}
+    assert historique_avant(db_path, 2025) == {"a": ["b"]}
+    assert historique_avant(db_path, 2024) == {}
+    conn = get_db_connection(db_path)
+    try:
+        assert historique_avant(conn, 2030) == {"a": ["b", "c"]}
+    finally:
+        conn.close()
 
 
 def test_import_yaml_data_validates_referential_integrity(tmp_path: Path) -> None:

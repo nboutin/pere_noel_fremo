@@ -3,10 +3,11 @@ from pathlib import Path
 from typing import Any
 
 from .database import (
+    connection,
     get_attributions,
     get_confirmed_lutins,
-    get_lutin_exclusions,
-    get_past_attributions,
+    get_exclusions,
+    historique_avant,
 )
 
 
@@ -35,10 +36,11 @@ def audit_tirage(db_path: Path | str, year: int) -> AuditResult:
     interface programmatique exploitable par l'agent Antigravity pour diagnostiquer le tirage au sort
     sans divulgation publique.
     """
-    confirmed_lutins = get_confirmed_lutins(db_path, year)
-    attributions = get_attributions(db_path, year)
-    exclusions = {donneur: get_lutin_exclusions(db_path, donneur) for donneur in attributions}
-    history = get_past_attributions(db_path, year)
+    with connection(db_path) as conn:
+        confirmed_lutins = get_confirmed_lutins(conn, year)
+        attributions = get_attributions(conn, year)
+        exclusions = get_exclusions(conn)
+        history = historique_avant(conn, year)
     return audit_pairs(confirmed_lutins, attributions, exclusions, history, year=year)
 
 

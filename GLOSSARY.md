@@ -29,7 +29,7 @@ Interdiction formelle pour un Donneur d'offrir un cadeau à un Lutin désigné (
 _Avoid_: Blacklist, restriction, veto
 
 **Historique**:
-Liste exhaustive et permanente de tous les Bénéficiaires précédemment reçus par un Donneur, interdisant définitivement leur réattribution dans les éditions futures.
+Liste exhaustive et permanente de tous les Bénéficiaires reçus par un Donneur lors des millésimes strictement antérieurs à l'Édition considérée, interdisant définitivement leur réattribution. Une Attribution millésimée d'une Édition ultérieure n'en fait jamais partie.
 _Avoid_: Antécédents, mémoire, historique glissant
 
 **Édition**:

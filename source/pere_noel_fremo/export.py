@@ -3,7 +3,7 @@ from typing import Any
 
 import yaml
 
-from .database import get_attributions, get_lutins, get_past_attributions
+from .database import get_attributions, get_lutins, historique_avant
 
 
 def build_edition_export_data(db_path: Path | str, year: int) -> dict[str, dict[str, Any]]:
@@ -22,17 +22,12 @@ def build_edition_export_data(db_path: Path | str, year: int) -> dict[str, dict[
     current_attributions = get_attributions(db_path, year)
 
     # 3. Historique passé (strictement antérieur à l'année courante, ADR-0008)
-    past_history_map = get_past_attributions(db_path, year)
+    past_history_map = historique_avant(db_path, year)
 
     export_data: dict[str, dict[str, Any]] = {}
     for lutin_id, lutin_info in active_lutins.items():
-        past_history = past_history_map.get(lutin_id, [])
-
-        # Déduplication de l'historique tout en préservant l'ordre chronologique
-        history: list[str] = []
-        for b_id in past_history:
-            if b_id not in history:
-                history.append(b_id)
+        # `historique_avant` est déjà sans doublon et trié par millésime
+        history = list(past_history_map.get(lutin_id, []))
 
         # Ajout du Bénéficiaire de l'édition courante en fin d'historique s'il n'y figure pas déjà
         current_beneficiaire = current_attributions.get(lutin_id)
