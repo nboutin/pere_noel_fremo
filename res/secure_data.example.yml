@@ -2,6 +2,8 @@
 sender_email: leperenoeldelafremo@gmail.com
 sender_pwd: secret_app_password
 base_url: https://homelab.tail7d8b91.ts.net:10000
+admin_password: secret_admin_password
+admin_session_secret: changeme_admin_session_secret_32_bytes_min
 
 receiver_test: test@example.com
 personnes_test:

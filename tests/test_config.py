@@ -174,3 +174,44 @@ def test_only_one_fremo_res_dir_occurrence_in_source() -> None:
                 occurrences.append((path.name, line_num, line.strip()))
     assert len(occurrences) == 1
     assert occurrences[0][0] == "config.py"
+
+
+def test_get_admin_secrets_from_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from pere_noel_fremo.config import get_admin_password, get_admin_session_secret
+
+    monkeypatch.setenv("ADMIN_PASSWORD", "env_pass_123")
+    monkeypatch.setenv("ADMIN_SESSION_SECRET", "env_secret_456")
+    assert get_admin_password(tmp_path) == "env_pass_123"
+    assert get_admin_session_secret(tmp_path) == "env_secret_456"
+
+
+def test_get_admin_secrets_from_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import yaml
+    from pere_noel_fremo.config import get_admin_password, get_admin_session_secret
+
+    monkeypatch.delenv("ADMIN_PASSWORD", raising=False)
+    monkeypatch.delenv("ADMIN_SESSION_SECRET", raising=False)
+
+    secure_data = tmp_path / "secure_data.yml"
+    with open(secure_data, "w", encoding="utf-8") as f:
+        yaml.safe_dump({"admin_password": "yaml_pass_789", "admin_session_secret": "yaml_secret_abc"}, f)
+
+    assert get_admin_password(tmp_path) == "yaml_pass_789"
+    assert get_admin_session_secret(tmp_path) == "yaml_secret_abc"
+
+
+def test_get_admin_secrets_fallback_none(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from pere_noel_fremo.config import get_admin_password, get_admin_session_secret
+
+    monkeypatch.delenv("ADMIN_PASSWORD", raising=False)
+    monkeypatch.delenv("ADMIN_SESSION_SECRET", raising=False)
+
+    # Empty dir, no secure_data.yml
+    assert get_admin_password(tmp_path) is None
+    assert get_admin_session_secret(tmp_path) is None
+
+    # Corrupted / invalid yaml
+    secure_data = tmp_path / "secure_data.yml"
+    secure_data.write_text(":: invalid yaml ::", encoding="utf-8")
+    assert get_admin_password(tmp_path) is None
+    assert get_admin_session_secret(tmp_path) is None

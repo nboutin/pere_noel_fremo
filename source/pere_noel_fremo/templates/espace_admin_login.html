@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion - Espace Admin</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .login-card {
+            max-width: 420px;
+            margin: 2rem auto;
+            text-align: center;
+        }
+        .form-group {
+            margin: 1.5rem 0;
+            text-align: left;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--color-text-muted);
+            font-size: 0.95rem;
+        }
+        .form-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--color-card-border);
+            background: #0b1120;
+            color: var(--color-text);
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: var(--color-gold);
+        }
+        .btn-submit {
+            width: 100%;
+            background-color: var(--color-primary);
+            color: white;
+            font-weight: bold;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.2s ease;
+        }
+        .btn-submit:hover {
+            background-color: var(--color-primary-hover);
+        }
+        .error-msg {
+            background-color: rgba(220, 38, 38, 0.2);
+            color: #f87171;
+            border: 1px solid rgba(220, 38, 38, 0.4);
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎅 Espace Admin 🎄</h1>
+            <p style="color: var(--color-text-muted);">Accès confidentiel réservé à l'organisateur</p>
+        </header>
+        <section class="card login-card">
+            <h2>Authentification</h2>
+            {% if error %}
+            <div class="error-msg">{{ error }}</div>
+            {% endif %}
+            <form method="post" action="/admin/login">
+                <div class="form-group">
+                    <label for="password">Mot de passe administrateur :</label>
+                    <input type="password" id="password" name="password" class="form-input" required autocomplete="current-password" autofocus>
+                </div>
+                <button type="submit" class="btn-submit">Se connecter</button>
+            </form>
+        </section>
+    </div>
+</body>
+</html>
