@@ -7,8 +7,8 @@ La version initiale à manche unique ne permettait ni bataille de classement ni 
 ## Décisions
 
 1. **Format Championnat bi-hebdomadaire à points (Grand Prix)** :
-   - Le Défi du lutin est découpé en **Manches** bi-hebdomadaires (déblocage chaque **lundi à 19h00** et chaque **vendredi à 19h00**).
-   - Coup d'envoi le **lundi 12 octobre 2026 à 19h00** (selon manche 1), manches suivantes tous les lundis et vendredis jusqu'au **vendredi 4 décembre 2026** (15e manche), menant au réveillon du **samedi 5 décembre 2026** (soit 15 manches au total).
+   - Le Défi du lutin est découpé en **Manches** bi-hebdomadaires (déblocage chaque **lundi à 17h00** et chaque **vendredi à 17h00** ; *amendé le 16 octobre 2026 : horaire initialement fixé à 19h00, avancé à 17h00*).
+   - Coup d'envoi le **lundi 12 octobre 2026 à 17h00** (selon manche 1), manches suivantes tous les lundis et vendredis jusqu'au **vendredi 4 décembre 2026** (15e manche), menant au réveillon du **samedi 5 décembre 2026** (soit 15 manches au total).
    - Chaque Manche propose une **Grille logique** distincte.
    - Sur chaque manche, un Lutin ne dispose que d'**un seul essai officiel** (chronométré au dixième de seconde).
    - Chaque manche attribue des points selon le rang de vitesse parmi les Lutins ayant résolu la grille :

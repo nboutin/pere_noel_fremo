@@ -466,8 +466,8 @@ def test_espace_lutin_locked_manche_no_clues_no_categories(client: TestClient, t
 
     # Titre et unlock_at doivent être affichés
     assert "Manche 2 : La Ronde des Étoiles" in page_text
-    assert "lundi 19 octobre, 19h00" in page_text
-    assert "2026-10-19 19:00:00" not in page_text
+    assert "lundi 19 octobre, 17h00" in page_text
+    assert "2026-10-19 17:00:00" not in page_text
     assert "Cette manche est encore verrouillée" in page_text
 
     # Aucun indice, ni en clair ni en base64
@@ -1113,8 +1113,8 @@ def test_scores_page_shows_french_unlock_time_for_locked_manche(client: TestClie
 
     resp = client.get("/scores/2026")
     assert resp.status_code == 200
-    assert "19h00" in resp.text
-    assert "lundi 19 octobre, 19h00" in resp.text
+    assert "17h00" in resp.text
+    assert "lundi 19 octobre, 17h00" in resp.text
 
 
 def test_aucune_route_n_est_asynchrone(client: TestClient) -> None:
