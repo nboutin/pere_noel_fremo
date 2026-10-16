@@ -1025,3 +1025,53 @@ def test_cli_annee_par_defaut_est_l_edition_la_plus_recente(tmp_path: Path, caps
     main(["audit-tirage", "--db-path", str(db_path)])
 
     assert "(2031)" in capsys.readouterr().out
+
+
+@pytest.fixture
+def journaux_isoles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
+    import logging
+
+    monkeypatch.setenv("FREMO_LOGS_DIR", str(tmp_path / "logs"))
+    root = logging.getLogger("")
+    avant = list(root.handlers)
+    yield tmp_path / "logs" / "pere_noel.log"
+    for handler in list(root.handlers):
+        if handler not in avant:
+            handler.close()
+            root.removeHandler(handler)
+
+
+def _main_journalisant(message: str) -> int:
+    import logging
+
+    def faux_init(_args: Any) -> int:
+        logging.getLogger("pere_noel_fremo.test").info(message)
+        return 0
+
+    with patch("pere_noel_fremo.cli.handle_init_db", faux_init):
+        return main(["init-db"])
+
+
+def test_main_ecrit_les_journaux_applicatifs(journaux_isoles: Path) -> None:
+    assert _main_journalisant("message applicatif") == 0
+
+    assert "message applicatif" in journaux_isoles.read_text(encoding="utf-8")
+
+
+def test_main_masque_les_jetons_dans_le_fichier(journaux_isoles: Path) -> None:
+    _main_journalisant("GET /lutin/secret123 ok")
+
+    contenu = journaux_isoles.read_text(encoding="utf-8")
+    assert "/lutin/***" in contenu
+    assert "secret123" not in contenu
+
+
+def test_main_deux_fois_sans_handler_en_double(journaux_isoles: Path) -> None:
+    import logging
+
+    _main_journalisant("un")
+    nombre = len(logging.getLogger("").handlers)
+    _main_journalisant("deux")
+
+    assert len(logging.getLogger("").handlers) == nombre
+    assert journaux_isoles.read_text(encoding="utf-8").count("deux") == 1

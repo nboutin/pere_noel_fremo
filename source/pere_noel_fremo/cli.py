@@ -8,6 +8,7 @@ from .annonce import send_annonces
 from .config import default_db_path, resolve_res_dir
 from .database import import_yaml_data
 from .edition import annee_courante
+from .helper import configure_logger
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -578,6 +579,7 @@ def handle_export(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_logger("pere_noel.log")
     parser = create_parser()
     if argv is None:
         argv = sys.argv[1:]

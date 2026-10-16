@@ -42,6 +42,8 @@ def configure_logger(filename: str) -> None:
     logs_dir.mkdir(parents=True, exist_ok=True)
     log_filepath = logs_dir / filename
 
+    from .web import TokenMaskingFilter
+
     root_logger = logging.getLogger("")
     root_logger.setLevel(logging.DEBUG)
 
@@ -60,6 +62,7 @@ def configure_logger(filename: str) -> None:
             fmt="[%(asctime)s][%(name)s][%(levelname)-5s]%(message)s", datefmt="%Y-%m-%d %H:%M:%S"
         )
         file_handler.setFormatter(file_formatter)
+        file_handler.addFilter(TokenMaskingFilter())
         root_logger.addHandler(file_handler)
 
     has_console_handler = any(
@@ -70,6 +73,7 @@ def configure_logger(filename: str) -> None:
         console_handler.setLevel(logging.INFO)
         console_formatter = logging.Formatter("%(message)s")
         console_handler.setFormatter(console_formatter)
+        console_handler.addFilter(TokenMaskingFilter())
         root_logger.addHandler(console_handler)
 
 
