@@ -4,11 +4,14 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from .edition import STATUTS_SQL, StatutEdition, sceller, statut
+
+if TYPE_CHECKING:  # pragma: no cover
+    from .admin import SyntheseEdition
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS pseudos (
@@ -941,7 +944,7 @@ def get_scores_classement(
 def get_admin_edition_summary(
     db_path: Path | str | sqlite3.Connection,
     year: int,
-) -> dict[str, Any]:
+) -> "SyntheseEdition":
     """Agrège l'état d'avancement d'une Édition pour l'Espace Admin sous Admin aveugle."""
     from .admin import get_admin_edition_summary as _get_admin_edition_summary
 

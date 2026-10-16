@@ -359,7 +359,7 @@
         <section class="metrics-banner">
             <div class="metric-card">
                 <div class="metric-label">Inscrits</div>
-                <div class="metric-value">{{ summary.total_lutins }}</div>
+                <div class="metric-value">{{ summary.metrics.total_lutins }}</div>
                 {% if summary.metrics.inactifs > 0 %}
                     <div class="metric-sub">{{ summary.metrics.total_inscrits }} Lutins inscrits ({{ summary.metrics.inactifs }} inactif{{ 's' if summary.metrics.inactifs > 1 else '' }})</div>
                 {% else %}
@@ -368,28 +368,28 @@
             </div>
             <div class="metric-card">
                 <div class="metric-label">Confirmés</div>
-                <div class="metric-value metric-val-green">{{ summary.confirmes }}</div>
+                <div class="metric-value metric-val-green">{{ summary.metrics.confirmes }}</div>
                 <div class="metric-sub">Présents au repas</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Absents</div>
-                <div class="metric-value metric-val-red">{{ summary.absents }}</div>
+                <div class="metric-value metric-val-red">{{ summary.metrics.absents }}</div>
                 <div class="metric-sub">Indiqués absents</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">En attente</div>
-                <div class="metric-value metric-val-orange">{{ summary.en_attente }}</div>
+                <div class="metric-value metric-val-orange">{{ summary.metrics.en_attente }}</div>
                 <div class="metric-sub">Sans réponse</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Liens magiques envoyés</div>
-                <div class="metric-value metric-val-gold">{{ summary.tokens_envoyes }} <span style="font-size: 1rem; color: var(--color-text-muted); font-weight: normal;">/ {{ summary.total_lutins }}</span></div>
+                <div class="metric-value metric-val-gold">{{ summary.metrics.tokens_envoyes }} <span style="font-size: 1rem; color: var(--color-text-muted); font-weight: normal;">/ {{ summary.metrics.total_lutins }}</span></div>
                 <div class="metric-sub">Invitations expédiées</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Résolution du Défi</div>
-                <div class="metric-value metric-val-gold">{{ summary.taux_resolution_defi }}%</div>
-                <div class="metric-sub">{{ summary.defi_resolus }} résolu{{ 's' if summary.defi_resolus > 1 else '' }}</div>
+                <div class="metric-value metric-val-gold">{{ summary.metrics.taux_resolution_defi }}%</div>
+                <div class="metric-sub">{{ summary.metrics.defi_resolus }} résolu{{ 's' if summary.metrics.defi_resolus > 1 else '' }}</div>
             </div>
         </section>
 
@@ -400,13 +400,13 @@
                     Tous ({{ summary.lutins|length }})
                 </button>
                 <button type="button" class="btn-filter" data-filter="confirme" onclick="filterLutins('confirme')">
-                    Confirmés ({{ summary.confirmes }})
+                    Confirmés ({{ summary.metrics.confirmes }})
                 </button>
                 <button type="button" class="btn-filter" data-filter="absent" onclick="filterLutins('absent')">
-                    Absents ({{ summary.absents }})
+                    Absents ({{ summary.metrics.absents }})
                 </button>
                 <button type="button" class="btn-filter" data-filter="en_attente" onclick="filterLutins('en_attente')">
-                    En attente ({{ summary.en_attente }})
+                    En attente ({{ summary.metrics.en_attente }})
                 </button>
                 {% if summary.metrics.inactifs > 0 %}
                 <button type="button" class="btn-filter" data-filter="inactif" onclick="filterLutins('inactif')">
@@ -437,7 +437,7 @@
                     </thead>
                     <tbody>
                         {% for lutin in summary.lutins %}
-                            <tr class="lutin-row" data-presence="{{ 'inactif' if not lutin.is_active else lutin.presence.statut }}">
+                            <tr class="lutin-row" data-presence="{{ 'inactif' if not lutin.is_active else lutin.presence.statut.value }}">
                                 <td>
                                     <div class="lutin-fullname">
                                         {{ lutin.fullname }}
@@ -463,19 +463,19 @@
                                 <td>
                                     <div class="token-cell">
                                         <div class="token-status-line">
-                                            {% if lutin.token_sent %}
+                                            {% if lutin.lien_magique and lutin.lien_magique.sent %}
                                                 <span style="color: #4ade80; font-weight: 500;">✉️ Envoyé</span>
                                             {% else %}
                                                 <span style="color: var(--color-text-muted);">Non envoyé</span>
                                             {% endif %}
-                                            {% if lutin.token_value %}
-                                                <button type="button" class="btn-copy" onclick="copyMagicLink(this, '{{ base_url }}/lutin/{{ lutin.token_value }}')">
+                                            {% if lutin.lien_magique %}
+                                                <button type="button" class="btn-copy" onclick="copyMagicLink(this, '{{ base_url }}/lutin/{{ lutin.lien_magique.token }}')">
                                                     📋 Copier l'URL
                                                 </button>
                                             {% endif %}
                                         </div>
-                                        {% if lutin.token_sent_at %}
-                                            <div class="token-sent-date">Le {{ lutin.token_sent_at }}</div>
+                                        {% if lutin.lien_magique and lutin.lien_magique.sent_at %}
+                                            <div class="token-sent-date">Le {{ lutin.lien_magique.sent_at }}</div>
                                         {% endif %}
                                     </div>
                                 </td>

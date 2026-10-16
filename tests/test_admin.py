@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -926,3 +927,23 @@ def test_get_admin_edition_summary_has_no_res_dir_parameter() -> None:
 
     assert "res_dir" not in inspect.signature(admin.get_admin_edition_summary).parameters
     assert "res_dir" not in inspect.signature(database.get_admin_edition_summary).parameters
+
+
+def _normalized_dashboard_html(client: TestClient, tokens: dict[str, str]) -> str:
+    """HTML de /admin sans variabilité (jetons aléatoires, espaces)."""
+    client.post("/admin/login", data={"password": "secret_admin_test_password"}, follow_redirects=False)
+    html = client.get("/admin").text
+    for name, token in tokens.items():
+        html = html.replace(token, f"<TOKEN_{name.upper()}>")
+    html = re.sub(r"Le \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", "Le <SENT_AT>", html)
+    return "\n".join(" ".join(line.split()) for line in html.splitlines() if line.strip())
+
+
+def test_admin_dashboard_html_matches_golden_reference(
+    rich_admin_client: tuple[TestClient, dict[str, str]],
+) -> None:
+    """Non-régression du rendu : le HTML reste identique, à l'espace près, après le refactor typé (#91)."""
+    client, tokens = rich_admin_client
+    golden = Path(__file__).parent / "golden" / "espace_admin_2026.html"
+    actual = _normalized_dashboard_html(client, tokens)
+    assert actual + "\n" == golden.read_text(encoding="utf-8")

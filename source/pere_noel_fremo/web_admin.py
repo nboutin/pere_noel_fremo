@@ -236,7 +236,7 @@ def create_admin_app(
 
         target_year = year if year is not None else annee_courante(db_path)
         summary = get_admin_edition_summary(db_path, target_year)
-        available_years = summary.get("available_years", [target_year])
+        available_years = summary.available_years
         base_url = (configured_base_url or str(request.base_url)).strip().rstrip("/")
 
         resp = templates.TemplateResponse(

@@ -13,6 +13,7 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 ### Changed
 
+- Espace Admin : `get_admin_edition_summary` renvoie désormais une `SyntheseEdition` en dataclasses figées (`MetriquesEdition`, `LutinSuivi`, `SuiviPresence`, `SuiviLienMagique`, `SuiviDefi`) avec statuts typés, au lieu d'un dictionnaire aux clés dupliquées et de sous-classes de `dict` ; le rendu HTML reste identique et aucune requête ne touche `attributions` (#91).
 - Espace Admin : application distincte (`create_admin_app`, module `web_admin`) servie par la nouvelle sous-commande `pere-noel serve-admin` (port 8001 par défaut) et par un second service compose `pere_noel_fremo_admin`. L'application publique ne contient plus aucune route `/admin*` ; les deux services sont publiés sur `127.0.0.1` seulement (ADR-0009 §2, §5 ; ADR-0013 §4) (#92).
 
 ### Fixed

@@ -1,12 +1,25 @@
 """Tests pour le modèle d'agrégation de l'Espace Admin sous Admin aveugle."""
 
+import dataclasses
+import inspect
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 import pytest
-from pere_noel_fremo.admin import DefiInfo, PresenceInfo, TokenInfo, get_admin_edition_summary
+from pere_noel_fremo import admin
+from pere_noel_fremo.admin import (
+    LutinSuivi,
+    MetriquesEdition,
+    StatutDefi,
+    StatutPresence,
+    SuiviDefi,
+    SuiviLienMagique,
+    SuiviPresence,
+    SyntheseEdition,
+    get_admin_edition_summary,
+)
 from pere_noel_fremo.database import get_db_connection, init_db
 
 
@@ -101,34 +114,26 @@ def test_admin_summary_nominal(test_db: Path) -> None:
 
     summary = get_admin_edition_summary(test_db, 2026)
 
-    # Vérification métriques globales (sur les 4 lutins actifs)
+    assert isinstance(summary, SyntheseEdition)
+    assert summary.year == 2026
+    assert summary.status == "announced"
+    assert summary.date_repas == "2026-12-25"
     # Actifs : Albert (confirme), Bernard (absent), Claire (en_attente), Zoé (confirme)
-    assert summary["year"] == 2026
-    assert summary["status"] == "announced"
-    assert summary["total_lutins"] == 4
-    assert summary["confirmes"] == 2
-    assert summary["absents"] == 1
-    assert summary["en_attente"] == 1
-    # Tokens envoyés parmi actifs : Albert, Bernard -> 2
-    assert summary["tokens_envoyes"] == 2
-    # Défi résolus parmi actifs : Albert -> 1
-    assert summary["defi_resolus"] == 1
-    # Taux de résolution : 1 / 4 * 100 = 25.0 %
-    assert summary["taux_resolution_defi"] == 25.0
+    assert summary.metrics == MetriquesEdition(
+        total_lutins=4,
+        confirmes=2,
+        absents=1,
+        en_attente=1,
+        tokens_envoyes=2,  # Albert, Bernard
+        defi_resolus=1,  # Albert
+        taux_resolution_defi=25.0,
+        total_inscrits=5,
+        inactifs=1,
+    )
 
-    # Vérification du dictionnaire metrics dédié
-    assert summary["metrics"]["total_lutins"] == 4
-    assert summary["metrics"]["confirmes"] == 2
-    assert summary["metrics"]["absents"] == 1
-    assert summary["metrics"]["en_attente"] == 1
-    assert summary["metrics"]["tokens_envoyes"] == 2
-    assert summary["metrics"]["defi_resolus"] == 1
-    assert summary["metrics"]["taux_resolution_defi"] == 25.0
-
-    # Vérification de la liste des lutins (tous les 5, ordonnés par fullname ASC)
-    lutins = summary["lutins"]
-    assert len(lutins) == 5
-    assert [lutin["fullname"] for lutin in lutins] == [
+    # Tous les 5 lutins, ordonnés par fullname ASC
+    lutins = summary.lutins
+    assert [lutin.fullname for lutin in lutins] == [
         "Albert Dupont",
         "Bernard Pivot",
         "Claire Chazal",
@@ -136,63 +141,55 @@ def test_admin_summary_nominal(test_db: Path) -> None:
         "Zoé Zebra",
     ]
 
-    # Détails Albert
     alb = lutins[0]
-    assert alb["id"] == "albert"
-    assert alb["is_active"] is True
-    assert alb["presence"]["statut"] == "confirme"
-    assert alb["presence"]["label"] == "Confirmé"
-    assert alb["presence_statut"] == "confirme"
-    assert alb["token"]["sent"] is True
-    assert alb["token"]["token"] == "tok_alb"
-    assert alb["token"] == "tok_alb"
-    assert alb["magic_link"] == "/lutin/tok_alb"
-    assert alb["defi"]["statut"] == "resolu"
-    assert alb["defi"]["label"] == "Résolu"
-    assert alb["defi"]["manches_resolues"] == 1
-    assert alb["defi"]["time_seconds"] == 45.5
-    assert alb["defi"]["attempts"] == 2
+    assert alb.id == "albert"
+    assert alb.email == "alb@ex.com"
+    assert alb.is_active is True
+    assert alb.presence == SuiviPresence(statut=StatutPresence.CONFIRME)
+    assert alb.presence.statut == "confirme"
+    assert alb.lien_magique == SuiviLienMagique(token="tok_alb", sent_at="2026-11-01")
+    assert alb.lien_magique is not None
+    assert alb.lien_magique.sent is True
+    assert alb.defi == SuiviDefi(
+        statut=StatutDefi.RESOLU,
+        manches_resolues=1,
+        time_seconds=45.5,
+        best_time_seconds=45.5,
+        attempts=2,
+        pseudo_lutin="Lutin Agile",
+    )
 
-    # Détails Bernard
     ber = lutins[1]
-    assert ber["id"] == "bernard"
-    assert ber["is_active"] is True
-    assert ber["presence"]["statut"] == "absent"
-    assert ber["presence"]["label"] == "Absent"
-    assert ber["token"]["sent"] is True
-    assert ber["token"]["token"] == "tok_ber"
-    assert ber["defi"]["statut"] == "en_cours"
-    assert ber["defi"]["label"] == "En cours"
+    assert ber.id == "bernard"
+    assert ber.presence.statut is StatutPresence.ABSENT
+    assert ber.lien_magique is not None
+    assert ber.lien_magique.sent is True
+    assert ber.lien_magique.token == "tok_ber"
+    assert ber.defi.statut is StatutDefi.EN_COURS
 
-    # Détails Claire
     cla = lutins[2]
-    assert cla["id"] == "claire"
-    assert cla["is_active"] is True
-    assert cla["presence"]["statut"] == "en_attente"
-    assert cla["presence"]["label"] == "En attente"
-    assert cla["token"]["sent"] is False
-    assert cla["token"]["token"] == "tok_cla"
-    assert cla["token"]["sent_at"] is None
-    assert cla["defi"]["statut"] == "abandonne"
-    assert cla["defi"]["label"] == "Abandonné"
+    assert cla.id == "claire"
+    assert cla.presence.statut is StatutPresence.EN_ATTENTE
+    assert cla.lien_magique is not None
+    assert cla.lien_magique.sent is False
+    assert cla.lien_magique.token == "tok_cla"
+    assert cla.lien_magique.sent_at is None
+    assert cla.defi.statut is StatutDefi.ABANDONNE
 
-    # Détails Ignace (Inactif)
     ina = lutins[3]
-    assert ina["id"] == "inactif"
-    assert ina["is_active"] is False
-    assert ina["presence"]["statut"] == "confirme"
+    assert ina.id == "inactif"
+    assert ina.is_active is False
+    assert ina.presence.statut is StatutPresence.CONFIRME
 
-    # Détails Zoé
     zoe = lutins[4]
-    assert zoe["id"] == "zaza"
-    assert zoe["is_active"] is True
-    assert zoe["presence"]["statut"] == "confirme"
-    assert zoe["token"] is None
-    assert zoe["token_info"]["token"] is None
-    assert zoe["token_info"]["sent"] is False
-    assert zoe["magic_link"] is None
-    assert zoe["defi"]["statut"] == "non_commence"
-    assert zoe["defi"]["label"] == "Non commencé"
+    assert zoe.id == "zaza"
+    assert zoe.is_active is True
+    assert zoe.presence.statut is StatutPresence.CONFIRME
+    assert zoe.lien_magique is None
+    assert zoe.defi.statut is StatutDefi.NON_COMMENCE
+    assert zoe.defi.manches_resolues == 0
+    assert zoe.defi.time_seconds is None
+    assert zoe.defi.pseudo_lutin is None
 
 
 def test_admin_summary_all_en_attente(test_db: Path) -> None:
@@ -204,22 +201,20 @@ def test_admin_summary_all_en_attente(test_db: Path) -> None:
     conn.close()
 
     summary = get_admin_edition_summary(test_db, 2026)
-    assert summary["total_lutins"] == 2
-    assert summary["confirmes"] == 0
-    assert summary["absents"] == 0
-    assert summary["en_attente"] == 2
-    assert summary["tokens_envoyes"] == 0
-    assert summary["defi_resolus"] == 0
-    assert summary["taux_resolution_defi"] == 0.0
+    assert summary.status == "draft"
+    assert summary.date_repas is None
+    assert summary.metrics.total_lutins == 2
+    assert summary.metrics.confirmes == 0
+    assert summary.metrics.absents == 0
+    assert summary.metrics.en_attente == 2
+    assert summary.metrics.tokens_envoyes == 0
+    assert summary.metrics.defi_resolus == 0
+    assert summary.metrics.taux_resolution_defi == 0.0
 
-    for lutin_item in summary["lutins"]:
-        assert lutin_item["presence"]["statut"] == "en_attente"
-        assert lutin_item["presence"]["label"] == "En attente"
-        assert lutin_item["token"] is None
-        assert lutin_item["token_info"]["token"] is None
-        assert lutin_item["token_info"]["sent"] is False
-        assert lutin_item["defi"]["statut"] == "non_commence"
-        assert lutin_item["defi"]["label"] == "Non commencé"
+    for lutin_item in summary.lutins:
+        assert lutin_item.presence.statut is StatutPresence.EN_ATTENTE
+        assert lutin_item.lien_magique is None
+        assert lutin_item.defi.statut is StatutDefi.NON_COMMENCE
 
 
 def test_admin_summary_previous_year_historical(test_db: Path) -> None:
@@ -253,28 +248,29 @@ def test_admin_summary_previous_year_historical(test_db: Path) -> None:
     conn.close()
 
     summary_2025 = get_admin_edition_summary(test_db, 2025)
-    assert summary_2025["year"] == 2025
-    assert summary_2025["status"] == "revealed"
-    assert summary_2025["confirmes"] == 1
-    assert summary_2025["absents"] == 0
-    assert summary_2025["defi_resolus"] == 1
-    assert summary_2025["lutins"][0]["presence"]["statut"] == "confirme"
-    assert summary_2025["lutins"][0]["defi"]["statut"] == "resolu"
-    assert summary_2025["lutins"][0]["token"]["token"] == "tok_2025"
+    assert summary_2025.year == 2025
+    assert summary_2025.status == "revealed"
+    assert summary_2025.metrics.confirmes == 1
+    assert summary_2025.metrics.absents == 0
+    assert summary_2025.metrics.defi_resolus == 1
+    assert summary_2025.lutins[0].presence.statut is StatutPresence.CONFIRME
+    assert summary_2025.lutins[0].defi.statut is StatutDefi.RESOLU
+    assert summary_2025.lutins[0].lien_magique is not None
+    assert summary_2025.lutins[0].lien_magique.token == "tok_2025"
 
     summary_2026 = get_admin_edition_summary(test_db, 2026)
-    assert summary_2026["year"] == 2026
-    assert summary_2026["status"] == "announced"
-    assert summary_2026["confirmes"] == 0
-    assert summary_2026["absents"] == 1
-    assert summary_2026["defi_resolus"] == 0
-    assert summary_2026["lutins"][0]["presence"]["statut"] == "absent"
-    assert summary_2026["lutins"][0]["defi"]["statut"] == "abandonne"
-    assert summary_2026["lutins"][0]["token"]["token"] == "tok_2026"
+    assert summary_2026.year == 2026
+    assert summary_2026.status == "announced"
+    assert summary_2026.metrics.confirmes == 0
+    assert summary_2026.metrics.absents == 1
+    assert summary_2026.metrics.defi_resolus == 0
+    assert summary_2026.lutins[0].presence.statut is StatutPresence.ABSENT
+    assert summary_2026.lutins[0].defi.statut is StatutDefi.ABANDONNE
+    assert summary_2026.lutins[0].lien_magique is not None
+    assert summary_2026.lutins[0].lien_magique.token == "tok_2026"
 
     # Vérification liste des éditions disponibles
-    assert 2025 in summary_2026["available_years"]
-    assert 2026 in summary_2026["available_years"]
+    assert summary_2026.available_years == [2026, 2025]
 
 
 def test_admin_summary_defi_multi_manches_hierarchy(test_db: Path) -> None:
@@ -323,27 +319,32 @@ def test_admin_summary_defi_multi_manches_hierarchy(test_db: Path) -> None:
     conn.close()
 
     summary = get_admin_edition_summary(test_db, 2026)
-    lutins_map = {lutin["id"]: lutin for lutin in summary["lutins"]}
+    lutins_map = {lutin.id: lutin for lutin in summary.lutins}
 
-    assert lutins_map["l_multi_solv"]["defi"]["statut"] == "resolu"
-    assert lutins_map["l_multi_solv"]["defi"]["manches_resolues"] == 1
-    assert lutins_map["l_multi_solv"]["defi"]["attempts"] == 3
+    assert lutins_map["l_multi_solv"].defi.statut is StatutDefi.RESOLU
+    assert lutins_map["l_multi_solv"].defi.manches_resolues == 1
+    assert lutins_map["l_multi_solv"].defi.attempts == 3
 
-    assert lutins_map["l_aban_encours"]["defi"]["statut"] == "en_cours"
-    assert lutins_map["l_all_aban"]["defi"]["statut"] == "abandonne"
+    assert lutins_map["l_aban_encours"].defi.statut is StatutDefi.EN_COURS
+    assert lutins_map["l_all_aban"].defi.statut is StatutDefi.ABANDONNE
 
 
 def test_admin_summary_empty_database(test_db: Path) -> None:
     summary = get_admin_edition_summary(test_db, 2026)
-    assert summary["year"] == 2026
-    assert summary["total_lutins"] == 0
-    assert summary["confirmes"] == 0
-    assert summary["absents"] == 0
-    assert summary["en_attente"] == 0
-    assert summary["tokens_envoyes"] == 0
-    assert summary["defi_resolus"] == 0
-    assert summary["taux_resolution_defi"] == 0.0
-    assert summary["lutins"] == []
+    assert summary.year == 2026
+    assert summary.available_years == [2026]
+    assert summary.metrics == MetriquesEdition(
+        total_lutins=0,
+        confirmes=0,
+        absents=0,
+        en_attente=0,
+        tokens_envoyes=0,
+        defi_resolus=0,
+        taux_resolution_defi=0.0,
+        total_inscrits=0,
+        inactifs=0,
+    )
+    assert summary.lutins == []
 
 
 def test_admin_summary_strict_blind_admin_guarantee(test_db: Path) -> None:
@@ -372,25 +373,28 @@ def test_admin_summary_strict_blind_admin_guarantee(test_db: Path) -> None:
     conn.close()
 
     # 1. Vérifier que la table attributions n'a JAMAIS été consultée par SQL
+    assert queries, "aucune requête tracée"
     for query in queries:
         assert "attribution" not in query.lower(), f"Violation Admin aveugle détectée dans la requête SQL : {query}"
         assert "beneficiaire" not in query.lower(), f"Violation Admin aveugle détectée dans la requête SQL : {query}"
         assert "donneur" not in query.lower(), f"Violation Admin aveugle détectée dans la requête SQL : {query}"
 
-    # 2. Vérifier qu'aucune clé liée aux attributions n'est exposée dans le résultat
-    def assert_no_attribution_keys(obj: Any, path: str = "") -> None:
-        if isinstance(obj, dict):
-            for k, v in obj.items():
-                k_lower = str(k).lower()
-                assert "attribution" not in k_lower, f"Clé interdite {k} trouvée dans {path}"
-                assert "beneficiaire" not in k_lower, f"Clé interdite {k} trouvée dans {path}"
-                assert "donneur" not in k_lower, f"Clé interdite {k} trouvée dans {path}"
-                assert_no_attribution_keys(v, f"{path}.{k}")
+    # 2. Vérifier qu'aucun champ lié aux attributions n'est exposé dans le résultat
+    def field_names(obj: Any) -> set[str]:
+        names: set[str] = set()
+        if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+            for f in dataclasses.fields(obj):
+                names.add(f.name)
+                names |= field_names(getattr(obj, f.name))
         elif isinstance(obj, list):
-            for i, item in enumerate(obj):
-                assert_no_attribution_keys(item, f"{path}[{i}]")
+            for item in obj:
+                names |= field_names(item)
+        return names
 
-    assert_no_attribution_keys(summary, "summary")
+    names = field_names(summary)
+    assert {"lutins", "metrics", "presence", "defi"} <= names
+    for name in names:
+        assert not any(bad in name.lower() for bad in ("attribution", "beneficiaire", "donneur")), name
 
 
 def test_admin_summary_reexport_in_database_module(test_db: Path) -> None:
@@ -398,58 +402,38 @@ def test_admin_summary_reexport_in_database_module(test_db: Path) -> None:
 
     assert callable(db_summary)
     res = db_summary(test_db, 2026)
-    assert res["year"] == 2026
+    assert res.year == 2026
 
 
-def test_admin_summary_info_classes_helpers() -> None:
-    # PresenceInfo
-    p = PresenceInfo(statut="confirme", label="Confirmé", present=True)
-    assert p.statut == "confirme"
-    assert p.label == "Confirmé"
-    assert p.present is True
-    assert p == "confirme"
-    assert p != "absent"
-    assert p == PresenceInfo(statut="confirme", label="Confirmé", present=True)
-    assert str(p) == "confirme"
+def test_admin_summary_is_made_of_frozen_dataclasses_only() -> None:
+    """Plus aucune sous-classe de dict dans admin.py ; tout le résultat est figé."""
+    for _, obj in inspect.getmembers(admin, inspect.isclass):
+        if obj.__module__ == admin.__name__:
+            assert not issubclass(obj, dict), obj
+    for cls in (SyntheseEdition, MetriquesEdition, LutinSuivi, SuiviPresence, SuiviLienMagique, SuiviDefi):
+        assert dataclasses.is_dataclass(cls)
+        assert getattr(cls, "__dataclass_params__").frozen  # noqa: B009
 
-    p_empty = PresenceInfo()
-    assert p_empty.statut == ""
-    assert p_empty.label == ""
-    assert p_empty.present is None
 
-    # TokenInfo
-    t = TokenInfo(token="tok_123", sent=True, sent_at="2026-12-01 10:00:00")
-    assert t.token == "tok_123"
-    assert t.sent is True
-    assert t.sent_at == "2026-12-01 10:00:00"
-    assert bool(t) is True
-    assert t == "tok_123"
-    assert t != "tok_other"
-    assert t is not None
-    assert t.__eq__(None) is False
-    assert t != {"token": "tok_other"}
-    assert t == {"token": "tok_123", "sent": True, "sent_at": "2026-12-01 10:00:00"}
-    assert str(t) == "tok_123"
+def test_admin_summary_has_a_single_name_per_datum(test_db: Path) -> None:
+    conn = get_db_connection(test_db)
+    with conn:
+        conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
+        conn.execute("INSERT INTO lutins (id, fullname, is_active) VALUES ('l1', 'Lutin', 1);")
+        conn.execute("INSERT INTO tokens (lutin_id, year, token) VALUES ('l1', 2026, 'tok_x');")
+    conn.close()
 
-    t_empty = TokenInfo()
-    assert t_empty.token is None
-    assert t_empty.sent is False
-    assert t_empty.sent_at is None
-    assert bool(t_empty) is False
-    assert t_empty is not None
-    assert t_empty.__eq__(None) is True
-    assert t_empty.get("token") is None
-    assert str(t_empty) == ""
-
-    # DefiInfo
-    d = DefiInfo(statut="resolu", label="Résolu")
-    assert d.statut == "resolu"
-    assert d.label == "Résolu"
-    assert d == "resolu"
-    assert d != "abandonne"
-    assert d == DefiInfo(statut="resolu", label="Résolu")
-    assert str(d) == "resolu"
-
-    d_empty = DefiInfo()
-    assert d_empty.statut == ""
-    assert d_empty.label == ""
+    lutin = get_admin_edition_summary(test_db, 2026).lutins[0]
+    assert {f.name for f in dataclasses.fields(lutin)} == {
+        "id",
+        "fullname",
+        "email",
+        "is_active",
+        "presence",
+        "lien_magique",
+        "defi",
+    }
+    assert lutin.lien_magique is not None
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        lutin.fullname = "autre"  # type: ignore[misc]
+    assert repr(lutin).count("tok_x") == 1
