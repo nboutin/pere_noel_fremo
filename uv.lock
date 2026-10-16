@@ -1289,7 +1289,7 @@ wheels = [
 
 [[package]]
 name = "pere-noel-fremo"
-version = "2.1.0"
+version = "2.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },

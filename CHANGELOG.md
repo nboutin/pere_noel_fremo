@@ -7,6 +7,12 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-10-16
+
+### Changed
+
+- Réorganisation de l'ordonnancement des cartes de l'Espace Lutin : 1. Confirmation de présence, 2. Bénéficiaire mystère, 3. Statut du championnat, 4. Classement général (tableau défilable d'une hauteur maximale de 400px), 5. Calendrier des manches (avec ancre `#card-defi`), 6. Manche active et Défi du lutin (#76, #77).
+
 ## [2.1.0] - 2026-10-16
 
 ### Added

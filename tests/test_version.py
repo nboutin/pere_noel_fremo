@@ -10,8 +10,8 @@ def test_version_matches_pyproject() -> None:
     match = re.search(r'^version = "([^"]+)"', pyproject_path.read_text(encoding="utf-8"), re.MULTILINE)
     assert match is not None
     pyproject_version = match.group(1)
-    assert pere_noel_fremo.__version__ == "2.1.0"
-    assert pyproject_version == "2.1.0"
+    assert pere_noel_fremo.__version__ == "2.1.1"
+    assert pyproject_version == "2.1.1"
     assert pere_noel_fremo.__version__ == pyproject_version
 
 
