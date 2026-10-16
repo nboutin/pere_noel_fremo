@@ -19,6 +19,7 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 - Espace Admin : cookie de session `Secure` inconditionnel, garde-fou unique sur l'en-tête `Tailscale-Funnel-Request: ?1` (404), suppression du test sur `Host`/`X-Forwarded-Host` `:10000` et du port 8000 publié sur `0.0.0.0` (#92).
 - Espace Admin : anti-brute-force de `POST /admin/login` clé sur l'IP du client TCP (`X-Forwarded-For` n'est plus lu), purge de toutes les entrées expirées, réponse 429 rendue en HTML et lecture asynchrone du corps de requête (#88).
+- Espace Admin : jeton de session au format `issued_at.last_seen.signature` lié au hachage du mot de passe admin (changer le mot de passe révoque les sessions), durée de vie absolue de 12 h malgré le renouvellement glissant, anciens cookies à deux parties rejetés (#90).
 - Espace Admin : le secret de session (`admin_session_secret` / `ADMIN_SESSION_SECRET`, 32 octets minimum) est obligatoire ; le secret par défaut codé en dur est supprimé. Sans secret valide, `/admin` et `/admin/*` répondent un 404 furtif et un avertissement est journalisé au démarrage (#87).
 
 ## [2.1.1] - 2026-10-16

@@ -26,39 +26,43 @@ from .web_common import configure_web
 
 SESSION_COOKIE_NAME = "admin_session"
 SESSION_DURATION_SECONDS = 7200
+SESSION_ABSOLUTE_LIFETIME_SECONDS = 43200
+SESSION_CLOCK_SKEW_SECONDS = 300
 MIN_SESSION_SECRET_BYTES = 32
 
 logger = logging.getLogger(__name__)
 
 
-def create_session_token(secret: str, timestamp: int) -> str:
-    signature = hmac.new(
+def _session_signature(secret: str, password: str, issued_at: int, last_seen: int) -> str:
+    password_digest = hashlib.sha256(password.encode("utf-8")).hexdigest()
+    return hmac.new(
         secret.encode("utf-8"),
-        str(timestamp).encode("utf-8"),
+        f"{issued_at}.{last_seen}.{password_digest}".encode(),
         hashlib.sha256,
     ).hexdigest()
-    return f"{timestamp}.{signature}"
 
 
-def verify_session_token(token: str, secret: str, now: int, max_age: int = SESSION_DURATION_SECONDS) -> bool:
-    if not token or "." not in token:
+def create_session_token(secret: str, password: str, issued_at: int, last_seen: int) -> str:
+    """Jeton ``issued_at.last_seen.signature`` lié au mot de passe admin (son changement le révoque)."""
+    return f"{issued_at}.{last_seen}.{_session_signature(secret, password, issued_at, last_seen)}"
+
+
+def verify_session_token(token: str, secret: str, password: str, now: int) -> bool:
+    parts = token.split(".") if token else []
+    if len(parts) != 3:
         return False
-    ts_str, signature = token.split(".", 1)
     try:
-        ts = int(ts_str)
+        issued_at, last_seen = int(parts[0]), int(parts[1])
     except ValueError:
         return False
-
-    expected_sig = hmac.new(
-        secret.encode("utf-8"),
-        ts_str.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-
-    if not hmac.compare_digest(signature, expected_sig):
+    if not hmac.compare_digest(parts[2], _session_signature(secret, password, issued_at, last_seen)):
         return False
-
-    return not ((now - ts) > max_age or ts > (now + 300))
+    return not (
+        now - last_seen > SESSION_DURATION_SECONDS
+        or now - issued_at > SESSION_ABSOLUTE_LIFETIME_SECONDS
+        or issued_at > now + SESSION_CLOCK_SKEW_SECONDS
+        or last_seen > now + SESSION_CLOCK_SKEW_SECONDS
+    )
 
 
 class LoginRateLimiter:
@@ -117,6 +121,7 @@ def create_admin_app(
 
     admin_pwd = admin_password if admin_password is not None else get_admin_password(res_dir)
     session_sec = admin_session_secret if admin_session_secret is not None else get_admin_session_secret(res_dir)
+    session_password = admin_pwd or ""
     admin_enabled = session_sec is not None and len(session_sec.encode("utf-8")) >= MIN_SESSION_SECRET_BYTES
     session_secret = session_sec if admin_enabled and session_sec is not None else ""
     if not admin_enabled:
@@ -158,7 +163,7 @@ def create_admin_app(
     def get_admin_login(request: Request) -> Any:
         token = request.cookies.get(SESSION_COOKIE_NAME)
         now_ts = int(clock_fn().timestamp())
-        if token and verify_session_token(token, session_secret, now_ts, max_age=SESSION_DURATION_SECONDS):
+        if token and verify_session_token(token, session_secret, session_password, now_ts):
             return RedirectResponse(url="/admin", status_code=303)
         return templates.TemplateResponse(
             request=request,
@@ -199,7 +204,7 @@ def create_admin_app(
         if is_valid:
             rate_limiter.record_success(client_ip)
             resp = RedirectResponse(url="/admin", status_code=303)
-            _set_session_cookie(resp, create_session_token(session_secret, int(now_ts)))
+            _set_session_cookie(resp, create_session_token(session_secret, session_password, int(now_ts), int(now_ts)))
             return resp
         rate_limiter.record_failure(client_ip, now_ts)
         return templates.TemplateResponse(
@@ -224,7 +229,7 @@ def create_admin_app(
     def get_espace_admin(request: Request, year: int | None = None) -> Any:
         token = request.cookies.get(SESSION_COOKIE_NAME)
         now_ts = int(clock_fn().timestamp())
-        if not token or not verify_session_token(token, session_secret, now_ts, max_age=SESSION_DURATION_SECONDS):
+        if not token or not verify_session_token(token, session_secret, session_password, now_ts):
             return RedirectResponse(url="/admin/login", status_code=303)
 
         target_year = year if year is not None else annee_courante(db_path)
@@ -243,7 +248,8 @@ def create_admin_app(
                 "base_url": base_url,
             },
         )
-        _set_session_cookie(resp, create_session_token(session_secret, now_ts))
+        issued_at = int(token.split(".")[0])
+        _set_session_cookie(resp, create_session_token(session_secret, session_password, issued_at, now_ts))
         return resp
 
     return app

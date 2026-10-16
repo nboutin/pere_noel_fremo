@@ -1,5 +1,7 @@
 """Tests pour l'Espace Admin : défense en profondeur, garde Tailscale Funnel et authentification."""
 
+import hashlib
+import hmac
 import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -60,32 +62,42 @@ def admin_client(admin_db: Path, mutable_clock: list[datetime]) -> TestClient:
 
 def test_session_token_lifecycle_and_tampering() -> None:
     secret = "my_super_secret"
+    pwd = "pwd_a"
     now_ts = 1000000
 
-    token = create_session_token(secret, now_ts)
-    assert token.startswith(f"{now_ts}.")
-    assert verify_session_token(token, secret, now=now_ts) is True
+    token = create_session_token(secret, pwd, issued_at=now_ts, last_seen=now_ts)
+    assert token.startswith(f"{now_ts}.{now_ts}.")
+    assert verify_session_token(token, secret, pwd, now=now_ts) is True
 
     # 1. Signature corrompue
     tampered = f"{token[:-4]}abcd"
-    assert verify_session_token(tampered, secret, now=now_ts) is False
+    assert verify_session_token(tampered, secret, pwd, now=now_ts) is False
 
-    # 2. Secret différent
-    assert verify_session_token(token, "wrong_secret", now=now_ts) is False
+    # 2. Secret différent, mot de passe différent
+    assert verify_session_token(token, "wrong_secret", pwd, now=now_ts) is False
+    assert verify_session_token(token, secret, "pwd_b", now=now_ts) is False
 
-    # 3. Format invalide
-    assert verify_session_token("", secret, now=now_ts) is False
-    assert verify_session_token("invalid_no_dot", secret, now=now_ts) is False
-    assert verify_session_token("notanumber.signature", secret, now=now_ts) is False
-    assert verify_session_token("1.2.3", secret, now=now_ts) is False
+    # 3. Format invalide, dont l'ancien format à deux parties
+    assert verify_session_token("", secret, pwd, now=now_ts) is False
+    assert verify_session_token("invalid_no_dot", secret, pwd, now=now_ts) is False
+    assert verify_session_token("a.b.signature", secret, pwd, now=now_ts) is False
+    assert verify_session_token("1.2.3.4", secret, pwd, now=now_ts) is False
+    old_sig = hmac.new(secret.encode(), str(now_ts).encode(), hashlib.sha256).hexdigest()
+    assert verify_session_token(f"{now_ts}.{old_sig}", secret, pwd, now=now_ts) is False
 
-    # 4. Expiration (> 7200 secondes)
-    assert verify_session_token(token, secret, now=now_ts + 7200) is True
-    assert verify_session_token(token, secret, now=now_ts + 7201) is False
+    # 4. Inactivité (> 7200 secondes)
+    assert verify_session_token(token, secret, pwd, now=now_ts + 7200) is True
+    assert verify_session_token(token, secret, pwd, now=now_ts + 7201) is False
 
-    # 5. Timestamp trop lointain dans le futur (> 300 secondes d'écart)
-    future_token = create_session_token(secret, now_ts + 350)
-    assert verify_session_token(future_token, secret, now=now_ts) is False
+    # 5. Durée absolue (> 43200 secondes) malgré une activité récente
+    old = create_session_token(secret, pwd, issued_at=now_ts, last_seen=now_ts + 43000)
+    assert verify_session_token(old, secret, pwd, now=now_ts + 43200) is True
+    assert verify_session_token(old, secret, pwd, now=now_ts + 43201) is False
+
+    # 6. Horodatage trop lointain dans le futur (> 300 secondes d'écart)
+    future_token = create_session_token(secret, pwd, issued_at=now_ts + 350, last_seen=now_ts + 350)
+    assert verify_session_token(future_token, secret, pwd, now=now_ts) is False
+    assert verify_session_token(future_token, secret, pwd, now=now_ts + 100) is True
 
 
 def test_login_rate_limiter_logic() -> None:
@@ -756,7 +768,8 @@ def test_admin_disabled_returns_stealth_404_without_valid_secret(
 def test_legacy_default_secret_cookie_is_rejected(
     admin_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    forged = create_session_token(LEGACY_DEFAULT_SECRET, int(datetime.now(timezone.utc).timestamp()))
+    ts = int(datetime.now(timezone.utc).timestamp())
+    forged = create_session_token(LEGACY_DEFAULT_SECRET, "secret_admin_test_password", ts, ts)
     client = _app_without_secret(admin_db, tmp_path, monkeypatch, "")
     client.cookies.set(SESSION_COOKIE_NAME, forged)
     assert client.get("/admin", follow_redirects=False).status_code == 404
@@ -789,3 +802,65 @@ def test_admin_disabled_warning_logged_exactly_once(
 
 def test_no_warning_when_secret_valid(admin_client: TestClient, caplog: pytest.LogCaptureFixture) -> None:
     assert not [r for r in caplog.records if "admin_session_secret" in r.getMessage()]
+
+
+# ==============================================================================
+# 6. Session révocable et durée de vie absolue (#90)
+# ==============================================================================
+
+
+def _login(client: TestClient) -> None:
+    client.post("/admin/login", data={"password": "secret_admin_test_password"}, follow_redirects=False)
+
+
+def test_session_token_refused_after_password_change(admin_db: Path, admin_client: TestClient) -> None:
+    _login(admin_client)
+    token = admin_client.cookies.get(SESSION_COOKIE_NAME)
+    assert token is not None
+
+    app_b = create_admin_app(
+        db_path=admin_db,
+        admin_password="another_password",
+        admin_session_secret="test_session_secret_at_least_32_bytes_long",
+    )
+    client_b = TestClient(app_b, base_url="https://testserver")
+    client_b.cookies.set(SESSION_COOKIE_NAME, token)
+    resp = client_b.get("/admin", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/admin/login"
+
+
+def test_session_absolute_lifetime_12h_despite_hourly_activity(
+    admin_client: TestClient, mutable_clock: list[datetime]
+) -> None:
+    _login(admin_client)
+    for _ in range(11):
+        mutable_clock[0] += timedelta(hours=1)
+        assert admin_client.get("/admin", follow_redirects=False).status_code == 200
+    mutable_clock[0] += timedelta(hours=1, seconds=1)
+    resp = admin_client.get("/admin", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/admin/login"
+
+
+def test_sliding_renewal_keeps_issued_at(admin_client: TestClient, mutable_clock: list[datetime]) -> None:
+    _login(admin_client)
+    first = admin_client.cookies.get(SESSION_COOKIE_NAME)
+    assert first is not None
+    mutable_clock[0] += timedelta(hours=1)
+    admin_client.get("/admin", follow_redirects=False)
+    second = admin_client.cookies.get(SESSION_COOKIE_NAME)
+    assert second is not None
+    f_issued, f_seen, _ = first.split(".")
+    s_issued, s_seen, _ = second.split(".")
+    assert s_issued == f_issued
+    assert int(s_seen) == int(f_seen) + 3600
+
+
+def test_legacy_two_part_cookie_redirects_to_login(admin_client: TestClient, mutable_clock: list[datetime]) -> None:
+    ts = int(mutable_clock[0].timestamp())
+    sig = hmac.new(b"test_session_secret_at_least_32_bytes_long", str(ts).encode(), hashlib.sha256).hexdigest()
+    admin_client.cookies.set(SESSION_COOKIE_NAME, f"{ts}.{sig}")
+    resp = admin_client.get("/admin", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/admin/login"
