@@ -1,5 +1,6 @@
 """Tests pour l'Espace Admin : défense en profondeur, garde Tailscale Funnel et authentification."""
 
+import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -294,7 +295,7 @@ def test_login_when_no_admin_password_configured(admin_db: Path) -> None:
     app_no_pass = create_app(
         db_path=admin_db,
         admin_password="",
-        admin_session_secret="secret_key_12345678901234567890",
+        admin_session_secret="secret_key_1234567890123456789012345",
     )
     client_no_pass = TestClient(app_no_pass, base_url="https://testserver")
 
@@ -649,3 +650,81 @@ def test_public_pages_do_not_leak_admin(
     resp_lutin = client.get(f"/lutin/{tok}")
     assert resp_lutin.status_code == 200
     assert "/admin" not in resp_lutin.text
+
+
+# ==============================================================================
+# Secret de session obligatoire : 404 furtif sinon (#87)
+# ==============================================================================
+
+LEGACY_DEFAULT_SECRET = "fremo-default-insecure-admin-secret"
+
+
+def _app_without_secret(
+    admin_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, secret: str | None
+) -> TestClient:
+    monkeypatch.delenv("ADMIN_SESSION_SECRET", raising=False)
+    app = create_app(
+        db_path=admin_db,
+        res_dir=tmp_path,
+        admin_password="secret_admin_test_password",
+        admin_session_secret=secret,
+    )
+    return TestClient(app, base_url="https://testserver")
+
+
+@pytest.mark.parametrize("secret", ["", None, "court", "x" * 31])
+def test_admin_disabled_returns_stealth_404_without_valid_secret(
+    admin_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, secret: str | None
+) -> None:
+    client = _app_without_secret(admin_db, tmp_path, monkeypatch, secret)
+    funnel_body = client.get("/admin", headers={"Tailscale-Funnel-Request": "?1"}).text
+    for method, path in [
+        ("get", "/admin"),
+        ("get", "/admin/login"),
+        ("post", "/admin/login"),
+        ("get", "/admin/logout"),
+        ("post", "/admin/logout"),
+    ]:
+        resp = client.request(method, path, data={"password": "secret_admin_test_password"}, follow_redirects=False)
+        assert resp.status_code == 404, (method, path)
+        assert resp.text == funnel_body  # même gabarit erreur_404.html que la garde Funnel
+        assert "set-cookie" not in resp.headers
+    assert client.get("/scores", follow_redirects=False).status_code == 200
+
+
+def test_legacy_default_secret_cookie_is_rejected(
+    admin_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    forged = create_session_token(LEGACY_DEFAULT_SECRET, int(datetime.now(timezone.utc).timestamp()))
+    client = _app_without_secret(admin_db, tmp_path, monkeypatch, "")
+    client.cookies.set(SESSION_COOKIE_NAME, forged)
+    assert client.get("/admin", follow_redirects=False).status_code == 404
+
+    app = create_app(
+        db_path=admin_db,
+        admin_password="secret_admin_test_password",
+        admin_session_secret="test_session_secret_at_least_32_bytes_long",
+    )
+    valid_client = TestClient(app, base_url="https://testserver")
+    valid_client.cookies.set(SESSION_COOKIE_NAME, forged)
+    resp = valid_client.get("/admin", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/admin/login"
+
+
+def test_admin_disabled_warning_logged_exactly_once(
+    admin_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.WARNING)
+    client = _app_without_secret(admin_db, tmp_path, monkeypatch, "")
+    client.get("/admin")
+    client.get("/admin/login")
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING and "admin_session_secret" in r.getMessage()]
+    assert len(warnings) == 1
+    msg = warnings[0].getMessage()
+    assert "ADMIN_SESSION_SECRET" in msg
+    assert "secrets.token_urlsafe(48)" in msg
+
+
+def test_no_warning_when_secret_valid(admin_client: TestClient, caplog: pytest.LogCaptureFixture) -> None:
+    assert not [r for r in caplog.records if "admin_session_secret" in r.getMessage()]

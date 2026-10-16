@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import logging
 import urllib.parse
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -52,6 +53,9 @@ STATIC_DIR = PACKAGE_ROOT / "static"
 
 SESSION_COOKIE_NAME = "admin_session"
 SESSION_DURATION_SECONDS = 7200
+MIN_SESSION_SECRET_BYTES = 32
+
+logger = logging.getLogger(__name__)
 
 
 def is_tailscale_funnel_request(request: Request) -> bool:
@@ -149,7 +153,15 @@ def create_app(
 
     admin_pwd = admin_password if admin_password is not None else get_admin_password(res_dir)
     session_sec = admin_session_secret if admin_session_secret is not None else get_admin_session_secret(res_dir)
-    session_secret = session_sec or "fremo-default-insecure-admin-secret"
+    admin_enabled = session_sec is not None and len(session_sec.encode("utf-8")) >= MIN_SESSION_SECRET_BYTES
+    session_secret = session_sec if admin_enabled and session_sec is not None else ""
+    if not admin_enabled:
+        logger.warning(
+            "Espace Admin désactivé : aucun secret de session valide (%d octets minimum). "
+            "Définir la clé admin_session_secret (secure_data.yml) ou la variable ADMIN_SESSION_SECRET, "
+            'par exemple générée avec : python -c "import secrets; print(secrets.token_urlsafe(48))"',
+            MIN_SESSION_SECRET_BYTES,
+        )
     rate_limiter = LoginRateLimiter(max_attempts=5, window_seconds=900)
 
     app = FastAPI(title="Père Noël de la Frémo - Espace Lutin")
@@ -163,7 +175,9 @@ def create_app(
     @app.middleware("http")
     async def tailscale_funnel_guard(request: Request, call_next: Callable[[Request], Any]) -> Any:
         path = request.url.path.lower()
-        if (path == "/admin" or path.startswith("/admin/")) and is_tailscale_funnel_request(request):
+        if (path == "/admin" or path.startswith("/admin/")) and (
+            not admin_enabled or is_tailscale_funnel_request(request)
+        ):
             return templates.TemplateResponse(
                 request=request,
                 name="erreur_404.html",

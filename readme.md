@@ -17,6 +17,20 @@ Apres modification des dependances : `uv lock`, puis `uv lock --check` pour veri
 * Add res/secure_data.yml
 * Add res/code_secret_client.apps.googleusercontent.com.json
 
+## Espace Admin
+
+Deux clés dans `res/secure_data.yml`, ou les variables d'environnement correspondantes (prioritaires) :
+
+| Clé YAML | Variable | Rôle |
+| --- | --- | --- |
+| `admin_password` | `ADMIN_PASSWORD` | Mot de passe de connexion à `/admin` |
+| `admin_session_secret` | `ADMIN_SESSION_SECRET` | Secret de signature du cookie de session (32 octets minimum) |
+
+Sans `admin_session_secret` valide (absent, vide ou de moins de 32 octets), l'Espace Admin est désactivé :
+`/admin` et `/admin/*` répondent le même 404 que les routes inconnues, et un avertissement est journalisé au démarrage.
+Générer un secret :
+
+    python -c "import secrets; print(secrets.token_urlsafe(48))"
 
 ## Generate credentials.json
 

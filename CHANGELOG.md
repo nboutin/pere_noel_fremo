@@ -7,6 +7,14 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 ## [Unreleased]
 
+### Added
+
+- Espace Admin : interface web `/admin` (connexion par mot de passe, session signée, bandeau de synthèse, filtres) sous Admin aveugle, avec garde Tailscale Funnel (#80).
+
+### Security
+
+- Espace Admin : le secret de session (`admin_session_secret` / `ADMIN_SESSION_SECRET`, 32 octets minimum) est obligatoire ; le secret par défaut codé en dur est supprimé. Sans secret valide, `/admin` et `/admin/*` répondent un 404 furtif et un avertissement est journalisé au démarrage (#87).
+
 ## [2.1.1] - 2026-10-16
 
 ### Changed
