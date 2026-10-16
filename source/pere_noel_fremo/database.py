@@ -6,8 +6,6 @@ from typing import Any
 
 import yaml
 
-from .migrations.m2026_10_backfill import compute_historical_attributions_map
-
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS pseudos (
     year INTEGER NOT NULL,
@@ -826,48 +824,6 @@ def get_score_defi(
         conn.close()
 
 
-def get_or_create_score_defi(
-    db_path: Path | str,
-    lutin_id: str,
-    year: int,
-    pseudo_lutin: str | None = None,
-    manche_id: int = 1,
-) -> dict[str, Any]:
-    """Récupère ou initialise la ligne score_defi pour un Lutin, une édition et une manche."""
-    conn = get_db_connection(db_path)
-    try:
-        with conn:
-            if pseudo_lutin is None:
-                pseudo = get_or_assign_pseudo(conn, lutin_id, year)
-            else:
-                pseudo = pseudo_lutin
-                row = conn.execute(
-                    "SELECT pseudo FROM pseudos WHERE year = ? AND lutin_id = ?;",
-                    (year, lutin_id),
-                ).fetchone()
-                if not row:
-                    try:
-                        conn.execute(
-                            "INSERT INTO pseudos (year, lutin_id, pseudo) VALUES (?, ?, ?);",
-                            (year, lutin_id, pseudo),
-                        )
-                    except sqlite3.IntegrityError:
-                        pseudo = get_or_assign_pseudo(conn, lutin_id, year)
-                else:
-                    pseudo = str(row["pseudo"])
-
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO scores_defi (lutin_id, year, manche_id, pseudo_lutin, solved)
-                VALUES (?, ?, ?, ?, 0);
-                """,
-                (lutin_id, year, manche_id, pseudo),
-            )
-            return _get_score_entry(conn, lutin_id, year, manche_id=manche_id)
-    finally:
-        conn.close()
-
-
 def start_score_defi(
     db_path: Path | str,
     lutin_id: str,
@@ -914,55 +870,6 @@ def start_score_defi(
                     WHERE lutin_id = ? AND year = ? AND manche_id = ?;
                     """,
                     (now_str, lutin_id, year, manche_id),
-                )
-            return _get_score_entry(conn, lutin_id, year, manche_id=manche_id)
-    finally:
-        conn.close()
-
-
-start_manche_defi = start_score_defi
-
-
-def complete_score_defi(
-    db_path: Path | str,
-    lutin_id: str,
-    year: int,
-    time_seconds: float,
-    manche_id: int = 1,
-    now: datetime | None = None,
-) -> dict[str, Any]:
-    """Scelle la complétion du Défi du lutin pour une manche avec le temps officiel."""
-    conn = get_db_connection(db_path)
-    try:
-        with conn:
-            begin_immediate(conn)
-            now_dt = parse_iso_or_legacy(now) if now is not None else datetime.now(timezone.utc)
-            now_str = now_dt.isoformat()
-
-            row = conn.execute(
-                """
-                SELECT solved, attempts, started_at
-                FROM scores_defi
-                WHERE lutin_id = ? AND year = ? AND manche_id = ?;
-                """,
-                (lutin_id, year, manche_id),
-            ).fetchone()
-            # Si déjà résolu, on ne modifie pas le temps (essai unique officiel)
-            if row and not row["solved"]:
-                current_attempts = int(row["attempts"] or 0)
-                new_attempts = max(1, current_attempts)
-                started_at_val = row["started_at"] or now_str
-                conn.execute(
-                    """
-                    UPDATE scores_defi
-                    SET solved = 1,
-                        attempts = ?,
-                        time_seconds = ?,
-                        completed_at = ?,
-                        started_at = ?
-                    WHERE lutin_id = ? AND year = ? AND manche_id = ?;
-                    """,
-                    (new_attempts, time_seconds, now_str, started_at_val, lutin_id, year, manche_id),
                 )
             return _get_score_entry(conn, lutin_id, year, manche_id=manche_id)
     finally:
@@ -1157,81 +1064,5 @@ def get_latest_edition_year(db_path: Path | str) -> int:
         if row and row["max_year"] is not None:
             return int(row["max_year"])
         return 2026
-    finally:
-        conn.close()
-
-
-def backfill_historical_attributions(
-    db_path: Path | str,
-    res_dir: Path | str | None = None,
-    purge_year: int | None = None,
-) -> dict[str, int]:
-    """Reconstitue et scelle l'historique des attributions millésimées (2014-2025).
-
-    - Crée les éditions 2014..2025 avec le statut 'drawn'.
-    - Si purge_year est spécifié (ex. 2026), purge les attributions de l'année et repasse l'édition en 'announced'.
-    - Si purge_year est None (par défaut), ne purge aucune édition existante.
-    - Synchronise les attributions historiques avec leur millésime et leur index d'ordre.
-    - Normalise la coquille historique 'scarrea' en 'scarre'.
-    """
-    if res_dir is None:
-        p = Path(db_path)
-        res_dir = p.parent if p.parent.name == "res" or (p.parent / "2025").exists() else Path("res")
-
-    editions, user_attributions = compute_historical_attributions_map(res_dir)
-    conn = get_db_connection(db_path)
-    total_attributions = 0
-
-    try:
-        with conn:
-            for yr in sorted(editions):
-                conn.execute(
-                    "INSERT INTO editions (year, status) VALUES (?, 'drawn') ON CONFLICT(year) DO NOTHING;",
-                    (yr,),
-                )
-
-            if purge_year is not None:
-                conn.execute("DELETE FROM attributions WHERE year = ?;", (purge_year,))
-                conn.execute(
-                    """
-                    INSERT INTO editions (year, status) VALUES (?, 'announced')
-                    ON CONFLICT(year) DO UPDATE SET status = 'announced';
-                    """,
-                    (purge_year,),
-                )
-
-            # Nettoyage des anciennes lignes sans millésime
-            conn.execute("DELETE FROM attributions WHERE year IS NULL;")
-
-            for donneur_id, items in user_attributions.items():
-                conn.execute(
-                    "INSERT OR IGNORE INTO lutins (id, fullname, email, is_active) VALUES (?, ?, NULL, 0);",
-                    (donneur_id, donneur_id),
-                )
-                for beneficiaire_id, yr, order_idx in items:
-                    conn.execute(
-                        "INSERT OR IGNORE INTO lutins (id, fullname, email, is_active) VALUES (?, ?, NULL, 0);",
-                        (beneficiaire_id, beneficiaire_id),
-                    )
-                    conn.execute(
-                        """
-                        INSERT INTO attributions (donneur_id, beneficiaire_id, year, order_index)
-                        VALUES (?, ?, ?, ?)
-                        ON CONFLICT(donneur_id, beneficiaire_id, order_index) DO UPDATE SET
-                            year = excluded.year;
-                        """,
-                        (donneur_id, beneficiaire_id, yr, order_idx),
-                    )
-                    total_attributions += 1
-
-            # Nettoyage de l'identifiant fantôme 'scarrea'
-            conn.execute("DELETE FROM attributions WHERE beneficiaire_id = 'scarrea' OR donneur_id = 'scarrea';")
-            conn.execute("DELETE FROM exclusions WHERE lutin_id = 'scarrea' OR excluded_lutin_id = 'scarrea';")
-            conn.execute("DELETE FROM lutins WHERE id = 'scarrea';")
-
-        return {
-            "editions": len(editions),
-            "attributions": total_attributions,
-        }
     finally:
         conn.close()

@@ -1,12 +1,12 @@
 import sqlite3
+from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 import pytest
 import yaml
 from pere_noel_fremo.database import (
-    backfill_historical_attributions,
-    complete_score_defi,
     get_attributions,
     get_beneficiaire_for_lutin,
     get_confirmed_lutins,
@@ -16,10 +16,11 @@ from pere_noel_fremo.database import (
     get_lutin_exclusions,
     get_lutin_history,
     get_lutins,
-    get_or_create_score_defi,
+    get_score_defi,
     get_scores_classement,
     import_yaml_data,
     init_db,
+    register_solve_attempt,
     save_attributions,
     set_edition_status,
     set_lutin_presence,
@@ -228,7 +229,7 @@ def test_confirmed_lutins_and_save_attributions(tmp_path: Path) -> None:
     assert get_attributions(db_path, 2026) == attributions_updated
 
 
-def test_scores_defi_and_beneficiaire_operations(tmp_path: Path) -> None:
+def test_scores_defi_and_beneficiaire_operations(tmp_path: Path, solve_manche: Callable[..., dict[str, Any]]) -> None:
     db_path = tmp_path / "fremo.db"
     init_db(db_path)
     conn = get_db_connection(db_path)
@@ -249,28 +250,35 @@ def test_scores_defi_and_beneficiaire_operations(tmp_path: Path) -> None:
     assert get_beneficiaire_for_lutin(db_path, "l_inconnu", 2026) is None
 
     # 2. Score Défi cycle de vie
-    score = get_or_create_score_defi(db_path, "l1", 2026, "Renne Agile")
-    assert score["lutin_id"] == "l1"
-    assert score["pseudo_lutin"] == "Renne Agile"
-    assert score["solved"] == 0
-    assert score["started_at"] is None
+    assert get_score_defi(db_path, "l1", 2026) == {}
 
     # Démarrage
-    started = start_score_defi(db_path, "l1", 2026)
+    started = start_score_defi(db_path, "l1", 2026, "Renne Agile")
+    assert started["lutin_id"] == "l1"
+    assert started["pseudo_lutin"] == "Renne Agile"
+    assert started["solved"] == 0
     assert started["started_at"] is not None
 
-    # Complétion
-    completed = complete_score_defi(db_path, "l1", 2026, time_seconds=42.5)
+    # Complétion via le chemin de production (premier essai, sans pénalité)
+    t0 = datetime(2026, 10, 14, 20, 0, 0, tzinfo=timezone.utc)
+    conn = get_db_connection(db_path)
+    with conn:
+        conn.execute("UPDATE scores_defi SET started_at = ? WHERE lutin_id = 'l1';", (t0.isoformat(),))
+    conn.close()
+    result = register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=True, now=t0 + timedelta(seconds=42.5))
+    assert result["solved"] is True
+    assert result["penalty_seconds"] == 0
+    completed = get_score_defi(db_path, "l1", 2026)
     assert completed["solved"] == 1
     assert completed["time_seconds"] == 42.5
 
     # Idempotence complétion (ne modifie pas un score déjà résolu)
-    completed_again = complete_score_defi(db_path, "l1", 2026, time_seconds=999.0)
-    assert completed_again["time_seconds"] == 42.5
+    again = register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=True, now=t0 + timedelta(seconds=999))
+    assert again["already_completed"] is True
+    assert get_score_defi(db_path, "l1", 2026)["time_seconds"] == 42.5
 
     # 3. Classement ordonné
-    get_or_create_score_defi(db_path, "l2", 2026, "Lutin Givré")
-    complete_score_defi(db_path, "l2", 2026, time_seconds=30.0)
+    solve_manche(db_path, "l2", 2026, 30.0, pseudo_lutin="Lutin Givré")
 
     classement = get_scores_classement(db_path, 2026)
     assert len(classement) == 2
@@ -281,7 +289,7 @@ def test_scores_defi_and_beneficiaire_operations(tmp_path: Path) -> None:
     assert classement[1]["time_seconds"] == 42.5
 
 
-def test_scores_defi_multi_manches(tmp_path: Path) -> None:
+def test_scores_defi_multi_manches(tmp_path: Path, solve_manche: Callable[..., dict[str, Any]]) -> None:
     db_path = tmp_path / "fremo.db"
     init_db(db_path)
     conn = get_db_connection(db_path)
@@ -292,20 +300,14 @@ def test_scores_defi_multi_manches(tmp_path: Path) -> None:
     conn.close()
 
     # Lutin 1 joue la manche 1 et la manche 2
-    score_m1 = get_or_create_score_defi(db_path, "l1", 2026, "Renne Agile", manche_id=1)
-    score_m2 = get_or_create_score_defi(db_path, "l1", 2026, "Renne Agile", manche_id=2)
-    assert score_m1["manche_id"] == 1
-    assert score_m2["manche_id"] == 2
-
-    # Lutin 2 joue seulement la manche 1
-    get_or_create_score_defi(db_path, "l2", 2026, "Lutin Givré", manche_id=1)
-
     # Complétion manche 1 : l2 (25s), l1 (50s)
-    complete_score_defi(db_path, "l1", 2026, time_seconds=50.0, manche_id=1)
-    complete_score_defi(db_path, "l2", 2026, time_seconds=25.0, manche_id=1)
+    score_m1 = solve_manche(db_path, "l1", 2026, 50.0, pseudo_lutin="Renne Agile", manche_id=1)
+    solve_manche(db_path, "l2", 2026, 25.0, pseudo_lutin="Lutin Givré", manche_id=1)
 
     # Complétion manche 2 : l1 (35s)
-    complete_score_defi(db_path, "l1", 2026, time_seconds=35.0, manche_id=2)
+    score_m2 = solve_manche(db_path, "l1", 2026, 35.0, pseudo_lutin="Renne Agile", manche_id=2)
+    assert score_m1["time_seconds"] == 50.0
+    assert score_m2["time_seconds"] == 35.0
 
     # Classement Manche 1
     classement_m1 = get_scores_classement(db_path, 2026, manche_id=1)
@@ -363,79 +365,13 @@ def test_scores_defi_schema_migration_idempotent(tmp_path: Path) -> None:
     assert scores_m1[0]["manche_id"] == 1
 
     # Insertion d'une manche 2 pour le même lutin (doit réussir grâce à la clé composite)
-    score_m2 = get_or_create_score_defi(db_path, "l1", 2026, "Lutin Ancien", manche_id=2)
+    score_m2 = start_score_defi(db_path, "l1", 2026, "Lutin Ancien", manche_id=2)
     assert score_m2["manche_id"] == 2
-    start_score_defi(db_path, "l1", 2026, manche_id=2)
 
     # Deuxième appel à init_db pour vérifier l'idempotence
     init_db(db_path)
     scores_all = get_scores_classement(db_path, 2026)
     assert len(scores_all) == 2
-
-
-def test_backfill_historical_attributions_idempotent(tmp_path: Path) -> None:
-    db_path = tmp_path / "fremo.db"
-    res_dir = Path("res")
-
-    init_db(db_path)
-    # Exécuter le backfill
-    res1 = backfill_historical_attributions(db_path, res_dir=res_dir, purge_year=2026)
-    assert res1["attributions"] == 233
-    assert res1["editions"] == 11
-
-    # Vérifier l'état en base
-    import sqlite3
-
-    conn = sqlite3.connect(str(db_path))
-    null_years = conn.execute("SELECT count(*) FROM attributions WHERE year IS NULL;").fetchone()[0]
-    y2026_count = conn.execute("SELECT count(*) FROM attributions WHERE year = 2026;").fetchone()[0]
-    total_attributions = conn.execute("SELECT count(*) FROM attributions;").fetchone()[0]
-    edition_2026_status = conn.execute("SELECT status FROM editions WHERE year = 2026;").fetchone()[0]
-    conn.close()
-
-    assert null_years == 0
-    assert y2026_count == 0
-    assert total_attributions == 233
-    assert edition_2026_status == "announced"
-
-    # Vérification de l'idempotence
-    res2 = backfill_historical_attributions(db_path, res_dir=res_dir, purge_year=2026)
-    assert res2["attributions"] == 233
-
-
-def test_backfill_historical_attributions_default_leaves_current_edition_intact(tmp_path: Path) -> None:
-    db_path = tmp_path / "fremo.db"
-    res_dir = Path("res")
-    init_db(db_path)
-
-    conn = get_db_connection(db_path)
-    try:
-        with conn:
-            conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
-            conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l1', 'Lutin 1'), ('l2', 'Lutin 2');")
-    finally:
-        conn.close()
-
-    # Simuler un tirage 2026 préalable
-    save_attributions(db_path, 2026, {"l1": "l2", "l2": "l1"})
-    set_edition_status(db_path, 2026, "drawn")
-
-    # Exécuter le backfill par défaut (sans argument purge_year)
-    res = backfill_historical_attributions(db_path, res_dir=res_dir)
-    assert res["editions"] == 11
-    assert res["attributions"] == 233
-
-    conn = get_db_connection(db_path)
-    try:
-        y2026_count = conn.execute("SELECT count(*) FROM attributions WHERE year = 2026;").fetchone()[0]
-        edition_2026_status = conn.execute("SELECT status FROM editions WHERE year = 2026;").fetchone()[0]
-        total_attributions = conn.execute("SELECT count(*) FROM attributions;").fetchone()[0]
-    finally:
-        conn.close()
-
-    assert y2026_count == 2
-    assert total_attributions == 235
-    assert edition_2026_status == "drawn"
 
 
 def test_save_attributions_successive_draws_no_order_index_hole(tmp_path: Path) -> None:
@@ -632,7 +568,6 @@ def test_register_solve_attempt_lifecycle(tmp_path: Path) -> None:
     from datetime import datetime, timezone
 
     from pere_noel_fremo.database import (
-        get_or_create_score_defi,
         register_solve_attempt,
         start_score_defi,
     )
@@ -644,10 +579,14 @@ def test_register_solve_attempt_lifecycle(tmp_path: Path) -> None:
         conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
         conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l1', 'Lutin 1');")
         conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l2', 'Lutin 2');")
+        # Ligne non démarrée (fixture d'insertion directe)
+        conn.execute(
+            "INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lutin, solved) "
+            "VALUES ('l1', 2026, 1, 'Renne Agile', 0);"
+        )
     conn.close()
 
     # 1. Tentative sans démarrage préalable -> ValueError
-    get_or_create_score_defi(db_path, "l1", 2026, "Renne Agile", manche_id=1)
     with pytest.raises(ValueError, match="(?i)démarré"):
         register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=False)
 
@@ -700,8 +639,7 @@ def test_register_solve_attempt_lifecycle(tmp_path: Path) -> None:
     assert res4["already_completed"] is True
 
     # Lutin 2 : 1 faux puis 1 juste avec pénalité
-    get_or_create_score_defi(db_path, "l2", 2026, "Lutin Givré", manche_id=1)
-    start_score_defi(db_path, "l2", 2026, manche_id=1)
+    start_score_defi(db_path, "l2", 2026, "Lutin Givré", manche_id=1)
     conn = get_db_connection(db_path)
     with conn:
         conn.execute(

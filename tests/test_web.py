@@ -1,4 +1,6 @@
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pere_noel_fremo.database import get_db_connection, init_db
@@ -284,12 +286,11 @@ def test_locked_manche_refuses_start_and_solve(client: TestClient, test_db: Path
     assert "déverrouillée" in resp_solve.json().get("detail", "").lower()
 
 
-def test_scores_page_displays_championship_standings(client: TestClient, test_db: Path) -> None:
-    from pere_noel_fremo.database import complete_score_defi, get_or_create_score_defi
-
+def test_scores_page_displays_championship_standings(
+    client: TestClient, test_db: Path, solve_manche: Callable[..., dict[str, Any]]
+) -> None:
     # Enregistrer des scores sur 2025
-    get_or_create_score_defi(test_db, "fbonnet", 2025, "Renne Agile", manche_id=1)
-    complete_score_defi(test_db, "fbonnet", 2025, time_seconds=32.4, manche_id=1)
+    solve_manche(test_db, "fbonnet", 2025, 32.4, pseudo_lutin="Renne Agile")
 
     resp = client.get("/scores/2025")
     assert resp.status_code == 200
@@ -298,8 +299,10 @@ def test_scores_page_displays_championship_standings(client: TestClient, test_db
     assert "32.4" in resp.text
 
 
-def test_espace_lutin_multi_manches_and_anti_cheat_ui(client: TestClient, test_db: Path) -> None:
-    from pere_noel_fremo.database import complete_score_defi, get_or_create_score_defi, set_lutin_presence
+def test_espace_lutin_multi_manches_and_anti_cheat_ui(
+    client: TestClient, test_db: Path, solve_manche: Callable[..., dict[str, Any]]
+) -> None:
+    from pere_noel_fremo.database import set_lutin_presence
 
     # Test avec l'édition 2025 (1 manche)
     token = create_or_get_token(test_db, "fbonnet", 2025)
@@ -342,8 +345,7 @@ def test_espace_lutin_multi_manches_and_anti_cheat_ui(client: TestClient, test_d
     assert 'id="btn-start-defi"' in page.text
 
     # 7. Résolution et affichage du statut scellé
-    get_or_create_score_defi(test_db, "fbonnet", 2025, "Renne Agile", manche_id=1)
-    complete_score_defi(test_db, "fbonnet", 2025, time_seconds=42.5, manche_id=1)
+    solve_manche(test_db, "fbonnet", 2025, 42.5, pseudo_lutin="Renne Agile")
     page_m1_solved = client.get(f"/lutin/{token}?manche=1")
     assert page_m1_solved.status_code == 200
     assert "42.5" in page_m1_solved.text
@@ -866,17 +868,11 @@ def test_espace_lutin_ui_elements_for_attempts_and_penalties(client: TestClient,
     assert "checkGridCompletion" in page.text
 
 
-def test_scores_page_does_not_contain_lutin_id(client: TestClient, test_db: Path) -> None:
-    # Insérer plusieurs lutins et un score
-    from pere_noel_fremo.database import (
-        complete_score_defi,
-        get_or_create_score_defi,
-        start_score_defi,
-    )
-
-    get_or_create_score_defi(test_db, "fbonnet", 2025, "Renne Agile", manche_id=1)
-    start_score_defi(test_db, "fbonnet", 2025, manche_id=1)
-    complete_score_defi(test_db, "fbonnet", 2025, time_seconds=30.0, manche_id=1)
+def test_scores_page_does_not_contain_lutin_id(
+    client: TestClient, test_db: Path, solve_manche: Callable[..., dict[str, Any]]
+) -> None:
+    # Insérer un score
+    solve_manche(test_db, "fbonnet", 2025, 30.0, pseudo_lutin="Renne Agile")
 
     resp = client.get("/scores")
     assert resp.status_code == 200

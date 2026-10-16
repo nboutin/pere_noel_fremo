@@ -167,13 +167,10 @@ def test_all_15_manches_calendar_integration() -> None:
     assert [m["id"] for m in all_15] == list(range(1, 16))
 
 
-def test_calculate_championship_standings_aggregates_points_and_ties(tmp_path: Path) -> None:
-    from pere_noel_fremo.database import (
-        complete_score_defi,
-        get_db_connection,
-        get_or_create_score_defi,
-        init_db,
-    )
+def test_calculate_championship_standings_aggregates_points_and_ties(
+    tmp_path: Path, solve_manche: Callable[..., dict[str, Any]]
+) -> None:
+    from pere_noel_fremo.database import get_db_connection, init_db
     from pere_noel_fremo.defi import calculate_championship_standings
 
     db_path = tmp_path / "fremo.db"
@@ -186,16 +183,12 @@ def test_calculate_championship_standings_aggregates_points_and_ties(tmp_path: P
     conn.close()
 
     # Manche 1 : l1=30.0s (1er, 10pts), l2=45.0s (2e, 8pts)
-    get_or_create_score_defi(db_path, "l1", 2026, "Renne Agile", manche_id=1)
-    complete_score_defi(db_path, "l1", 2026, time_seconds=30.0, manche_id=1)
-    get_or_create_score_defi(db_path, "l2", 2026, "Lutin Givré", manche_id=1)
-    complete_score_defi(db_path, "l2", 2026, time_seconds=45.0, manche_id=1)
+    solve_manche(db_path, "l1", 2026, 30.0, pseudo_lutin="Renne Agile", manche_id=1)
+    solve_manche(db_path, "l2", 2026, 45.0, pseudo_lutin="Lutin Givré", manche_id=1)
 
     # Manche 2 : l2=20.0s (1er, 10pts), l1=40.0s (2e, 8pts)
-    get_or_create_score_defi(db_path, "l1", 2026, "Renne Agile", manche_id=2)
-    complete_score_defi(db_path, "l1", 2026, time_seconds=40.0, manche_id=2)
-    get_or_create_score_defi(db_path, "l2", 2026, "Lutin Givré", manche_id=2)
-    complete_score_defi(db_path, "l2", 2026, time_seconds=20.0, manche_id=2)
+    solve_manche(db_path, "l1", 2026, 40.0, pseudo_lutin="Renne Agile", manche_id=2)
+    solve_manche(db_path, "l2", 2026, 20.0, pseudo_lutin="Lutin Givré", manche_id=2)
 
     simulated_now = datetime(2026, 10, 20, 12, 0, 0, tzinfo=timezone.utc)
     standings = calculate_championship_standings(db_path, 2026, now=simulated_now)

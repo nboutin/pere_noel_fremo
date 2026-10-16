@@ -25,8 +25,8 @@ Lors de l'initialisation de la base SQLite `res/fremo.db` via `import_yaml_data`
    Purger les 26 attributions enregistrées pour l'édition 2026 et basculer le statut de l'édition 2026 de `'drawn'` à `'announced'`, afin de permettre aux Lutins de continuer à confirmer leur présence. Le tirage 2026 sera effectué lorsque toutes les présences seront confirmées.
 
 5. **Modularisation et sécurisation de la reconstitution** :
-   - Isoler l'extraction et les tables de corrections nominatives d'archives dans `source/pere_noel_fremo/migrations/m2026_10_backfill.py` (`compute_historical_attributions_map`).
-   - Rendre `backfill_historical_attributions` totalement non destructif par défaut en remplaçant `purge_2026: bool = True` par `purge_year: int | None = None`. Si `purge_year` est non nul, purger les attributions de l'année indiquée et repasser son statut à `'announced'`.
+   - ~~Isoler l'extraction et les tables de corrections nominatives d'archives dans `migrations/m2026_10_backfill.py` (`compute_historical_attributions_map`).~~ *Amendement (ticket #55) : module supprimé avec la fonction de backfill, voir ci-dessous.*
+   - ~~Rendre `backfill_historical_attributions` totalement non destructif par défaut (`purge_year`).~~ *Amendement (ticket #55) : le backfill a été appliqué une fois à `res/fremo.db` (éditions 2014 à 2025 en `drawn`, 2026 en `announced`). `backfill_historical_attributions` n'avait aucun point d'entrée CLI et aucun appelant en production ; elle a été supprimée avec ses tests et le module `migrations`. Le risque de purge accidentelle de l'édition en cours disparaît avec elle. L'historique de référence est désormais la base elle-même ; l'historique brut reste récupérable dans les archives YAML de `res/` et dans l'historique git.*
    - Dans `save_attributions`, exécuter la suppression de l'attribution existante de l'année courante **avant** le calcul de `MAX(order_index) + 1` afin d'éviter tout saut d'index (trou de séquence) lors d'un re-tirage.
 
 ## Conséquences
@@ -34,5 +34,5 @@ Lors de l'initialisation de la base SQLite `res/fremo.db` via `import_yaml_data`
 - Respect strict de l'invariant d'unicité historique pour tous les tirages futurs.
 - Intégrité référentielle garantie sur la clé étrangère `editions(year)`.
 - Réouverture du formulaire de confirmation de présence pour l'édition 2026.
-- Idempotence absolue sans risque de purger une édition en cours lors des appels ultérieurs de reconstitution.
+- Plus aucun code de reconstitution dans le paquet : aucun risque de purger une édition en cours par un appel ultérieur (amendement #55).
 - Séquentialité stricte et continue des `order_index` par Donneur, même en cas de tirages successifs pour une même édition.

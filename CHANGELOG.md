@@ -26,6 +26,7 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 ### Removed
 - Alias `get_pseudo_for_lutin` et son re-export dans `defi` (#36).
+- Code mort de `database.py` : `start_manche_defi`, `complete_score_defi` (second chemin de complétion qui contournait le plafond d'essais), `get_or_create_score_defi` et `backfill_historical_attributions` avec le module `migrations` (backfill déjà appliqué à `res/fremo.db`, ADR-0008 amendée) (#55).
 
 ### Security
 - Révélation : nom du Lutin échappé en HTML ; `token.json` écrit en `0600` ; adresses courriel masquées (`a***@domaine`) dans les journaux (#52).
