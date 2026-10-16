@@ -10,10 +10,15 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 ### Added
 
 ### Changed
+- Tirage annulé (attributions et statut restaurés) quand l'audit automatique est invalide (#36).
+- Catégories d'erreur de l'audit sans identifiant, pour préserver l'Admin aveugle (#36).
+- `try_build_gmail_service` partagé par l'Annonce et la Révélation (#36).
+- Message explicite pour une grille de Défi invalide au lieu d'une grille vide (#36).
 
 ### Fixed
 
 ### Removed
+- Alias `get_pseudo_for_lutin` et son re-export dans `defi` (#36).
 
 ### Security
 - Révélation : nom du Lutin échappé en HTML ; `token.json` écrit en `0600` ; adresses courriel masquées (`a***@domaine`) dans les journaux (#52).
