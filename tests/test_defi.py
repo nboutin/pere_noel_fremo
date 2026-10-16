@@ -1,11 +1,18 @@
+import logging
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
+import pytest
 from pere_noel_fremo.defi import (
+    GrilleInvalideError,
     calculate_points_for_rank,
     get_all_manches,
     get_manche,
+    get_manche_attributes,
     get_or_load_grille,
+    is_solution_complete,
     validate_grille_solution,
 )
 
@@ -445,3 +452,125 @@ def test_format_unlock_at_french() -> None:
     assert format_unlock_at("2026-10-19T19:00:00+00:00") == "lundi 19 octobre, 21h00"
     assert format_unlock_at("n'importe quoi") == "n'importe quoi"
     assert format_unlock_at(None) == ""
+
+
+def _grille_valide() -> dict[str, Any]:
+    return {
+        "categories": {
+            "lutins": ["A", "B"],
+            "luges": ["L1", "L2"],
+            "friandises": ["F1", "F2"],
+        },
+        "solution": {
+            "A": {"luge": "L1", "friandise": "F1"},
+            "B": {"luge": "L2", "friandise": "F2"},
+        },
+    }
+
+
+def _sans_categories(g: dict[str, Any]) -> None:
+    del g["categories"]
+
+
+def _sans_solution(g: dict[str, Any]) -> None:
+    del g["solution"]
+
+
+def _lutins_differents(g: dict[str, Any]) -> None:
+    g["categories"]["lutins"] = ["A", "Z"]
+
+
+def _entree_non_dict(g: dict[str, Any]) -> None:
+    g["solution"]["B"] = "L2"
+
+
+def _solution_sans_attribut(g: dict[str, Any]) -> None:
+    g["solution"] = {"A": {}, "B": {}}
+
+
+def _attributs_heterogenes(g: dict[str, Any]) -> None:
+    g["solution"]["B"] = {"luge": "L2"}
+
+
+def _attributs_vide(g: dict[str, Any]) -> None:
+    g["attributs"] = {}
+
+
+def _attributs_non_dict(g: dict[str, Any]) -> None:
+    g["attributs"] = ["luge", "friandise"]
+
+
+def _attribut_sans_categorie(g: dict[str, Any]) -> None:
+    del g["categories"]["friandises"]
+
+
+def _attributs_differents_de_solution(g: dict[str, Any]) -> None:
+    g["attributs"] = {"luge": "luges"}
+
+
+def _categorie_partagee(g: dict[str, Any]) -> None:
+    g["attributs"] = {"luge": "luges", "friandise": "luges"}
+
+
+def _categorie_absente(g: dict[str, Any]) -> None:
+    g["attributs"] = {"luge": "luges", "friandise": "inconnues"}
+
+
+def _pas_une_permutation(g: dict[str, Any]) -> None:
+    g["solution"]["B"]["luge"] = "L1"
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (_sans_categories, "doit définir 'categories' et 'solution'"),
+        (_sans_solution, "doit définir 'categories' et 'solution'"),
+        (_lutins_differents, "'lutins' doivent correspondre"),
+        (_entree_non_dict, "dictionnaire d'attributs"),
+        (_solution_sans_attribut, "ne définit aucun attribut"),
+        (_attributs_heterogenes, "mêmes attributs"),
+        (_attributs_vide, "'attributs' doit associer"),
+        (_attributs_non_dict, "'attributs' doit associer"),
+        (_attribut_sans_categorie, "unique catégorie"),
+        (_attributs_differents_de_solution, "ne correspondent pas aux clés"),
+        (_categorie_partagee, "même catégorie"),
+        (_categorie_absente, "est absente"),
+        (_pas_une_permutation, "pas une permutation"),
+    ],
+)
+def test_get_manche_attributes_rejette_une_grille_incoherente(
+    mutation: Callable[[dict[str, Any]], None], message: str
+) -> None:
+    grille = _grille_valide()
+    mutation(grille)
+
+    with pytest.raises(GrilleInvalideError, match=message):
+        get_manche_attributes(grille)
+
+
+def test_get_manche_attributes_accepte_une_grille_valide() -> None:
+    assert get_manche_attributes(_grille_valide()) == [("luge", "luges"), ("friandise", "friandises")]
+
+
+def test_is_solution_complete_rejets() -> None:
+    grille = _grille_valide()
+    complete = {"A": {"luge": "L1", "friandise": "F1"}, "B": {"luge": "L2", "friandise": "F2"}}
+
+    assert is_solution_complete(grille, complete) is True
+    assert is_solution_complete(grille, "pas un dict") is False  # type: ignore[arg-type]
+    assert is_solution_complete(grille, {"A": {"luge": "L1", "friandise": ""}, "B": complete["B"]}) is False
+    assert is_solution_complete(grille, {"A": "L1", "B": complete["B"]}) is False
+    assert is_solution_complete(grille, {"A": complete["A"]}) is False
+
+
+def test_get_all_manches_journalise_une_manche_illisible(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    grilles = tmp_path / "2026" / "grilles"
+    grilles.mkdir(parents=True)
+    (grilles / "manche_1.yml").write_text("title: ok\n", encoding="utf-8")
+    (grilles / "manche_99.yml").write_text("title: [non fermé\n", encoding="utf-8")
+
+    with caplog.at_level(logging.WARNING, logger="pere_noel_fremo.defi"):
+        manches = get_all_manches(year=2026, res_dir=tmp_path)
+
+    assert [m["id"] for m in manches] == [1]
+    assert any(r.levelno == logging.WARNING and "manche_99.yml" in r.getMessage() for r in caplog.records)

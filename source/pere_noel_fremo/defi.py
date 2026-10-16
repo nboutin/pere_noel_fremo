@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -6,24 +7,11 @@ from zoneinfo import ZoneInfo
 import yaml
 
 from .config import resolve_res_dir
+from .helper import FRENCH_DAYS, FRENCH_MONTHS
+
+logger = logging.getLogger(__name__)
 
 PARIS_TZ = ZoneInfo("Europe/Paris")
-
-_JOURS_FR = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
-_MOIS_FR = [
-    "janvier",
-    "février",
-    "mars",
-    "avril",
-    "mai",
-    "juin",
-    "juillet",
-    "août",
-    "septembre",
-    "octobre",
-    "novembre",
-    "décembre",
-]
 
 ADJECTIFS_FESTIFS = [
     "Givré",
@@ -202,7 +190,7 @@ def format_unlock_at(value: Any) -> str:
         dt = _parse_unlock_at(value).astimezone(PARIS_TZ)
     except Exception:
         return str(value)
-    return f"{_JOURS_FR[dt.weekday()]} {dt.day} {_MOIS_FR[dt.month - 1]}, {dt.hour}h{dt.minute:02d}"
+    return f"{FRENCH_DAYS[dt.weekday()]} {dt.day} {FRENCH_MONTHS[dt.month - 1]}, {dt.hour}h{dt.minute:02d}"
 
 
 def is_manche_unlocked(manche: dict[str, Any], now: datetime | None = None) -> bool:
@@ -290,8 +278,8 @@ def get_all_manches(
 
                         if not only_unlocked or data["is_unlocked"]:
                             manches.append(data)
-            except (yaml.YAMLError, OSError, ValueError, KeyError):
-                pass
+            except (yaml.YAMLError, OSError, ValueError, KeyError) as exc:
+                logger.warning("Manche ignorée : fichier %s illisible (%s: %s)", file.name, type(exc).__name__, exc)
     else:
         # Aucune grille configurée sur disque : repli sur manche 1 par défaut
         default_manche = get_manche(year=year, manche_id=1, res_dir=base_res, now=now_dt)
