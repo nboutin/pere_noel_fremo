@@ -1,5 +1,7 @@
 import base64
 import logging
+import os
+import stat
 from email import message_from_bytes
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -127,7 +129,8 @@ def test_gmail_send_email_raises_email_send_error_on_failure() -> None:
     with pytest.raises(EmailSendError) as exc_info:
         gmail_send_email(mock_service, "from@test.com", "Subject", "Body", "target@test.com")
 
-    assert "target@test.com" in str(exc_info.value)
+    assert "target@test.com" not in str(exc_info.value)
+    assert "t***@test.com" in str(exc_info.value)
     assert "Quota Gmail dépassé" in str(exc_info.value)
 
 
@@ -193,6 +196,58 @@ def test_load_credentials_interactive_opens_local_server_when_token_absent(tmp_p
 
     assert creds is fake_creds
     assert token_path.exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Modes POSIX non applicables sous Windows")
+@pytest.mark.parametrize("preexisting", [False, True])
+def test_load_credentials_writes_token_with_mode_0600(tmp_path: Path, preexisting: bool) -> None:
+    token_path = tmp_path / "token.json"
+    if preexisting:
+        token_path.write_text("{}", encoding="utf-8")
+        token_path.chmod(0o644)
+    expired = MagicMock(valid=False, expired=True, refresh_token="r")
+
+    def _refresh(_request: object) -> None:
+        expired.valid = True
+
+    expired.refresh.side_effect = _refresh
+    expired.to_json.return_value = "{}"
+
+    with (
+        patch("pere_noel_fremo.helper.get_token_path", return_value=token_path),
+        patch("pere_noel_fremo.helper.Credentials") as mock_creds_cls,
+    ):
+        mock_creds_cls.from_authorized_user_file.return_value = expired
+        load_credentials()
+
+    assert stat.S_IMODE(os.stat(token_path).st_mode) == 0o600
+
+
+def test_gmail_send_email_does_not_log_full_address_at_info_on_success(caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.DEBUG)
+    gmail_send_email(MagicMock(), "from@test.com", "Subject", "Body", "target@test.com")
+
+    assert caplog.records
+    assert all("target@test.com" not in r.getMessage() for r in caplog.records if r.levelno >= logging.INFO)
+
+
+def test_gmail_send_email_does_not_log_full_address_on_failure(caplog: pytest.LogCaptureFixture) -> None:
+    from pere_noel_fremo.helper import EmailSendError
+
+    caplog.set_level(logging.DEBUG)
+    service = MagicMock()
+    service.users.return_value.messages.return_value.send.return_value.execute.side_effect = RuntimeError("boom")
+    with pytest.raises(EmailSendError):
+        gmail_send_email(service, "from@test.com", "Subject", "Body", "target@test.com")
+
+    assert all("target@test.com" not in r.getMessage() for r in caplog.records if r.levelno >= logging.INFO)
+
+
+def test_mask_email() -> None:
+    from pere_noel_fremo.helper import mask_email
+
+    assert mask_email("alice@exemple.fr") == "a***@exemple.fr"
+    assert mask_email("pas-une-adresse") == "***"
 
 
 def test_configure_logger_creates_file_in_logs_dir() -> None:

@@ -262,10 +262,12 @@ def send_annonces(
             sent_count += 1
         except helper.EmailSendError as exc:
             echecs_count += 1
-            logger.error(f"Échec de l'envoi du courriel au Lutin '{lutin_id}' ({to_addr}): {exc}")
+            logger.error(f"Échec de l'envoi du courriel au Lutin '{lutin_id}' ({helper.mask_email(to_addr)}): {exc}")
         except Exception as exc:
             echecs_count += 1
-            logger.error(f"Erreur inattendue lors de l'envoi au Lutin '{lutin_id}' ({to_addr}): {exc}")
+            logger.error(
+                f"Erreur inattendue lors de l'envoi au Lutin '{lutin_id}' ({helper.mask_email(to_addr)}): {exc}"
+            )
 
     return {
         "total": len(lutins),

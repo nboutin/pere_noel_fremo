@@ -102,8 +102,10 @@ def load_credentials(interactive: bool = False) -> Credentials:
             flow = InstalledAppFlow.from_client_secrets_file(str(credentials_path), SCOPES)
             creds = flow.run_local_server(port=0)
         if creds:
-            with open(token_path, "w", encoding="utf-8") as token:
+            fd = os.open(token_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as token:
                 token.write(creds.to_json())
+            os.chmod(token_path, 0o600)
     return cast(Credentials, creds)
 
 
@@ -168,6 +170,14 @@ def create_message(
     return {"raw": encoded_message}
 
 
+def mask_email(address: str) -> str:
+    """Masque une adresse pour les journaux : `a***@domaine`."""
+    local, sep, domain = address.partition("@")
+    if not sep or not local:
+        return "***"
+    return f"{local[0]}***@{domain}"
+
+
 def gmail_send_email(
     service: Any,
     sender_email: str,
@@ -180,11 +190,12 @@ def gmail_send_email(
         message = create_message(sender_email, subject, body, toaddr, None, text_body=text_body)
         # message = create_message(sender_email, subject, body, toaddr, IMG_FILEPATH)
         send_message = service.users().messages().send(userId="me", body=message).execute()
-        logger.info(f"Sent to {toaddr}")
+        logger.info(f"Sent to {mask_email(toaddr)}")
         return send_message
     except Exception as error:
-        logger.error(f"Failed to send email to {toaddr}: {error}")
-        raise EmailSendError(f"Failed to send email to {toaddr}: {error}") from error
+        masked = mask_email(toaddr)
+        logger.error(f"Failed to send email to {masked}: {error}")
+        raise EmailSendError(f"Failed to send email to {masked}: {error}") from error
 
 
 FRENCH_DAYS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]

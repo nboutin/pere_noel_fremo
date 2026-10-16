@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -155,6 +156,29 @@ def test_send_revelations_dry_run_does_not_send_or_transition(tmp_path: Path) ->
         assert mock_send.call_count == 0
         # In dry run, status must NOT transition
         assert get_edition_status(db_path, 2026) == "drawn"
+
+
+def test_format_revelation_body_escapes_fullname_html() -> None:
+    body = format_revelation_body("<p>{fullname}</p>", "Zoé <b>&</b>", "http://x/l", 2026)
+
+    assert "Zoé &lt;b&gt;&amp;&lt;/b&gt;" in body
+    assert "<b>" not in body
+
+
+def test_send_revelations_failure_log_masks_address(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    db_path, secure_data_path = setup_sample_db(tmp_path)
+    set_lutin_presence(db_path, "lutin_1", 2026, True)
+    set_lutin_presence(db_path, "lutin_2", 2026, True)
+    save_attributions(db_path, 2026, {"lutin_1": "lutin_2", "lutin_2": "lutin_1"})
+
+    caplog.set_level(logging.INFO)
+    with patch("pere_noel_fremo.helper.gmail_send_email", side_effect=helper.EmailSendError("SMTP error")):
+        send_revelations(
+            db_path=db_path, secure_data_path=secure_data_path, year=2026, recipient_override="zed@exemple.fr"
+        )
+
+    assert caplog.records
+    assert all("zed@exemple.fr" not in r.getMessage() for r in caplog.records)
 
 
 def test_send_revelations_error_does_not_transition_status(tmp_path: Path) -> None:

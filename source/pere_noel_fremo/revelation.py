@@ -1,3 +1,4 @@
+import html
 import logging
 from pathlib import Path
 from typing import Any
@@ -112,7 +113,7 @@ text-align: center; font-size: 13px; color: #64748b;">
 def format_revelation_body(template: str, fullname: str, lien_magique: str, year: int) -> str:
     """Injecte le nom, l'année et le Lien magique dans le modèle d'email de Révélation."""
     content = (
-        template.replace("{fullname}", fullname)
+        template.replace("{fullname}", html.escape(fullname))
         .replace("{lien_magique}", lien_magique)
         .replace("{magic_url}", lien_magique)
         .replace("{year}", str(year))
@@ -243,10 +244,14 @@ def send_revelations(
             sent_count += 1
         except helper.EmailSendError as exc:
             echecs_count += 1
-            logger.error(f"Échec de l'envoi du courriel de Révélation au Lutin '{lutin_id}' ({to_addr}): {exc}")
+            logger.error(
+                f"Échec de l'envoi de la Révélation au Lutin '{lutin_id}' ({helper.mask_email(to_addr)}): {exc}"
+            )
         except Exception as exc:
             echecs_count += 1
-            logger.error(f"Erreur inattendue lors de la Révélation au Lutin '{lutin_id}' ({to_addr}): {exc}")
+            logger.error(
+                f"Erreur inattendue lors de la Révélation au Lutin '{lutin_id}' ({helper.mask_email(to_addr)}): {exc}"
+            )
 
     # Transition du statut de l'édition : 'revealed' sur envoi nominal uniquement
     is_targeted_run = target_lutins is not None and len(target_lutins) > 0

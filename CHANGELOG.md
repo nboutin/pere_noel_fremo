@@ -16,6 +16,7 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 ### Removed
 
 ### Security
+- Révélation : nom du Lutin échappé en HTML ; `token.json` écrit en `0600` ; adresses courriel masquées (`a***@domaine`) dans les journaux (#52).
 
 ## [2.0.1] - 2026-10-15
 
