@@ -6,6 +6,7 @@ import logging
 import logging.handlers
 import os
 import os.path
+import re
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -17,7 +18,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-from .config import resolve_logs_dir, resolve_res_dir
+from .config import PARIS_TZ, resolve_logs_dir, resolve_res_dir
 
 logger = logging.getLogger(__name__)
 
@@ -36,13 +37,37 @@ def get_img_filepath() -> Path:
     return resolve_res_dir() / "img" / "snow_rider_3d_B.png"
 
 
+TOKEN_MASK_PATTERN = re.compile(r"((?:/api)?/lutin/)[^/\s?#]+")
+
+
+def mask_token_in_text(text: str) -> str:
+    """Remplace les jetons d'accès dans les motifs /lutin/<token> et /api/lutin/<token> par ***."""
+    return TOKEN_MASK_PATTERN.sub(r"\g<1>***", text)
+
+
+class TokenMaskingFilter(logging.Filter):
+    """Filtre de journalisation masquant les jetons magiques dans les journaux uvicorn.access."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, str):
+            record.msg = mask_token_in_text(record.msg)
+        if record.args:
+            if isinstance(record.args, tuple):
+                record.args = tuple(mask_token_in_text(arg) if isinstance(arg, str) else arg for arg in record.args)
+            elif isinstance(record.args, list):
+                record.args = [mask_token_in_text(arg) if isinstance(arg, str) else arg for arg in record.args]
+            elif isinstance(record.args, dict):
+                record.args = {k: (mask_token_in_text(v) if isinstance(v, str) else v) for k, v in record.args.items()}
+            elif isinstance(record.args, str):
+                record.args = mask_token_in_text(record.args)
+        return True
+
+
 def configure_logger(filename: str) -> None:
     """Configure root logger with console INFO and rotating file DEBUG in LOGS_DIR."""
     logs_dir = resolve_logs_dir()
     logs_dir.mkdir(parents=True, exist_ok=True)
     log_filepath = logs_dir / filename
-
-    from .web import TokenMaskingFilter
 
     root_logger = logging.getLogger("")
     root_logger.setLevel(logging.DEBUG)
@@ -234,14 +259,13 @@ def format_date_repas(
     clean_str = str(date_str).strip()[:10]
     try:
         from datetime import date, datetime
-        from zoneinfo import ZoneInfo
 
         d = date.fromisoformat(clean_str)
     except Exception:
         return None
 
     if now is None:
-        today = datetime.now(ZoneInfo("Europe/Paris")).date()
+        today = datetime.now(PARIS_TZ).date()
     elif isinstance(now, datetime):
         today = now.date()
     else:

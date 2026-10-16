@@ -33,7 +33,7 @@ Liste exhaustive et permanente de tous les Bénéficiaires reçus par un Donneur
 _Avoid_: Antécédents, mémoire, historique glissant
 
 **Édition**:
-Itération annuelle du Père Noël secret désignée par son millésime (`year`), progressant à travers un cycle d'états (`draft` -> `announced` -> `drawn` -> `revealed`) dont le module `edition` est l'unique propriétaire. L'**Annonce** fait passer `draft` à `announced` (au premier envoi réussi, jamais en simulation) ; le **Tirage au sort** fait passer à `drawn` (scellement, rejouable uniquement par `--force-retirage` ; un tirage sans Annonce enchaîne `draft` -> `announced` -> `drawn`) ; la **Révélation** fait passer `drawn` à `revealed`. Une Édition est « scellée » dès `drawn` : présences verrouillées et Bénéficiaires consultables.
+Itération annuelle du Père Noël secret désignée par son millésime (`year`), progressant à travers un cycle d'états (`draft` -> `announced` -> `drawn` -> `revealed`) dont le module `edition` est l'unique propriétaire. L'**Annonce** fait passer `draft` à `announced` (à l'issue d'un envoi nominal sans échec, jamais en simulation) ; le **Tirage au sort** fait passer à `drawn` (scellement, rejouable uniquement par `--force-retirage` ; un tirage sans Annonce enchaîne `draft` -> `announced` -> `drawn`) ; la **Révélation** fait passer `drawn` à `revealed`. Une Édition est « scellée » dès `drawn` : présences verrouillées et Bénéficiaires consultables.
 _Avoid_: Campagne (au sens d'Édition ; voir **Campagne**), saison, tournoi, session
 
 **Repas de Noël**:
@@ -66,6 +66,18 @@ _Avoid_: Découverte, déblocage, notification de tirage, alerte
 Envoi groupé d'un courriel officiel, Annonce ou Révélation, à un ensemble de Lutins, porté par le module `campagne` (boucle d'envoi unique et port d'envoi `Expediteur`). Une Campagne n'est jamais une Édition : elle se déroule au sein d'une Édition et peut la faire avancer (Annonce : `draft` -> `announced`, Révélation : `drawn` -> `revealed`).
 _Avoid_: Édition, mailing, newsletter
 
+**Envoi nominal**:
+Campagne ni redirigée ni ciblée, adressée à tous les Lutins concernés à leur propre adresse. Seul un envoi nominal, sans aucun échec et avec au moins un courriel parti, fait avancer l'Édition, et marque les Liens magiques comme envoyés.
+_Avoid_: Envoi normal, envoi complet, envoi réel
+
+**Envoi ciblé**:
+Campagne restreinte à certains Lutins désignés (option `--lutin`). Les Liens magiques des Lutins visés sont marqués comme envoyés, mais l'Édition n'avance jamais.
+_Avoid_: Envoi partiel, envoi filtré
+
+**Envoi redirigé**:
+Campagne dont tous les courriels sont adressés à une adresse de test (option `--override-email`, même vide) au lieu de celle des Lutins. Sans aucun effet d'état : ni Lien magique marqué comme envoyé, ni avancement de l'Édition.
+_Avoid_: Envoi de test, envoi factice, simulation (réservé à `--dry-run` et `--no-email`)
+
 **Lien magique**:
 URL unique et sécurisée transmise à un Lutin pour lui donner un accès direct à son Espace Lutin sans nécessiter de mot de passe.
 _Avoid_: Token link, magic URL, jeton
@@ -85,6 +97,10 @@ _Avoid_: Défi de la luge, quiz, challenge, mini-jeu, concours
 **Manche**:
 Épreuve bi-hebdomadaire du Défi du lutin associée à une Grille logique débloquée à date fixe, sur laquelle chaque Lutin dispose d'un parcours chronométré unique limité à 3 soumissions de validation avec pénalité de temps pour marquer des points de championnat.
 _Avoid_: Round, niveau, étape, session
+
+**Défi clos** / **manche close**:
+État du Défi du lutin à partir de minuit (heure de Paris) le lendemain du Repas de Noël : démarrage, Soumission et abandon sont refusés, et toute manche non terminée est dite close (`StatutManche.CLOSE`). Sans date de Repas de Noël, le Défi ne se clôt jamais.
+_Avoid_: Défi terminé, défi fermé, manche expirée, manche périmée
 
 **Soumission**:
 Tentative de validation complète de la Grille logique transmise par un Lutin au cours d'une Manche, plafonnée à 3 essais par manche et assortie d'une pénalité de temps en cas d'erreur précédant la résolution.

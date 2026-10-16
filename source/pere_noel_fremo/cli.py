@@ -413,7 +413,7 @@ def build_uvicorn_log_config() -> dict[str, Any]:
     """Configure uvicorn's logging dictionary by attaching TokenMaskingFilter to uvicorn.access."""
     import uvicorn.config
 
-    from .web import TokenMaskingFilter
+    from .helper import TokenMaskingFilter
 
     custom_log_config = copy.deepcopy(uvicorn.config.LOGGING_CONFIG)
     custom_log_config.setdefault("filters", {})["token_masking"] = {
@@ -430,7 +430,8 @@ def handle_serve(args: argparse.Namespace) -> int:
 
     import uvicorn
 
-    from .web import TokenMaskingFilter, create_app
+    from .helper import TokenMaskingFilter
+    from .web import create_app
 
     custom_log_config = build_uvicorn_log_config()
 

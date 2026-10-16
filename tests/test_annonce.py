@@ -374,6 +374,31 @@ def test_send_annonces_sans_aucun_envoi_reussi_laisse_l_edition_en_draft(tmp_pat
     assert statut(db_path, 2026) is StatutEdition.DRAFT
 
 
+def test_send_annonces_avec_un_echec_d_envoi_laisse_l_edition_en_draft(tmp_path: Path) -> None:
+    db_path, secure_data_path = _prepare_campaign(tmp_path, {"l1": "Un", "l2": "Deux"})
+
+    exp = ExpediteurMemoire(echouer_pour=["l1@fremo.org"])
+    stats = send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026, expediteur=exp)
+
+    assert (stats["sent"], stats["echecs"]) == (1, 1)
+    assert statut(db_path, 2026) is StatutEdition.DRAFT
+
+
+def test_send_annonces_avec_adresse_de_redirection_vide_n_avance_pas_l_edition(tmp_path: Path) -> None:
+    db_path, secure_data_path = _prepare_campaign(tmp_path, {"l1": "Un"})
+
+    send_annonces(
+        db_path=db_path,
+        secure_data_path=secure_data_path,
+        year=2026,
+        recipient_override="",
+        expediteur=ExpediteurMemoire(),
+    )
+
+    assert statut(db_path, 2026) is StatutEdition.DRAFT
+    assert _count_sent_tokens(db_path) == 0
+
+
 def test_send_annonces_ne_regresse_pas_une_edition_deja_scellee(tmp_path: Path) -> None:
     db_path, secure_data_path = _prepare_campaign(tmp_path, {"l1": "Un"})
     set_edition_status(db_path, 2026, "drawn")

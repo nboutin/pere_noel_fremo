@@ -2,16 +2,13 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import yaml
 
-from .config import resolve_res_dir
+from .config import PARIS_TZ, resolve_res_dir
 from .helper import FRENCH_DAYS, FRENCH_MONTHS
 
 logger = logging.getLogger(__name__)
-
-PARIS_TZ = ZoneInfo("Europe/Paris")
 
 ADJECTIFS_FESTIFS = [
     "Givré",

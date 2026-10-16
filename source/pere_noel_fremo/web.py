@@ -1,5 +1,3 @@
-import logging
-import re
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from .config import default_db_path, resolve_res_dir
+from .config import PARIS_TZ, default_db_path, resolve_res_dir
 from .database import (
     get_beneficiaire_for_lutin,
     get_edition_date_repas,
@@ -21,7 +19,6 @@ from .database import (
     init_db,
 )
 from .defi import (
-    PARIS_TZ,
     GrilleInvalideError,
     calculate_championship_standings,
     format_unlock_at,
@@ -40,31 +37,6 @@ from .tokens import get_lutin_by_token
 PACKAGE_ROOT = Path(__file__).resolve().parent
 TEMPLATES_DIR = PACKAGE_ROOT / "templates"
 STATIC_DIR = PACKAGE_ROOT / "static"
-
-TOKEN_MASK_PATTERN = re.compile(r"((?:/api)?/lutin/)[^/\s?#]+")
-
-
-def mask_token_in_text(text: str) -> str:
-    """Remplace les jetons d'accès dans les motifs /lutin/<token> et /api/lutin/<token> par ***."""
-    return TOKEN_MASK_PATTERN.sub(r"\g<1>***", text)
-
-
-class TokenMaskingFilter(logging.Filter):
-    """Filtre de journalisation masquant les jetons magiques dans les journaux uvicorn.access."""
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        if isinstance(record.msg, str):
-            record.msg = mask_token_in_text(record.msg)
-        if record.args:
-            if isinstance(record.args, tuple):
-                record.args = tuple(mask_token_in_text(arg) if isinstance(arg, str) else arg for arg in record.args)
-            elif isinstance(record.args, list):
-                record.args = [mask_token_in_text(arg) if isinstance(arg, str) else arg for arg in record.args]
-            elif isinstance(record.args, dict):
-                record.args = {k: (mask_token_in_text(v) if isinstance(v, str) else v) for k, v in record.args.items()}
-            elif isinstance(record.args, str):
-                record.args = mask_token_in_text(record.args)
-        return True
 
 
 class PresenceRequest(BaseModel):
@@ -279,9 +251,21 @@ def create_app(
         return JSONResponse({"ok": True, "present": payload.present})
 
     def _refus_parcours(
-        statut: StatutParcours | StatutSoumission, manche_id: int, detail: str | None = None
+        statut: StatutParcours | StatutSoumission,
+        manche_id: int,
+        detail: str | None = None,
+        *,
+        pour_indices: bool = False,
     ) -> HTTPException | None:
-        """Traduit un statut de refus du Parcours ou de la Soumission en erreur HTTP (None si l'opération a abouti)."""
+        """Traduit un statut de refus du Parcours ou de la Soumission en erreur HTTP (None si l'opération a abouti).
+
+        ``pour_indices`` : la consultation des indices n'est permise que pendant un essai en cours.
+        """
+        if pour_indices and statut in (StatutParcours.NON_DEMARRE, StatutParcours.DEJA_TERMINEE):
+            return HTTPException(
+                status_code=403,
+                detail="Les indices ne sont accessibles que pendant un essai en cours.",
+            )
         if statut is StatutParcours.PRESENCE_REQUISE or statut is StatutSoumission.PRESENCE_REQUISE:
             return HTTPException(
                 status_code=403,
@@ -345,12 +329,7 @@ def create_app(
         manche = get_manche(year=lutin_info["year"], manche_id=manche_id, res_dir=res_dir, now=now_dt)
 
         resultat = indices(db_path, lutin_info["id"], lutin_info["year"], manche, now_dt)
-        if resultat.statut in (StatutParcours.NON_DEMARRE, StatutParcours.DEJA_TERMINEE):
-            raise HTTPException(
-                status_code=403,
-                detail="Les indices ne sont accessibles que pendant un essai en cours.",
-            )
-        refus = _refus_parcours(resultat.statut, manche_id)
+        refus = _refus_parcours(resultat.statut, manche_id, pour_indices=True)
         if refus is not None:
             raise refus
         return JSONResponse({"ok": True, "manche_id": manche_id, "indices": resultat.indices})

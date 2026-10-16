@@ -92,7 +92,7 @@ def send_revelations(
     )
 
     # Transition du statut de l'édition : 'revealed' sur envoi nominal uniquement
-    if not simulation and bilan.nominal and bilan.echecs == 0 and bilan.envoyes > 0:
+    if not simulation and bilan.fait_avancer_edition:
         avancer_edition(db_path, year, StatutEdition.DRAWN, StatutEdition.REVEALED)
 
     return {

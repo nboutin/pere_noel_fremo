@@ -528,6 +528,20 @@ def test_get_edition_date_repas_non_existent(tmp_path: Path) -> None:
     assert get_edition_date_repas(db_path, 2099) is None
 
 
+def test_get_edition_date_repas_accepte_une_connexion_ouverte(tmp_path: Path) -> None:
+    db_path = tmp_path / "repas.db"
+    init_db(db_path)
+    conn = get_db_connection(db_path)
+    try:
+        with conn:
+            conn.execute("INSERT INTO editions (year, status, date_repas) VALUES (2026, 'draft', '2026-12-05');")
+        assert get_edition_date_repas(conn, 2026) == "2026-12-05"
+        assert get_edition_date_repas(conn, 2099) is None
+        conn.execute("SELECT 1;")  # la connexion fournie reste ouverte
+    finally:
+        conn.close()
+
+
 def test_init_db_adds_attempts_column_and_migrates_data(tmp_path: Path) -> None:
     import sqlite3
 

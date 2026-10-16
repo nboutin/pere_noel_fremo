@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pere_noel_fremo.annonce import format_annonce_body, format_annonce_text, send_annonces
 from pere_noel_fremo.campagne import (
+    BilanCampagne,
     Cta,
     ExpediteurGmail,
     ExpediteurMemoire,
@@ -136,6 +137,31 @@ def test_envoi_nominal_donne_un_bilan_nominal(tmp_path: Path) -> None:
     bilan = envoyer_campagne(db_path, 2026, LUTINS, _rendu(), ExpediteurMemoire(), base_url=BASE)
 
     assert bilan.nominal is True
+
+
+def test_override_email_vide_reste_un_envoi_redirige_et_non_nominal(tmp_path: Path) -> None:
+    db_path = _db(tmp_path, LUTINS)
+    exp = ExpediteurMemoire()
+
+    bilan = envoyer_campagne(db_path, 2026, LUTINS, _rendu(), exp, base_url=BASE, override_email="")
+
+    assert bilan.nominal is False
+    assert bilan.fait_avancer_edition is False
+    assert (bilan.envoyes, bilan.sans_email) == (0, 2)
+    assert exp.messages == []
+    assert _sent_at(db_path, "a") is None
+
+
+@pytest.mark.parametrize(
+    ("envoyes", "echecs", "nominal", "attendu"),
+    [(2, 0, True, True), (2, 1, True, False), (0, 0, True, False), (2, 0, False, False)],
+)
+def test_bilan_fait_avancer_l_edition_seulement_nominal_sans_echec_et_avec_envoi(
+    envoyes: int, echecs: int, nominal: bool, attendu: bool
+) -> None:
+    bilan = BilanCampagne(envoyes=envoyes, sans_email=0, echecs=echecs, nominal=nominal)
+
+    assert bilan.fait_avancer_edition is attendu
 
 
 def test_lutin_sans_adresse_est_compte_sans_email(tmp_path: Path) -> None:

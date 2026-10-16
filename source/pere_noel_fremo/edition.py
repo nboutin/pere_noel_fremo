@@ -2,7 +2,7 @@
 
 Cycle : ``draft`` -> ``announced`` -> ``drawn`` -> ``revealed``.
 
-- L'Annonce fait passer ``draft`` à ``announced`` (premier envoi réussi).
+- L'Annonce fait passer ``draft`` à ``announced`` (envoi nominal sans échec).
 - Le Tirage au sort fait passer à ``drawn`` (scellement) ; ``drawn`` -> ``drawn`` couvre le
   ``--force-retirage``.
 - La Révélation fait passer ``drawn`` à ``revealed``.

@@ -308,3 +308,29 @@ def test_format_date_repas_future_current_and_past() -> None:
     assert info_past is not None
     assert info_past["delta_days"] == -1
     assert info_past["countdown"] == "Passé"
+
+
+def test_helper_ne_depend_pas_de_la_couche_web() -> None:
+    import subprocess
+    import sys
+
+    code = "import sys, pere_noel_fremo.helper; sys.exit(1 if 'pere_noel_fremo.web' in sys.modules else 0)"
+    assert subprocess.run([sys.executable, "-c", code], check=False).returncode == 0
+
+
+def test_configure_logger_masque_les_jetons_sans_importer_web(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from pere_noel_fremo.helper import TokenMaskingFilter, configure_logger
+
+    monkeypatch.setenv("FREMO_LOGS_DIR", str(tmp_path))
+    root = logging.getLogger("")
+    avant = list(root.handlers)
+    try:
+        configure_logger("masque.log")
+        nouveaux = [h for h in root.handlers if h not in avant]
+        assert nouveaux
+        assert all(any(isinstance(f, TokenMaskingFilter) for f in h.filters) for h in nouveaux)
+    finally:
+        for h in root.handlers[:]:
+            if h not in avant:
+                h.close()
+                root.removeHandler(h)

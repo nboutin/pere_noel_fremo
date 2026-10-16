@@ -13,10 +13,12 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from .config import PARIS_TZ
 from .database import (
     abandon_score_defi,
     begin_immediate,
     get_db_connection,
+    get_edition_date_repas,
     get_lutin_presence,
     get_lutin_pseudo,
     get_or_assign_pseudo,
@@ -26,7 +28,6 @@ from .database import (
 )
 from .defi import (
     MAX_ESSAIS_PAR_MANCHE,
-    PARIS_TZ,
     PENALITE_ESSAI_FAUX_SECONDES,
     GrilleInvalideError,
     get_manche_attributes,
@@ -133,11 +134,6 @@ def defi_clos(date_repas: str | None, now: datetime) -> bool:
     return now.astimezone(PARIS_TZ).date() > jour
 
 
-def _date_repas(conn: sqlite3.Connection, year: int) -> str | None:
-    row = conn.execute("SELECT date_repas FROM editions WHERE year = ?;", (year,)).fetchone()
-    return str(row["date_repas"]) if row and row["date_repas"] else None
-
-
 def statut_score(score: dict[str, Any], unlocked: bool = True) -> StatutManche:
     """Dérive le statut d'une Manche d'une ligne de score (vide ou absente si jamais démarrée).
 
@@ -171,7 +167,7 @@ def etat(
             "FROM scores_defi WHERE lutin_id = ? AND year = ?;",
             (lutin_id, year),
         ).fetchall()
-        clos = defi_clos(_date_repas(conn, year), now)
+        clos = defi_clos(get_edition_date_repas(conn, year), now)
     finally:
         conn.close()
     scores = {int(row["manche_id"]): dict(row) for row in rows}
@@ -212,7 +208,7 @@ def _garde_acces(
         return ResultatParcours(StatutParcours.MANCHE_INTROUVABLE)
     if not is_manche_unlocked(manche, now=now):
         return ResultatParcours(StatutParcours.MANCHE_VERROUILLEE)
-    if defi_clos(_date_repas(conn, year), now):
+    if defi_clos(get_edition_date_repas(conn, year), now):
         return ResultatParcours(StatutParcours.DEFI_CLOS)
     return manche
 

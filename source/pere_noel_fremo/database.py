@@ -553,10 +553,9 @@ def get_edition_status(db_path: Path | str, year: int) -> str | None:
         conn.close()
 
 
-def get_edition_date_repas(db_path: Path | str, year: int) -> str | None:
-    """Récupère la date ISO du Repas de Noël d'une édition ('YYYY-MM-DD')."""
-    conn = get_db_connection(db_path)
-    try:
+def get_edition_date_repas(conn_or_path: Path | str | sqlite3.Connection, year: int) -> str | None:
+    """Récupère la date ISO du Repas de Noël d'une édition ('YYYY-MM-DD') : lecteur unique de `editions.date_repas`."""
+    with connection(conn_or_path) as conn:
         row = conn.execute(
             "SELECT date_repas FROM editions WHERE year = ?;",
             (year,),
@@ -564,8 +563,6 @@ def get_edition_date_repas(db_path: Path | str, year: int) -> str | None:
         if not row or not row["date_repas"]:
             return None
         return str(row["date_repas"])
-    finally:
-        conn.close()
 
 
 VALID_EDITION_STATUSES: tuple[str, ...] = tuple(s.value for s in StatutEdition)
@@ -591,21 +588,26 @@ def set_edition_status(db_path: Path | str, year: int, status: str) -> None:
         conn.close()
 
 
+def _confirmed_rows(conn: sqlite3.Connection, year: int) -> list[sqlite3.Row]:
+    """Lutins actifs ayant confirmé leur présence : requête unique de `get_confirmed_lutins` et `save_attributions`."""
+    return conn.execute(
+        """
+        SELECT l.id, l.fullname, l.email
+        FROM lutins l
+        JOIN presences p ON l.id = p.lutin_id
+        WHERE l.is_active = 1
+          AND p.year = ?
+          AND p.present = 1
+        ORDER BY l.id;
+        """,
+        (year,),
+    ).fetchall()
+
+
 def get_confirmed_lutins(db_path: Path | str | sqlite3.Connection, year: int) -> dict[str, dict[str, Any]]:
     """Récupère les Lutins actifs ayant confirmé leur présence pour une édition donnée."""
     with connection(db_path) as conn:
-        rows = conn.execute(
-            """
-            SELECT l.id, l.fullname, l.email
-            FROM lutins l
-            JOIN presences p ON l.id = p.lutin_id
-            WHERE l.is_active = 1
-              AND p.year = ?
-              AND p.present = 1
-            ORDER BY l.id;
-            """,
-            (year,),
-        ).fetchall()
+        rows = _confirmed_rows(conn, year)
 
         exclusions_map = get_exclusions(conn)
         history_map = historique_avant(conn, year)
@@ -634,16 +636,8 @@ def save_attributions(db_path: Path | str, year: int, attributions_map: dict[str
             begin_immediate(conn)
             # Les donneurs doivent être exactement les Lutins confirmés au moment de l'écriture : une présence
             # modifiée depuis le calcul des paires invalide le tirage (rollback, Édition non scellée).
-            confirmes = {
-                row["lutin_id"]
-                for row in conn.execute(
-                    """
-                    SELECT p.lutin_id FROM presences p JOIN lutins l ON l.id = p.lutin_id
-                    WHERE p.year = ? AND p.present = 1 AND l.is_active = 1;
-                    """,
-                    (year,),
-                )
-            }
+            confirmes = {row["id"] for row in _confirmed_rows(conn, year)}
+
             if confirmes != set(attributions_map):
                 raise PresencesChangees("Les présences ont changé depuis le calcul du tirage.")
 

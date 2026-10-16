@@ -58,7 +58,7 @@ def send_annonces(
 ) -> dict[str, int]:
     """Exécute la Campagne d'Annonce aux Lutins actifs et consigne l'état d'envoi en base.
 
-    Après le premier envoi réussi, l'Édition passe de `draft` à `announced` (jamais en simulation).
+    Après un envoi nominal sans échec, l'Édition passe de `draft` à `announced` (jamais en simulation).
     """
     if year is None:
         year = annee_courante(db_path)
@@ -92,7 +92,7 @@ def send_annonces(
         override_email=recipient_override,
         cible=bool(target_lutins),
     )
-    if not simulation and bilan.nominal and bilan.envoyes > 0:
+    if not simulation and bilan.fait_avancer_edition:
         avancer_edition(db_path, year, StatutEdition.DRAFT, StatutEdition.ANNOUNCED)
 
     return {

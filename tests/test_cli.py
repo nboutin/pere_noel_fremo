@@ -440,7 +440,7 @@ def test_cli_audit_tirage_command(tmp_path: Path, capsys: pytest.CaptureFixture[
 def test_token_masking_filter_masks_tokens() -> None:
     import logging
 
-    from pere_noel_fremo.web import TokenMaskingFilter
+    from pere_noel_fremo.helper import TokenMaskingFilter
 
     masking_filter = TokenMaskingFilter()
 
@@ -512,7 +512,7 @@ def test_token_masking_filter_masks_tokens() -> None:
 
 def test_build_uvicorn_log_config() -> None:
     from pere_noel_fremo.cli import build_uvicorn_log_config
-    from pere_noel_fremo.web import TokenMaskingFilter
+    from pere_noel_fremo.helper import TokenMaskingFilter
 
     cfg = build_uvicorn_log_config()
     assert "token_masking" in cfg.get("filters", {})
@@ -524,7 +524,7 @@ def test_cli_serve_installs_token_masking_filter(tmp_path: Path) -> None:
     import logging
     from unittest.mock import patch
 
-    from pere_noel_fremo.web import TokenMaskingFilter
+    from pere_noel_fremo.helper import TokenMaskingFilter
 
     db_path = tmp_path / "fremo.db"
     access_logger = logging.getLogger("uvicorn.access")

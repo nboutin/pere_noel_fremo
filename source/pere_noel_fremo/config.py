@@ -1,6 +1,9 @@
 import os
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
+# Fuseau de référence du Défi du lutin et du Repas de Noël.
+PARIS_TZ = ZoneInfo("Europe/Paris")
 PACKAGE_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = PACKAGE_ROOT.parent.parent
 

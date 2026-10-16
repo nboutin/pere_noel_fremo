@@ -128,6 +128,11 @@ class BilanCampagne:
     nominal: bool = True
     """Vrai si la campagne n'était ni redirigée ni ciblée : seul un bilan nominal fait avancer l'Édition."""
 
+    @property
+    def fait_avancer_edition(self) -> bool:
+        """Vrai pour un envoi nominal sans aucun échec et avec au moins un courriel parti (hors simulation)."""
+        return self.nominal and self.echecs == 0 and self.envoyes > 0
+
 
 def charger_secure_data(secure_data_path: Path | str) -> dict[str, Any]:
     chemin = Path(secure_data_path)
@@ -200,7 +205,8 @@ def envoyer_campagne(
         html = rendu.html(nom, lien)
         texte = rendu.texte(nom, lien)
 
-        adresse = override_email or params.get("email")
+        redirige = override_email is not None
+        adresse = override_email if redirige else params.get("email")
         if not adresse:
             sans_email += 1
             logger.warning(f"Lutin '{lutin_id}' n'a pas d'adresse courriel configurée.")
@@ -212,7 +218,7 @@ def envoyer_campagne(
 
         try:
             expediteur.envoyer(adresse, rendu.objet, html, texte)
-            if not override_email:
+            if not redirige:
                 mark_token_sent(db_path, token)
             envoyes += 1
         except helper.EmailSendError as exc:
@@ -224,5 +230,5 @@ def envoyer_campagne(
                 f"Erreur inattendue lors de l'envoi au Lutin '{lutin_id}' ({helper.mask_email(adresse)}): {exc}"
             )
 
-    nominal = not override_email and not cible
+    nominal = override_email is None and not cible
     return BilanCampagne(envoyes=envoyes, sans_email=sans_email, echecs=echecs, nominal=nominal)
