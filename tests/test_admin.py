@@ -270,6 +270,59 @@ def test_anti_brute_force_rate_limits_after_5_failures(admin_client: TestClient)
     assert "Trop de tentatives" in resp_blocked.text
 
 
+def test_anti_brute_force_ignores_x_forwarded_for(admin_client: TestClient) -> None:
+    for i in range(5):
+        resp = admin_client.post(
+            "/admin/login",
+            data={"password": f"wrong_{i}"},
+            headers={"X-Forwarded-For": f"10.0.0.{i}"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 401
+    resp_blocked = admin_client.post(
+        "/admin/login",
+        data={"password": "wrong_6"},
+        headers={"X-Forwarded-For": "10.0.0.6"},
+        follow_redirects=False,
+    )
+    assert resp_blocked.status_code == 429
+
+
+def test_rate_limit_response_is_html(admin_client: TestClient) -> None:
+    for i in range(5):
+        admin_client.post("/admin/login", data={"password": f"wrong_{i}"}, follow_redirects=False)
+    resp = admin_client.post("/admin/login", data={"password": "x"}, follow_redirects=False)
+    assert resp.status_code == 429
+    assert resp.headers["content-type"].startswith("text/html")
+    assert "Trop de tentatives" in resp.text
+
+
+def test_rate_limiter_purges_all_expired_entries() -> None:
+    limiter = LoginRateLimiter(max_attempts=3, window_seconds=60)
+    limiter.record_failure("10.0.0.1", 1000.0)
+    limiter.record_failure("10.0.0.2", 1001.0)
+    limiter.is_blocked("10.0.0.3", 1100.0)
+    assert limiter._attempts == {}
+
+
+@pytest.mark.parametrize(
+    ("content", "content_type"),
+    [
+        (b"{not json", "application/json"),
+        (b"\xff\xfe\x00", "application/json"),
+        (b"password=\xff\xfe", "application/x-www-form-urlencoded"),
+    ],
+)
+def test_login_with_malformed_body_returns_401(admin_client: TestClient, content: bytes, content_type: str) -> None:
+    resp = admin_client.post(
+        "/admin/login",
+        content=content,
+        headers={"Content-Type": content_type},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 401
+
+
 def test_login_success_sets_session_cookie_and_redirects(admin_client: TestClient) -> None:
     resp = admin_client.post(
         "/admin/login",

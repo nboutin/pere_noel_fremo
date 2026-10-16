@@ -10,8 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import anyio.from_thread
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from .admin import get_admin_edition_summary
@@ -44,10 +43,7 @@ def create_session_token(secret: str, timestamp: int) -> str:
 def verify_session_token(token: str, secret: str, now: int, max_age: int = SESSION_DURATION_SECONDS) -> bool:
     if not token or "." not in token:
         return False
-    parts = token.split(".", 1)
-    if len(parts) != 2:
-        return False
-    ts_str, signature = parts
+    ts_str, signature = token.split(".", 1)
     try:
         ts = int(ts_str)
     except ValueError:
@@ -66,17 +62,26 @@ def verify_session_token(token: str, secret: str, now: int, max_age: int = SESSI
 
 
 class LoginRateLimiter:
+    """Limiteur de tentatives de connexion, clé = IP du client TCP (``request.client.host``).
+
+    En pratique le limiteur est global : derrière ``tailscale serve``, la liaison loopback et
+    le NAT Docker, tous les clients apparaissent sous l'IP de la passerelle Docker, donc
+    ``max_attempts`` échecs bloquent la connexion pour tout le monde pendant ``window_seconds``
+    (ADR-0013 §4, amendement du 16 octobre 2026). C'est accepté : le tailnet ne contient que les
+    appareils de l'organisateur. ``X-Forwarded-For`` et ``Tailscale-User-Login`` ne sont jamais lus.
+    """
+
     def __init__(self, max_attempts: int = 5, window_seconds: int = 900) -> None:
         self.max_attempts = max_attempts
         self.window_seconds = window_seconds
         self._attempts: dict[str, list[float]] = {}
 
     def is_blocked(self, ip: str, now: float) -> bool:
-        self._cleanup(ip, now)
+        self._cleanup(now)
         return len(self._attempts.get(ip, [])) >= self.max_attempts
 
     def record_failure(self, ip: str, now: float) -> None:
-        self._cleanup(ip, now)
+        self._cleanup(now)
         self._attempts.setdefault(ip, []).append(now)
 
     def record_success(self, ip: str) -> None:
@@ -85,11 +90,14 @@ class LoginRateLimiter:
     def reset(self) -> None:
         self._attempts.clear()
 
-    def _cleanup(self, ip: str, now: float) -> None:
-        if ip in self._attempts:
-            self._attempts[ip] = [t for t in self._attempts[ip] if now - t < self.window_seconds]
-            if not self._attempts[ip]:
-                self._attempts.pop(ip, None)
+    def _cleanup(self, now: float) -> None:
+        """Purge les tentatives expirées de toutes les IP."""
+        for key in list(self._attempts):
+            recent = [t for t in self._attempts[key] if now - t < self.window_seconds]
+            if recent:
+                self._attempts[key] = recent
+            else:
+                del self._attempts[key]
 
 
 def create_admin_app(
@@ -159,39 +167,32 @@ def create_admin_app(
         )
 
     @app.post("/admin/login")
-    def post_admin_login(request: Request) -> Any:
-        forwarded_for = request.headers.get("x-forwarded-for")
-        client_ip = (
-            forwarded_for.split(",")[0].strip()
-            if forwarded_for
-            else (request.client.host if request.client else "127.0.0.1")
-        )
-        now_dt = clock_fn()
-        now_ts = now_dt.timestamp()
+    async def post_admin_login(request: Request) -> Any:
+        client_ip = request.client.host if request.client else "127.0.0.1"
+        now_ts = clock_fn().timestamp()
 
         if rate_limiter.is_blocked(client_ip, now_ts):
-            raise HTTPException(
+            return templates.TemplateResponse(
+                request=request,
+                name="espace_admin_login.html",
+                context={"error": "Trop de tentatives de connexion. Veuillez réessayer plus tard."},
                 status_code=429,
-                detail="Trop de tentatives de connexion. Veuillez réessayer plus tard.",
             )
 
         content_type = request.headers.get("content-type", "")
-        body_bytes = anyio.from_thread.run(request.body)
+        body_bytes = await request.body()
         submitted_val = ""
 
-        if "application/json" in content_type:
-            try:
-                data = json.loads(body_bytes.decode("utf-8"))
+        try:
+            text = body_bytes.decode("utf-8")
+            if "application/json" in content_type:
+                data = json.loads(text)
                 if isinstance(data, dict):
                     submitted_val = str(data.get("password") or "")
-            except Exception:
-                submitted_val = ""
-        else:
-            try:
-                parsed = urllib.parse.parse_qs(body_bytes.decode("utf-8"))
-                submitted_val = parsed.get("password", [""])[0]
-            except Exception:
-                submitted_val = ""
+            else:
+                submitted_val = urllib.parse.parse_qs(text).get("password", [""])[0]
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            submitted_val = ""
 
         is_valid = bool(admin_pwd and hmac.compare_digest(submitted_val.encode("utf-8"), admin_pwd.encode("utf-8")))
 
