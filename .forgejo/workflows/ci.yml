@@ -7,7 +7,7 @@ on:
     branches: [develop, master]
 
 env:
-  # Meme version que le Dockerfile et le hook pre-commit uv-lock.
+  # Même version que le Dockerfile et le hook pre-commit uv-lock.
   UV_VERSION: "0.12.10"
 
 jobs:

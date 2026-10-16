@@ -410,6 +410,24 @@ def test_invalid_audit_writes_nothing_on_fresh_draw(
     assert "lutin_" not in result.message
 
 
+def test_dry_run_audits_and_reports_failure_without_writing(
+    test_db_setup: tuple[Path, Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """L'audit en mémoire s'applique aussi à --dry-run : un dry-run peut donc échouer, sans rien écrire."""
+    from pere_noel_fremo import tirage as tirage_module
+
+    db_path, _, _ = test_db_setup
+    _confirm_all(db_path, 2026, ["lutin_1", "lutin_2", "lutin_3", "lutin_4"])
+    monkeypatch.setattr(tirage_module, "audit_pairs", _fake_invalid_pairs_audit)
+    monkeypatch.setattr(tirage_module, "save_attributions", _forbid_save)
+
+    result = tirage_module.run_tirage(db_path=db_path, year=2026, cheaters=[], dry_run=True)
+
+    assert result.success is False
+    assert "audit" in result.message.lower()
+    assert _dump_year(db_path, 2026) == []
+
+
 def test_invalid_audit_on_force_retirage_leaves_previous_draw_untouched(
     test_db_setup: tuple[Path, Path, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:

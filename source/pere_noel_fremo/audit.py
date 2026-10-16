@@ -56,7 +56,6 @@ def audit_pairs(
     `year` n'est utilisé que pour l'affichage.
     Contrôles : impasse de graphe, présence, bijection, auto-cadeau, exclusion et historique.
     """
-    attributions = pairs
     errors: list[str] = []
     error_categories: list[str] = []
     warnings: list[str] = []
@@ -66,8 +65,8 @@ def audit_pairs(
         error_categories.append(category)
 
     confirmed_ids = set(confirmed_lutins.keys())
-    donneurs = set(attributions.keys())
-    beneficiaires = set(attributions.values())
+    donneurs = set(pairs.keys())
+    beneficiaires = set(pairs.values())
 
     # 1. Analyse préventive du graphe des candidats (détection d'impasses)
     deadlock_candidates: dict[str, list[str]] = {}
@@ -133,7 +132,7 @@ def audit_pairs(
         )
 
     # 4. Vérification des contraintes individuelles sur les attributions scellées
-    for donneur_id, beneficiaire_id in attributions.items():
+    for donneur_id, beneficiaire_id in pairs.items():
         # Auto-cadeau
         if donneur_id == beneficiaire_id:
             add_error(f"Auto-cadeau détecté pour le Lutin '{donneur_id}'.", "Auto-cadeau détecté")
@@ -156,13 +155,14 @@ def audit_pairs(
     return AuditResult(
         is_valid=is_valid,
         total_lutins=len(confirmed_ids),
-        attributions_count=len(attributions),
+        attributions_count=len(pairs),
         errors=errors,
         error_categories=error_categories,
         warnings=warnings,
         graph_details={
+            "year": year,
             "confirmed_count": len(confirmed_ids),
-            "attributions_count": len(attributions),
+            "attributions_count": len(pairs),
             "donneurs": sorted(list(donneurs)),
             "beneficiaires": sorted(list(beneficiaires)),
             "eligible_targets_per_donneur": deadlock_candidates,

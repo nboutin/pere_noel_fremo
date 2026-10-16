@@ -1,5 +1,6 @@
 import secrets
 import sqlite3
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -733,8 +734,8 @@ def _assign_pseudo_in_transaction(
     conn: sqlite3.Connection,
     lutin_id: str,
     year: int,
-    adjectifs: Any,
-    animaux: Any,
+    adjectifs: Sequence[str],
+    animaux: Sequence[str],
 ) -> str:
     for _ in range(10):
         row = conn.execute(

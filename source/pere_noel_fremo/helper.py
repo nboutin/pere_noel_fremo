@@ -105,6 +105,7 @@ def load_credentials(interactive: bool = False) -> Credentials:
             fd = os.open(token_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
             with os.fdopen(fd, "w", encoding="utf-8") as token:
                 token.write(creds.to_json())
+            # os.open ne fixe le mode qu'à la création : on resserre un token.json préexistant (no-op sous Windows).
             os.chmod(token_path, 0o600)
     return cast(Credentials, creds)
 

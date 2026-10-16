@@ -795,6 +795,18 @@ def test_parse_iso_or_legacy() -> None:
     assert parse_iso_or_legacy(naive_dt) == datetime(2026, 10, 14, 20, 0, 0, tzinfo=timezone.utc)
 
 
+def test_parse_iso_or_legacy_accepts_z_suffix_on_python_310() -> None:
+    """Python 3.10 refuse le suffixe Z dans fromisoformat : parse_iso_or_legacy doit le normaliser."""
+    from datetime import datetime, timezone
+
+    from pere_noel_fremo.database import parse_iso_or_legacy
+
+    expected = datetime(2026, 10, 14, 20, 0, 0, tzinfo=timezone.utc)
+    assert parse_iso_or_legacy("2026-10-14T20:00:00Z") == expected
+    assert parse_iso_or_legacy("2026-10-14T20:00:00z") == expected
+    assert parse_iso_or_legacy(" 2026-10-14T20:00:00Z ") == expected
+
+
 def test_migration_purges_unstarted_scores(tmp_path: Path) -> None:
     db_path = tmp_path / "fremo_purge.db"
     init_db(db_path)

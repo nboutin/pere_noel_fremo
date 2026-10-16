@@ -10,26 +10,28 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 ### Added
 
 - Workflow Forgejo Actions `.forgejo/workflows/ci.yml` (verrou, ruff, mypy, bandit, pytest sur Python 3.12 et 3.10, `uv` 0.12.10) et couverture de branches (`--cov-branch`) ; seuil abaissé de 93 % à 92 %, la mesure lignes+branches donnant 92,73 % (#56).
+
 ### Changed
-- Tirage annulé (attributions et statut restaurés) quand l'audit automatique est invalide (#36).
+
+- Le tirage audite les paires en mémoire (`audit_pairs`) avant toute écriture, y compris sous `--dry-run` (qui peut donc échouer) ; un audit invalide n'écrit rien et laisse l'état précédent intact. `snapshot_attributions` et `restore_attributions` sont supprimées (#36, #50).
 - Catégories d'erreur de l'audit sans identifiant, pour préserver l'Admin aveugle (#36).
 - `try_build_gmail_service` partagé par l'Annonce et la Révélation (#36).
 - Message explicite pour une grille de Défi invalide au lieu d'une grille vide (#36).
-
 - Les routes de l'Espace Lutin sont désormais synchrones (`def`) et s'exécutent dans le pool de threads de FastAPI au lieu de bloquer la boucle d'événements avec SQLite et la lecture des YAML (#53).
 - Grilles : les manches illisibles sont désormais journalisées (WARNING) au lieu d'être ignorées en silence, les noms de jours et de mois en français sont factorisés avec `helper.py` et les rejets du validateur de grille sont couverts par des tests (#51).
-
-- Le tirage audite les paires en mémoire (`audit_pairs`) avant toute écriture au lieu de sceller puis restaurer ; `snapshot_attributions` et `restore_attributions` sont supprimées (#50).
 
 ### Fixed
 
 - `get_or_assign_pseudo` ne valide plus la transaction de l'appelant : l'attribution du pseudo et la création de la ligne `scores_defi` restent atomiques dans `start_score_defi` (#49).
+- `parse_iso_or_legacy` accepte le suffixe `Z` sous Python 3.10, où `datetime.fromisoformat` le refuse.
 
 ### Removed
+
 - Alias `get_pseudo_for_lutin` et son re-export dans `defi` (#36).
 - Code mort de `database.py` : `start_manche_defi`, `complete_score_defi` (second chemin de complétion qui contournait le plafond d'essais), `get_or_create_score_defi` et `backfill_historical_attributions` avec le module `migrations` (backfill déjà appliqué à `res/fremo.db`, ADR-0008 amendée) (#55).
 
 ### Security
+
 - Révélation : nom du Lutin échappé en HTML ; `token.json` écrit en `0600` ; adresses courriel masquées (`a***@domaine`) dans les journaux (#52).
 
 ## [2.0.1] - 2026-10-15
