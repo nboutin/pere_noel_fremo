@@ -91,6 +91,21 @@ def begin_immediate(conn: sqlite3.Connection) -> None:
     conn.execute("BEGIN IMMEDIATE;")
 
 
+@contextmanager
+def _write_transaction(db: Path | str | sqlite3.Connection) -> Iterator[sqlite3.Connection]:
+    """Fournit une connexion en écriture : transaction propre au chemin, ou transaction de l'appelant si connexion."""
+    if isinstance(db, sqlite3.Connection):
+        yield db
+        return
+    conn = get_db_connection(db)
+    try:
+        with conn:
+            begin_immediate(conn)
+            yield conn
+    finally:
+        conn.close()
+
+
 def get_db_connection(db_path: Path | str) -> sqlite3.Connection:
     conn = sqlite3.connect(str(db_path), timeout=DB_TIMEOUT_SECONDS)
     conn.execute("PRAGMA foreign_keys = ON;")
@@ -482,9 +497,9 @@ def get_lutins(db_path: Path | str, active_only: bool = True) -> dict[str, dict[
         conn.close()
 
 
-def get_lutin_presence(db_path: Path | str, lutin_id: str, year: int) -> bool | None:
+def get_lutin_presence(db_path: Path | str | sqlite3.Connection, lutin_id: str, year: int) -> bool | None:
     """Récupère l'état de confirmation de présence d'un Lutin pour une édition (None si non renseigné)."""
-    conn = get_db_connection(db_path)
+    conn = db_path if isinstance(db_path, sqlite3.Connection) else get_db_connection(db_path)
     try:
         row = conn.execute(
             "SELECT present FROM presences WHERE lutin_id = ? AND year = ?;",
@@ -494,7 +509,8 @@ def get_lutin_presence(db_path: Path | str, lutin_id: str, year: int) -> bool | 
             return None
         return bool(row["present"])
     finally:
-        conn.close()
+        if conn is not db_path:
+            conn.close()
 
 
 def set_lutin_presence(db_path: Path | str, lutin_id: str, year: int, present: bool) -> None:
@@ -788,21 +804,22 @@ def _get_score_entry(conn: Any, lutin_id: str, year: int, manche_id: int = 1) ->
 
 
 def get_score_defi(
-    db_path: Path | str,
+    db_path: Path | str | sqlite3.Connection,
     lutin_id: str,
     year: int,
     manche_id: int = 1,
 ) -> dict[str, Any]:
     """Récupère l'entrée score_defi pour un Lutin, une édition et une manche sans la créer si absente."""
-    conn = get_db_connection(db_path)
+    conn = db_path if isinstance(db_path, sqlite3.Connection) else get_db_connection(db_path)
     try:
         return _get_score_entry(conn, lutin_id, year, manche_id=manche_id)
     finally:
-        conn.close()
+        if conn is not db_path:
+            conn.close()
 
 
 def start_score_defi(
-    db_path: Path | str,
+    db_path: Path | str | sqlite3.Connection,
     lutin_id: str,
     year: int,
     pseudo_lutin: str | None = None,
@@ -813,79 +830,69 @@ def start_score_defi(
 
     Crée la ligne dans scores_defi si elle n'existe pas encore.
     """
-    conn = get_db_connection(db_path)
-    try:
-        with conn:
-            begin_immediate(conn)
-            now_dt = parse_iso_or_legacy(now) if now is not None else datetime.now(timezone.utc)
-            now_str = now_dt.isoformat()
+    with _write_transaction(db_path) as conn:
+        now_dt = parse_iso_or_legacy(now) if now is not None else datetime.now(timezone.utc)
+        now_str = now_dt.isoformat()
 
-            pseudo = get_or_assign_pseudo(conn, lutin_id, year) if pseudo_lutin is None else pseudo_lutin
+        pseudo = get_or_assign_pseudo(conn, lutin_id, year) if pseudo_lutin is None else pseudo_lutin
 
-            row = conn.execute(
+        row = conn.execute(
+            """
+            SELECT started_at, solved, time_seconds
+            FROM scores_defi
+            WHERE lutin_id = ? AND year = ? AND manche_id = ?;
+            """,
+            (lutin_id, year, manche_id),
+        ).fetchone()
+
+        if row is None:
+            conn.execute(
                 """
-                SELECT started_at, solved, time_seconds
-                FROM scores_defi
+                INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lutin, started_at, solved)
+                VALUES (?, ?, ?, ?, ?, 0);
+                """,
+                (lutin_id, year, manche_id, pseudo, now_str),
+            )
+        elif not row["solved"] and row["started_at"] is None:
+            conn.execute(
+                """
+                UPDATE scores_defi
+                SET started_at = ?
                 WHERE lutin_id = ? AND year = ? AND manche_id = ?;
                 """,
-                (lutin_id, year, manche_id),
-            ).fetchone()
-
-            if row is None:
-                conn.execute(
-                    """
-                    INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lutin, started_at, solved)
-                    VALUES (?, ?, ?, ?, ?, 0);
-                    """,
-                    (lutin_id, year, manche_id, pseudo, now_str),
-                )
-            elif not row["solved"] and row["started_at"] is None:
-                conn.execute(
-                    """
-                    UPDATE scores_defi
-                    SET started_at = ?
-                    WHERE lutin_id = ? AND year = ? AND manche_id = ?;
-                    """,
-                    (now_str, lutin_id, year, manche_id),
-                )
-            return _get_score_entry(conn, lutin_id, year, manche_id=manche_id)
-    finally:
-        conn.close()
+                (now_str, lutin_id, year, manche_id),
+            )
+        return _get_score_entry(conn, lutin_id, year, manche_id=manche_id)
 
 
 def abandon_score_defi(
-    db_path: Path | str,
+    db_path: Path | str | sqlite3.Connection,
     lutin_id: str,
     year: int,
     manche_id: int = 1,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """Scelle l'abandon d'une manche du Défi du lutin : chrono arrêté, tentative scellée."""
-    conn = get_db_connection(db_path)
-    try:
-        with conn:
-            begin_immediate(conn)
-            now_dt = parse_iso_or_legacy(now) if now is not None else datetime.now(timezone.utc)
-            now_str = now_dt.isoformat()
+    with _write_transaction(db_path) as conn:
+        now_dt = parse_iso_or_legacy(now) if now is not None else datetime.now(timezone.utc)
+        now_str = now_dt.isoformat()
 
-            row = conn.execute(
-                "SELECT solved, completed_at FROM scores_defi WHERE lutin_id = ? AND year = ? AND manche_id = ?;",
-                (lutin_id, year, manche_id),
-            ).fetchone()
-            if row and not row["solved"] and row["completed_at"] is None:
-                conn.execute(
-                    """
-                    UPDATE scores_defi
-                    SET solved = 0,
-                        time_seconds = NULL,
-                        completed_at = ?
-                    WHERE lutin_id = ? AND year = ? AND manche_id = ?;
-                    """,
-                    (now_str, lutin_id, year, manche_id),
-                )
-            return _get_score_entry(conn, lutin_id, year, manche_id=manche_id)
-    finally:
-        conn.close()
+        row = conn.execute(
+            "SELECT solved, completed_at FROM scores_defi WHERE lutin_id = ? AND year = ? AND manche_id = ?;",
+            (lutin_id, year, manche_id),
+        ).fetchone()
+        if row and not row["solved"] and row["completed_at"] is None:
+            conn.execute(
+                """
+                UPDATE scores_defi
+                SET solved = 0,
+                    time_seconds = NULL,
+                    completed_at = ?
+                WHERE lutin_id = ? AND year = ? AND manche_id = ?;
+                """,
+                (now_str, lutin_id, year, manche_id),
+            )
+        return _get_score_entry(conn, lutin_id, year, manche_id=manche_id)
 
 
 def register_solve_attempt(

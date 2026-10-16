@@ -13,20 +13,17 @@ from pydantic import BaseModel
 
 from .config import default_db_path, resolve_res_dir
 from .database import (
-    abandon_score_defi,
     get_beneficiaire_for_lutin,
     get_edition_date_repas,
     get_edition_status,
     get_latest_edition_year,
     get_lutin_presence,
     get_lutin_pseudo,
-    get_or_assign_pseudo,
     get_score_defi,
     get_scores_classement,
     init_db,
     register_solve_attempt,
     set_lutin_presence,
-    start_score_defi,
 )
 from .defi import (
     MAX_ESSAIS_PAR_MANCHE,
@@ -43,6 +40,7 @@ from .defi import (
     validate_grille_solution,
 )
 from .helper import format_date_repas
+from .parcours import ResultatParcours, StatutParcours, abandonner, demarrer
 from .tokens import get_lutin_by_token
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
@@ -312,50 +310,59 @@ def create_app(
 
         return lutin_info, manche
 
-    def _handle_start_defi(token: str, manche_id: int = 1) -> JSONResponse:
-        lutin_info, manche = _get_lutin_and_manche_or_raise(token, manche_id)
-        year = lutin_info["year"]
-        lutin_id = lutin_info["id"]
-
-        # Garde : une manche incohérente ne doit jamais lancer le chronomètre.
-        try:
-            get_manche_attributes(manche)
-        except GrilleInvalideError as exc:
-            raise HTTPException(
+    def _refus_parcours(resultat: ResultatParcours, manche_id: int) -> HTTPException | None:
+        """Traduit un statut de refus du Parcours en erreur HTTP (None si l'opération a abouti)."""
+        statut = resultat.statut
+        if statut is StatutParcours.PRESENCE_REQUISE:
+            return HTTPException(
+                status_code=403,
+                detail="Tu dois d'abord confirmer ta présence pour lancer le Défi du lutin.",
+            )
+        if statut is StatutParcours.MANCHE_INTROUVABLE:
+            return HTTPException(status_code=404, detail=f"Manche {manche_id} introuvable.")
+        if statut is StatutParcours.MANCHE_VERROUILLEE:
+            return HTTPException(status_code=403, detail=f"La manche {manche_id} n'est pas encore déverrouillée.")
+        if statut is StatutParcours.GRILLE_INVALIDE:
+            return HTTPException(
                 status_code=409,
-                detail=f"La manche {manche_id} est mal configurée et ne peut pas démarrer : {exc}",
-            ) from exc
-
-        pseudo = get_or_assign_pseudo(db_path, lutin_id, year)
-        score_entry = get_score_defi(db_path, lutin_id, year, manche_id=manche_id)
-        if score_entry.get("solved"):
-            raise HTTPException(
+                detail=f"La manche {manche_id} est mal configurée et ne peut pas démarrer : {resultat.detail}",
+            )
+        if statut is StatutParcours.DEJA_RESOLUE:
+            return HTTPException(
                 status_code=400,
                 detail=f"La manche {manche_id} a déjà été résolue (essai unique officiel).",
             )
-        if score_entry.get("completed_at"):
+        if statut is StatutParcours.NON_DEMARRE:
+            return HTTPException(
+                status_code=400,
+                detail="Le Défi du lutin doit être démarré avant de pouvoir être abandonné.",
+            )
+        return None
+
+    def _handle_start_defi(token: str, manche_id: int = 1) -> JSONResponse:
+        lutin_info = get_lutin_by_token(db_path, token)
+        if not lutin_info:
+            raise HTTPException(status_code=404, detail="Lien magique introuvable")
+        now_dt = clock_fn()
+        manche = get_manche(year=lutin_info["year"], manche_id=manche_id, res_dir=res_dir, now=now_dt)
+
+        resultat = demarrer(db_path, lutin_info["id"], lutin_info["year"], manche, now_dt)
+        if resultat.statut is StatutParcours.DEJA_TERMINEE:
             raise HTTPException(
                 status_code=400,
                 detail=f"La manche {manche_id} a été abandonnée (essai unique officiel).",
             )
-
-        updated = start_score_defi(
-            db_path,
-            lutin_id,
-            year,
-            pseudo_lutin=pseudo,
-            manche_id=manche_id,
-            now=clock_fn(),
-        )
-        assigned_pseudo = updated.get("pseudo_lutin") or pseudo
+        refus = _refus_parcours(resultat, manche_id)
+        if refus is not None:
+            raise refus
         return JSONResponse(
             {
                 "ok": True,
                 "manche_id": manche_id,
-                "pseudo_lutin": assigned_pseudo,
-                "started_at": updated.get("started_at"),
-                "solved": bool(updated.get("solved", 0)),
-                "indices": list(manche.get("indices") or []),
+                "pseudo_lutin": resultat.pseudo_lutin,
+                "started_at": resultat.started_at,
+                "solved": False,
+                "indices": resultat.indices,
             }
         )
 
@@ -470,31 +477,27 @@ def create_app(
         )
 
     def _handle_abandon_defi(token: str, manche_id: int = 1) -> JSONResponse:
-        lutin_info, _manche = _get_lutin_and_manche_or_raise(token, manche_id)
-        year = lutin_info["year"]
-        lutin_id = lutin_info["id"]
+        lutin_info = get_lutin_by_token(db_path, token)
+        if not lutin_info:
+            raise HTTPException(status_code=404, detail="Lien magique introuvable")
+        now_dt = clock_fn()
+        manche = get_manche(year=lutin_info["year"], manche_id=manche_id, res_dir=res_dir, now=now_dt)
 
-        score_entry = get_score_defi(db_path, lutin_id, year, manche_id=manche_id)
-        if score_entry.get("completed_at"):
+        resultat = abandonner(db_path, lutin_info["id"], lutin_info["year"], manche, now_dt)
+        if resultat.statut is StatutParcours.DEJA_TERMINEE:
             raise HTTPException(
                 status_code=400,
                 detail=f"La manche {manche_id} est déjà terminée (essai unique officiel).",
             )
-        if not score_entry.get("started_at"):
-            raise HTTPException(
-                status_code=400,
-                detail="Le Défi du lutin doit être démarré avant de pouvoir être abandonné.",
-            )
-
-        updated = abandon_score_defi(db_path, lutin_id, year, manche_id=manche_id, now=clock_fn())
-        pseudo = score_entry.get("pseudo_lutin") or get_lutin_pseudo(db_path, lutin_id, year) or "Lutin"
-        abandoned_pseudo = updated.get("pseudo_lutin") or pseudo
+        refus = _refus_parcours(resultat, manche_id)
+        if refus is not None:
+            raise refus
         return JSONResponse(
             {
                 "ok": True,
                 "manche_id": manche_id,
                 "abandoned": True,
-                "pseudo_lutin": abandoned_pseudo,
+                "pseudo_lutin": resultat.pseudo_lutin or "Lutin",
             }
         )
 

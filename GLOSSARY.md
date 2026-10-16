@@ -86,6 +86,10 @@ _Avoid_: Round, niveau, étape, session
 Tentative de validation complète de la Grille logique transmise par un Lutin au cours d'une Manche, plafonnée à 3 essais par manche et assortie d'une pénalité de temps en cas d'erreur précédant la résolution.
 _Avoid_: Requête de solve, validation partielle, essai non décompté, tentative infinie
 
+**Parcours de manche**:
+Déroulé chronométré unique d'un Lutin sur une Manche, du démarrage à la résolution, l'abandon ou le scellement après 3 Soumissions.
+_Avoid_: session, run, tentative
+
 **Grille logique**:
 Casse-tête de déduction à indices croisés proposé lors d'une Manche du Défi du lutin, chronométré pour établir le classement de la manche.
 _Avoid_: Logigramme, puzzle d'Einstein, énigme
