@@ -7,6 +7,7 @@ from pere_noel_fremo.database import (
     import_yaml_data,
     init_db,
     save_attributions,
+    set_lutin_presence,
 )
 from pere_noel_fremo.export import (
     build_edition_export_data,
@@ -62,6 +63,8 @@ def test_build_edition_export_data_structure(tmp_path: Path) -> None:
     db_path = setup_export_db(tmp_path)
 
     # Save attributions for 2026
+    for lutin_id in ("lutin_a", "lutin_b", "lutin_c"):
+        set_lutin_presence(db_path, lutin_id, 2026, present=True)
     save_attributions(
         db_path,
         2026,
@@ -102,6 +105,9 @@ def test_build_edition_export_data_structure(tmp_path: Path) -> None:
 
 def test_export_edition_yaml_writes_file_and_protects_overwrite(tmp_path: Path) -> None:
     db_path = setup_export_db(tmp_path)
+    set_lutin_presence(db_path, "lutin_a", 2026, present=True)
+    set_lutin_presence(db_path, "lutin_b", 2026, present=True)
+    set_lutin_presence(db_path, "lutin_c", 2026, present=True)
     save_attributions(db_path, 2026, {"lutin_a": "lutin_b", "lutin_b": "lutin_c", "lutin_c": "lutin_a"})
 
     output_file = tmp_path / "out" / "data_out.yml"
@@ -130,6 +136,8 @@ def test_export_absent_lutin_keeps_past_history_without_current_attribution(tmp_
     db_path = setup_export_db(tmp_path)
 
     # Only lutin_a and lutin_b participate and have attributions in 2026, lutin_c was absent
+    set_lutin_presence(db_path, "lutin_a", 2026, present=True)
+    set_lutin_presence(db_path, "lutin_b", 2026, present=True)
     save_attributions(db_path, 2026, {"lutin_a": "lutin_b", "lutin_b": "lutin_a"})
 
     data = build_edition_export_data(db_path, 2026)
@@ -186,6 +194,7 @@ def test_export_preserves_chronological_ordering_without_removing_prior_historic
     import_yaml_data(db_path, data_in_path, secure_data_path, year=2026)
 
     # Attribution 2026 : lutin_1 offre à nouveau à lutin_2
+    set_lutin_presence(db_path, "lutin_1", 2026, present=True)
     save_attributions(db_path, 2026, {"lutin_1": "lutin_2"})
 
     data = build_edition_export_data(db_path, 2026)

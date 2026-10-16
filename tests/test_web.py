@@ -171,7 +171,7 @@ def test_defi_de_la_luge_flow(client: TestClient, test_db: Path) -> None:
 
 
 def test_revelation_beneficiaire_carte_a_gratter(client: TestClient, test_db: Path) -> None:
-    from pere_noel_fremo.database import save_attributions
+    from pere_noel_fremo.database import save_attributions, set_lutin_presence
 
     token = create_or_get_token(test_db, "fbonnet", 2025)
 
@@ -187,6 +187,8 @@ def test_revelation_beneficiaire_carte_a_gratter(client: TestClient, test_db: Pa
     assert '<canvas id="scratch-canvas"' not in page_before_draw.text
 
     # Tirage au sort effectué
+    set_lutin_presence(test_db, "fbonnet", 2025, present=True)
+    set_lutin_presence(test_db, "alacroix", 2025, present=True)
     save_attributions(test_db, 2025, {"fbonnet": "alacroix", "alacroix": "fbonnet"})
 
     # Après le tirage : le bénéficiaire est disponible pour la carte à gratter

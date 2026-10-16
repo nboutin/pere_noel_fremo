@@ -707,6 +707,7 @@ def test_cli_export_nominal_and_overwrite(tmp_path: Path, capsys: pytest.Capture
         import_yaml_data,
         init_db,
         save_attributions,
+        set_lutin_presence,
     )
 
     db_path = tmp_path / "fremo.db"
@@ -722,6 +723,7 @@ def test_cli_export_nominal_and_overwrite(tmp_path: Path, capsys: pytest.Capture
         yaml.dump({"personnes": {}}, f)
 
     import_yaml_data(db_path, data_in, sec_data, year=2026)
+    set_lutin_presence(db_path, "lutin_1", 2026, True)
     save_attributions(db_path, 2026, {"lutin_1": "lutin_1"})
 
     # Export nominal

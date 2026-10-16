@@ -448,6 +448,34 @@ def test_invalid_audit_on_force_retirage_leaves_previous_draw_untouched(
     assert get_edition_status(db_path, 2026) == "revealed"
 
 
+def test_presence_changee_pendant_le_tirage_echoue_sans_ecrire_ni_nommer_de_lutin(
+    test_db_setup: tuple[Path, Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pere_noel_fremo import tirage as tirage_module
+
+    db_path, _, _ = test_db_setup
+    _confirm_all(db_path, 2026, ["lutin_1", "lutin_2", "lutin_3", "lutin_4"])
+    status_before = get_edition_status(db_path, 2026)
+    real_get_confirmed = tirage_module.get_confirmed_lutins
+
+    def _confirmed_then_change(*args: Any, **kwargs: Any) -> dict[str, dict[str, Any]]:
+        confirmed = real_get_confirmed(*args, **kwargs)
+        # Un Lutin retire sa présence entre la lecture des confirmés et l'écriture du tirage.
+        set_lutin_presence(db_path, "lutin_4", 2026, present=False)
+        return confirmed
+
+    monkeypatch.setattr(tirage_module, "get_confirmed_lutins", _confirmed_then_change)
+
+    result = tirage_module.run_tirage(db_path=db_path, year=2026, cheaters=[])
+
+    assert result.success is False
+    assert "présences ont changé" in result.message
+    assert "relancez le tirage" in result.message
+    assert "lutin_" not in result.message
+    assert _dump_year(db_path, 2026) == []
+    assert get_edition_status(db_path, 2026) == status_before
+
+
 def test_force_retirage_sur_edition_revealed_est_refuse_sans_ecriture(test_db_setup: tuple[Path, Path, Path]) -> None:
     db_path, _, _ = test_db_setup
     _confirm_all(db_path, 2026, ["lutin_1", "lutin_2", "lutin_3", "lutin_4"])

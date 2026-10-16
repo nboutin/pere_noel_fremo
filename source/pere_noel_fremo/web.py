@@ -20,7 +20,6 @@ from .database import (
     get_score_defi,
     get_scores_classement,
     init_db,
-    set_lutin_presence,
 )
 from .defi import (
     PARIS_TZ,
@@ -37,6 +36,7 @@ from .edition import annee_courante, est_scellee, statut
 from .helper import format_date_repas
 from .parcours import StatutManche, StatutParcours, StatutSoumission, abandonner, demarrer, soumettre
 from .parcours import etat as etat_parcours
+from .presence import StatutPresence, confirmer
 from .tokens import get_lutin_by_token
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
@@ -272,13 +272,12 @@ def create_app(
             raise HTTPException(status_code=404, detail="Lien magique introuvable")
 
         year = lutin_info["year"]
-        if est_scellee(statut(db_path, year)):
+        if confirmer(db_path, lutin_info["id"], year, payload.present) is StatutPresence.VERROUILLEE:
             raise HTTPException(
                 status_code=403,
                 detail="Le tirage au sort a été effectué, le statut de présence est verrouillé.",
             )
 
-        set_lutin_presence(db_path, lutin_info["id"], year, payload.present)
         return JSONResponse({"ok": True, "present": payload.present})
 
     def _get_lutin_and_manche_or_raise(token: str, manche_id: int) -> tuple[dict[str, Any], dict[str, Any]]:

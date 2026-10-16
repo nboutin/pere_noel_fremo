@@ -10,7 +10,6 @@ from pere_noel_fremo.database import (
     get_confirmed_lutins,
     get_db_connection,
     init_db,
-    save_attributions,
     set_lutin_presence,
 )
 
@@ -48,7 +47,15 @@ def _seed(
     conn.close()
     for lutin_id in confirmed:
         set_lutin_presence(db_path, lutin_id, YEAR, present=True)
-    save_attributions(db_path, YEAR, RING if attributions is None else attributions)
+    # Insertion directe : `save_attributions` refuserait justement ces tirages incohérents avec les présences.
+    conn = get_db_connection(db_path)
+    with conn:
+        for donneur, beneficiaire in (RING if attributions is None else attributions).items():
+            conn.execute(
+                "INSERT INTO attributions (donneur_id, beneficiaire_id, year, order_index) VALUES (?, ?, ?, 1);",
+                (donneur, beneficiaire, YEAR),
+            )
+    conn.close()
     return db_path
 
 

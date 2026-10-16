@@ -614,11 +614,31 @@ def get_confirmed_lutins(db_path: Path | str | sqlite3.Connection, year: int) ->
         return result
 
 
+class PresencesChangees(Exception):
+    """Levée quand les donneurs du tirage ne correspondent plus aux Lutins confirmés (rien n'est écrit)."""
+
+
 def save_attributions(db_path: Path | str, year: int, attributions_map: dict[str, str]) -> None:
     """Enregistre de façon sécurisée et transactionnelle les attributions pour une édition."""
     conn = get_db_connection(db_path)
     try:
         with conn:
+            begin_immediate(conn)
+            # Les donneurs doivent être exactement les Lutins confirmés au moment de l'écriture : une présence
+            # modifiée depuis le calcul des paires invalide le tirage (rollback, Édition non scellée).
+            confirmes = {
+                row["lutin_id"]
+                for row in conn.execute(
+                    """
+                    SELECT p.lutin_id FROM presences p JOIN lutins l ON l.id = p.lutin_id
+                    WHERE p.year = ? AND p.present = 1 AND l.is_active = 1;
+                    """,
+                    (year,),
+                )
+            }
+            if confirmes != set(attributions_map):
+                raise PresencesChangees("Les présences ont changé depuis le calcul du tirage.")
+
             # 0. Remplacer l'année entière (aucune ligne périmée) dans la même transaction
             conn.execute("DELETE FROM attributions WHERE year = ?;", (year,))
 

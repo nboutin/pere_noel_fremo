@@ -7,6 +7,7 @@ from typing import Any
 
 from .audit import audit_pairs
 from .database import (
+    PresencesChangees,
     get_confirmed_lutins,
     save_attributions,
 )
@@ -219,6 +220,16 @@ def run_tirage(
     if not dry_run:
         try:
             save_attributions(db_path, year, pairs)
+        except PresencesChangees:
+            return TirageResult(
+                success=False,
+                year=year,
+                confirmed_count=confirmed_count,
+                message=(
+                    "Les présences ont changé pendant le tirage : relancez le tirage. "
+                    "Rien n'a été écrit, l'état précédent est inchangé."
+                ),
+            )
         except TransitionEditionInterdite as exc:
             # Le scellement a échoué dans la transaction : rien n'a été écrit.
             return TirageResult(

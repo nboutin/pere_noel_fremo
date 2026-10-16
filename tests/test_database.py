@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 import yaml
 from pere_noel_fremo.database import (
+    PresencesChangees,
     get_attributions,
     get_beneficiaire_for_lutin,
     get_confirmed_lutins,
@@ -266,6 +267,8 @@ def test_scores_defi_and_beneficiaire_operations(tmp_path: Path, solve_manche: C
     conn.close()
 
     # 1. Attributions & get_beneficiaire_for_lutin
+    set_lutin_presence(db_path, "l1", 2026, present=True)
+    set_lutin_presence(db_path, "l2", 2026, present=True)
     save_attributions(db_path, 2026, {"l1": "l2", "l2": "l1"})
     beneficiaire = get_beneficiaire_for_lutin(db_path, "l1", 2026)
     assert beneficiaire is not None
@@ -426,6 +429,7 @@ def test_save_attributions_successive_draws_no_order_index_hole(tmp_path: Path) 
         conn.close()
 
     # Premier tirage 2026 : donneur 'g1' reçoit l'attribution vers 'r3'
+    set_lutin_presence(db_path, "g1", 2026, present=True)
     save_attributions(db_path, 2026, {"g1": "r3"})
 
     conn = get_db_connection(db_path)
@@ -914,3 +918,22 @@ def test_start_score_defi_rolls_back_pseudo_and_score_together(tmp_path: Path, m
         assert conn.execute("SELECT COUNT(*) FROM scores_defi;").fetchone()[0] == 0
     finally:
         conn.close()
+
+
+def test_save_attributions_refuse_des_paires_qui_ne_couvrent_pas_les_confirmes(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+    conn = get_db_connection(db_path)
+    with conn:
+        conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'announced');")
+        for lutin_id in ("l1", "l2", "l3"):
+            conn.execute("INSERT INTO lutins (id, fullname) VALUES (?, ?);", (lutin_id, lutin_id))
+    conn.close()
+    for lutin_id in ("l1", "l2", "l3"):
+        set_lutin_presence(db_path, lutin_id, 2026, present=True)
+
+    with pytest.raises(PresencesChangees):
+        save_attributions(db_path, 2026, {"l1": "l2", "l2": "l1"})
+
+    assert get_attributions(db_path, 2026) == {}
+    assert get_edition_status(db_path, 2026) == "announced"
