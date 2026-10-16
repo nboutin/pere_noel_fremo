@@ -19,6 +19,7 @@ from pere_noel_fremo.parcours import (
     abandonner,
     demarrer,
     etat,
+    indices,
     soumettre,
 )
 
@@ -188,6 +189,62 @@ def test_abandonner_manche_verrouillee(present: Path) -> None:
     res = abandonner(present, "l1", YEAR, _manche(unlock_at="2026-10-20 19:00:00"), NOW)
 
     assert res.statut is StatutParcours.MANCHE_VERROUILLEE
+
+
+# --- Indices ------------------------------------------------------------------------------------
+
+
+def test_indices_pendant_un_essai_en_cours(present: Path) -> None:
+    demarrer(present, "l1", YEAR, _manche(), NOW)
+
+    res = indices(present, "l1", YEAR, _manche(), NOW)
+
+    assert res.statut is StatutParcours.DEMARRE
+    assert res.indices == ["Indice un.", "Indice deux."]
+
+
+def test_indices_manche_non_demarree(present: Path) -> None:
+    assert indices(present, "l1", YEAR, _manche(), NOW).statut is StatutParcours.NON_DEMARRE
+
+
+def test_indices_manche_abandonnee_ou_resolue(present: Path) -> None:
+    demarrer(present, "l1", YEAR, _manche(), NOW)
+    soumettre(present, "l1", YEAR, _manche(), _manche()["solution"], NOW + timedelta(seconds=5))
+    res = indices(present, "l1", YEAR, _manche(), NOW)
+    assert res.statut is StatutParcours.DEJA_TERMINEE
+    assert res.indices == []
+
+    autre = _manche(id=2)
+    demarrer(present, "l1", YEAR, autre, NOW)
+    abandonner(present, "l1", YEAR, autre, NOW)
+    assert indices(present, "l1", YEAR, autre, NOW).statut is StatutParcours.DEJA_TERMINEE
+
+
+def test_indices_sans_presence(db_path: Path) -> None:
+    assert indices(db_path, "l1", YEAR, _manche(), NOW).statut is StatutParcours.PRESENCE_REQUISE
+
+
+def test_indices_manche_introuvable(present: Path) -> None:
+    assert indices(present, "l1", YEAR, None, NOW).statut is StatutParcours.MANCHE_INTROUVABLE
+
+
+def test_indices_manche_verrouillee(present: Path) -> None:
+    res = indices(present, "l1", YEAR, _manche(unlock_at="2026-10-20 19:00:00"), NOW)
+
+    assert res.statut is StatutParcours.MANCHE_VERROUILLEE
+
+
+def test_indices_defi_clos(present: Path) -> None:
+    demarrer(present, "l1", YEAR, _manche(), NOW)
+    conn = get_db_connection(present)
+    with conn:
+        conn.execute("UPDATE editions SET date_repas = '2026-10-14' WHERE year = ?;", (YEAR,))
+    conn.close()
+
+    res = indices(present, "l1", YEAR, _manche(), NOW + timedelta(days=2))
+
+    assert res.statut is StatutParcours.DEFI_CLOS
+    assert res.indices == []
 
 
 # --- Soumission ---------------------------------------------------------------------------------

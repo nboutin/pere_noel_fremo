@@ -17,7 +17,6 @@ from .database import (
     get_edition_date_repas,
     get_lutin_presence,
     get_lutin_pseudo,
-    get_score_defi,
     get_scores_classement,
     init_db,
 )
@@ -30,11 +29,10 @@ from .defi import (
     get_manche,
     get_manche_attributes,
     get_or_load_grille,
-    is_manche_unlocked,
 )
 from .edition import annee_courante, est_scellee, statut
 from .helper import format_date_repas
-from .parcours import StatutManche, StatutParcours, StatutSoumission, abandonner, demarrer, soumettre
+from .parcours import StatutManche, StatutParcours, StatutSoumission, abandonner, demarrer, indices, soumettre
 from .parcours import etat as etat_parcours
 from .presence import StatutPresence, confirmer
 from .tokens import get_lutin_by_token
@@ -280,34 +278,6 @@ def create_app(
 
         return JSONResponse({"ok": True, "present": payload.present})
 
-    def _get_lutin_and_manche_or_raise(token: str, manche_id: int) -> tuple[dict[str, Any], dict[str, Any]]:
-        lutin_info = get_lutin_by_token(db_path, token)
-        if not lutin_info:
-            raise HTTPException(status_code=404, detail="Lien magique introuvable")
-
-        year = lutin_info["year"]
-        lutin_id = lutin_info["id"]
-
-        presence = get_lutin_presence(db_path, lutin_id, year)
-        if not presence:
-            raise HTTPException(
-                status_code=403,
-                detail="Tu dois d'abord confirmer ta présence pour lancer le Défi du lutin.",
-            )
-
-        now_dt = clock_fn()
-        manche = get_manche(year=year, manche_id=manche_id, res_dir=res_dir, now=now_dt)
-        if manche is None:
-            raise HTTPException(status_code=404, detail=f"Manche {manche_id} introuvable.")
-
-        if not is_manche_unlocked(manche, now=now_dt):
-            raise HTTPException(
-                status_code=403,
-                detail=f"La manche {manche_id} n'est pas encore déverrouillée.",
-            )
-
-        return lutin_info, manche
-
     def _refus_parcours(
         statut: StatutParcours | StatutSoumission, manche_id: int, detail: str | None = None
     ) -> HTTPException | None:
@@ -368,24 +338,22 @@ def create_app(
         )
 
     def _handle_get_indices(token: str, manche_id: int = 1) -> JSONResponse:
-        lutin_info, manche = _get_lutin_and_manche_or_raise(token, manche_id)
-        year = lutin_info["year"]
-        lutin_id = lutin_info["id"]
+        lutin_info = get_lutin_by_token(db_path, token)
+        if not lutin_info:
+            raise HTTPException(status_code=404, detail="Lien magique introuvable")
+        now_dt = clock_fn()
+        manche = get_manche(year=lutin_info["year"], manche_id=manche_id, res_dir=res_dir, now=now_dt)
 
-        score_entry = get_score_defi(db_path, lutin_id, year, manche_id=manche_id)
-        if not score_entry.get("started_at") or score_entry.get("completed_at") is not None:
+        resultat = indices(db_path, lutin_info["id"], lutin_info["year"], manche, now_dt)
+        if resultat.statut in (StatutParcours.NON_DEMARRE, StatutParcours.DEJA_TERMINEE):
             raise HTTPException(
                 status_code=403,
                 detail="Les indices ne sont accessibles que pendant un essai en cours.",
             )
-
-        return JSONResponse(
-            {
-                "ok": True,
-                "manche_id": manche_id,
-                "indices": list(manche.get("indices") or []),
-            }
-        )
+        refus = _refus_parcours(resultat.statut, manche_id)
+        if refus is not None:
+            raise refus
+        return JSONResponse({"ok": True, "manche_id": manche_id, "indices": resultat.indices})
 
     def _handle_solve_defi(token: str, payload: GrilleSolveRequest, manche_id: int = 1) -> JSONResponse:
         lutin_info = get_lutin_by_token(db_path, token)

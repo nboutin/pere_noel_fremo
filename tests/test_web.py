@@ -412,11 +412,6 @@ def test_abandon_defi_flow(client: TestClient, test_db: Path, monkeypatch: pytes
     assert "let isCompleted = true;" in page.text
     assert "let isChallengeActive = isStarted && !isCompleted;" in page.text
 
-    # La page s'appuie sur l'état du Parcours : aucune requête get_score_defi supplémentaire
-    def _interdit(*args: object, **kwargs: object) -> None:
-        raise AssertionError("get_score_defi ne doit plus être appelée par l'Espace Lutin")
-
-    monkeypatch.setattr("pere_noel_fremo.web.get_score_defi", _interdit)
     page_bis = client.get(f"/lutin/{token}?manche=1")
     assert page_bis.status_code == 200
     assert "let isCompleted = true;" in page_bis.text
@@ -1246,3 +1241,58 @@ def test_defi_clos_apres_le_repas_refuse_start_solve_abandon_en_403(test_db: Pat
 
     page = client.get(f"/lutin/{token}")
     assert "Le Défi du lutin est clos depuis le Repas de Noël." in page.text
+
+
+def test_defi_indices_refus_presence_manche_et_verrou(client: TestClient, test_db: Path) -> None:
+    conn = get_db_connection(test_db)
+    with conn:
+        conn.execute("INSERT OR IGNORE INTO editions (year, status) VALUES (2026, 'draft');")
+    conn.close()
+    from pere_noel_fremo.database import set_lutin_presence
+
+    sans_presence = create_or_get_token(test_db, "alacroix", 2025)
+    resp = client.get(f"/api/lutin/{sans_presence}/defi/1/indices")
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Tu dois d'abord confirmer ta présence pour lancer le Défi du lutin."
+
+    token = create_or_get_token(test_db, "fbonnet", 2025)
+    set_lutin_presence(test_db, "fbonnet", 2025, present=True)
+    resp = client.get(f"/api/lutin/{token}/defi/999/indices")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Manche 999 introuvable."
+
+    token_2026 = create_or_get_token(test_db, "fbonnet", 2026)
+    set_lutin_presence(test_db, "fbonnet", 2026, present=True)
+    resp = client.get(f"/api/lutin/{token_2026}/defi/2/indices")
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "La manche 2 n'est pas encore déverrouillée."
+
+    assert client.get("/api/lutin/inconnu/defi/1/indices").status_code == 404
+
+
+def test_defi_indices_refus_sans_essai_en_cours(client: TestClient, test_db: Path) -> None:
+    from pere_noel_fremo.database import set_lutin_presence
+
+    token = create_or_get_token(test_db, "fbonnet", 2025)
+    set_lutin_presence(test_db, "fbonnet", 2025, present=True)
+    attendu = "Les indices ne sont accessibles que pendant un essai en cours."
+
+    assert client.get(f"/api/lutin/{token}/defi/1/indices").json()["detail"] == attendu
+    client.post(f"/api/lutin/{token}/defi/1/start")
+    client.post(f"/api/lutin/{token}/defi/1/abandon")
+    resp = client.get(f"/api/lutin/{token}/defi/1/indices")
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == attendu
+
+
+def test_defi_clos_refuse_aussi_les_indices_en_403(test_db: Path) -> None:
+    from datetime import datetime, timezone
+
+    _fixer_date_repas_2025(test_db)
+    token = create_or_get_token(test_db, "fbonnet", 2025)
+    client = _app_avec_horloge(test_db, datetime(2026, 12, 5, 23, 0, tzinfo=timezone.utc))
+
+    resp = client.get(f"/api/lutin/{token}/defi/1/indices")
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Le Défi du lutin est clos depuis le Repas de Noël."

@@ -258,6 +258,34 @@ def demarrer(
         conn.close()
 
 
+def indices(
+    db_path: Path | str,
+    lutin_id: str,
+    year: int,
+    manche: dict[str, Any] | None,
+    now: datetime,
+) -> ResultatParcours:
+    """Indices de la Manche, uniquement pendant un essai en cours (démarré et non terminé)."""
+    conn = get_db_connection(db_path)
+    try:
+        with conn:
+            begin_immediate(conn)
+            acces = _garde_acces(conn, lutin_id, year, manche, now)
+            if isinstance(acces, ResultatParcours):
+                return acces
+            manche = acces
+
+            score = get_score_defi(conn, lutin_id, year, manche_id=int(manche["id"]))
+            statut = statut_score(score)
+            if statut is StatutManche.DISPONIBLE:
+                return ResultatParcours(StatutParcours.NON_DEMARRE)
+            if statut is not StatutManche.EN_COURS:
+                return ResultatParcours(StatutParcours.DEJA_TERMINEE, pseudo_lutin=score.get("pseudo_lutin"))
+            return ResultatParcours(StatutParcours.DEMARRE, indices=list(manche.get("indices") or []))
+    finally:
+        conn.close()
+
+
 def abandonner(
     db_path: Path | str,
     lutin_id: str,
