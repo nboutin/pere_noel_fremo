@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pere_noel_fremo.annonce import format_annonce_body, format_annonce_text, send_annonces
 from pere_noel_fremo.campagne import (
+    Cta,
     ExpediteurGmail,
     ExpediteurMemoire,
     Rendu,
@@ -13,6 +14,7 @@ from pere_noel_fremo.campagne import (
     avec_adresses_de_repli,
     cibler,
     envoyer_campagne,
+    rendre_gabarit,
 )
 from pere_noel_fremo.database import get_db_connection, init_db
 from pere_noel_fremo.edition import StatutEdition, statut
@@ -288,3 +290,29 @@ def test_expediteur_gmail_simulation_ne_touche_jamais_aux_identifiants(
 
     assert stats["sent"] == 3
     fake_gmail_service.assert_not_called()
+
+
+CTA = Cta(libelle="Ouvrir", couleur="#123456")
+LIEN = "https://noel.fremo.fr/m/abc"
+
+
+def test_rendre_gabarit_echappe_le_nom_et_remplace_les_marqueurs() -> None:
+    corps = rendre_gabarit("{fullname}|{lien_magique}|{magic_url}|{year}", "<b>Léa</b>", LIEN, 2026, CTA)
+    assert corps == f"&lt;b&gt;Léa&lt;/b&gt;|{LIEN}|{LIEN}|2026"
+
+
+def test_rendre_gabarit_ajoute_le_cta_avant_body() -> None:
+    corps = rendre_gabarit("<html><body><p>Salut</p></body></html>", "Léa", LIEN, 2026, CTA)
+    assert f'<a href="{LIEN}" style="font-weight: bold; color: #123456;">Ouvrir</a>' in corps
+    assert corps.index("Ouvrir") < corps.index("</body>")
+
+
+def test_rendre_gabarit_ajoute_le_cta_en_fin_sans_body() -> None:
+    corps = rendre_gabarit("<p>Salut</p>", "Léa", LIEN, 2026, CTA)
+    assert corps.startswith("<p>Salut</p>")
+    assert corps.rstrip().endswith("</p>") and "Ouvrir" in corps
+
+
+def test_rendre_gabarit_n_ajoute_pas_de_cta_si_le_lien_est_present() -> None:
+    corps = rendre_gabarit("<p>{lien_magique}</p>", "Léa", LIEN, 2026, CTA)
+    assert corps == f"<p>{LIEN}</p>"

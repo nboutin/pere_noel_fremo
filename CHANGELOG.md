@@ -15,6 +15,7 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 ### Changed
 
+- `campagne.rendre_gabarit` et la dataclass figée `Cta` : le rendu du gabarit HTML (échappement du nom, marqueurs, CTA avant `</body>`) n'existe plus qu'à un endroit ; `format_annonce_body` et `format_revelation_body` en sont de minces appels, signatures inchangées (#72).
 - Nouveau module `presence` (`confirmer`) : la garde d'Édition scellée et l'écriture de la présence s'exécutent dans une seule transaction `BEGIN IMMEDIATE` ; `save_attributions` relit les Lutins confirmés dans sa transaction et lève `PresencesChangees` (rollback, Édition non scellée) si les donneurs diffèrent, ce que `run_tirage` traduit en échec « les présences ont changé, relancez le tirage » sans identifiant. Codes et messages HTTP de la route présence inchangés (#67).
 - `parcours.indices` : les routes `/defi/indices` et `/defi/{id}/indices` passent par le module Parcours (mêmes gardes que les autres routes, dont la clôture `DEFI_CLOS`) ; `_get_lutin_and_manche_or_raise` et la garde HTTP dupliquée sont supprimées, codes et messages inchangés (#73).
 - `--force-retirage` sur une Édition déjà `revealed` est désormais refusé (transition `revealed` -> `drawn` interdite : une Édition close ne se rouvre pas) (#57).

@@ -4,6 +4,7 @@ Une seule boucle d'envoi sert les deux campagnes ; elle ne connaît que le port 
 `ExpediteurGmail` est l'adaptateur de production, `ExpediteurMemoire` celui des tests.
 """
 
+import html
 import logging
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
@@ -84,6 +85,39 @@ class Rendu:
     objet: str
     html: Callable[[str, str], str]  # (nom complet, Lien magique) -> HTML
     texte: Callable[[str, str], str]  # (nom complet, Lien magique) -> texte brut
+
+
+@dataclass(frozen=True)
+class Cta:
+    """Lien d'appel à l'action ajouté au corps HTML quand le gabarit n'a aucun marqueur de Lien magique."""
+
+    libelle: str
+    couleur: str
+
+
+def rendre_gabarit(gabarit: str, nom: str, lien: str, annee: int, cta: Cta) -> str:
+    """Injecte le nom (échappé), l'année et le Lien magique dans un gabarit HTML.
+
+    Si le gabarit ne contient aucun marqueur de Lien magique, le `cta` est ajouté avant `</body>`
+    (ou en fin de document).
+    """
+    contenu = (
+        gabarit.replace("{fullname}", html.escape(nom))
+        .replace("{lien_magique}", lien)
+        .replace("{magic_url}", lien)
+        .replace("{year}", str(annee))
+    )
+    if lien not in contenu:
+        bloc = (
+            '\n<p style="margin-top: 20px;">'
+            f'👉 <a href="{lien}" style="font-weight: bold; color: {cta.couleur};">{cta.libelle}</a>'
+            "</p>\n"
+        )
+        if "</body>" in contenu:
+            contenu = contenu.replace("</body>", f"{bloc}</body>")
+        else:
+            contenu += bloc
+    return contenu
 
 
 @dataclass(frozen=True)

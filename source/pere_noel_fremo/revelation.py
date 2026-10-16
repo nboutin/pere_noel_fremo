@@ -1,9 +1,9 @@
-import html
 from pathlib import Path
 
 from .campagne import (
     BASE_URL_PAR_DEFAUT,
     EXPEDITEUR_PAR_DEFAUT,
+    Cta,
     Expediteur,
     ExpediteurGmail,
     Rendu,
@@ -13,34 +13,18 @@ from .campagne import (
     charger_secure_data,
     cibler,
     envoyer_campagne,
+    rendre_gabarit,
 )
 from .database import get_confirmed_lutins
 from .edition import StatutEdition, annee_courante, est_scellee, statut
 from .gabarits import DEFAULT_REVELATION_TEMPLATE
 
+CTA = Cta("Accéder à mon Espace Lutin et découvrir mon Bénéficiaire", "#047857")
+
 
 def format_revelation_body(template: str, fullname: str, lien_magique: str, year: int) -> str:
     """Injecte le nom, l'année et le Lien magique dans le modèle d'email de Révélation."""
-    content = (
-        template.replace("{fullname}", html.escape(fullname))
-        .replace("{lien_magique}", lien_magique)
-        .replace("{magic_url}", lien_magique)
-        .replace("{year}", str(year))
-    )
-
-    if lien_magique not in content:
-        cta_html = (
-            f'\n<p style="margin-top: 20px;">'
-            f'👉 <a href="{lien_magique}" style="font-weight: bold; color: #047857;">'
-            f"Accéder à mon Espace Lutin et découvrir mon Bénéficiaire</a>"
-            f"</p>\n"
-        )
-        if "</body>" in content:
-            content = content.replace("</body>", f"{cta_html}</body>")
-        else:
-            content += cta_html
-
-    return content
+    return rendre_gabarit(template, fullname, lien_magique, year, CTA)
 
 
 def format_revelation_text(fullname: str, lien_magique: str, year: int) -> str:

@@ -1,9 +1,9 @@
-import html
 from pathlib import Path
 
 from .campagne import (
     BASE_URL_PAR_DEFAUT,
     EXPEDITEUR_PAR_DEFAUT,
+    Cta,
     Expediteur,
     ExpediteurGmail,
     Rendu,
@@ -13,34 +13,18 @@ from .campagne import (
     charger_secure_data,
     cibler,
     envoyer_campagne,
+    rendre_gabarit,
 )
 from .database import get_lutins
 from .edition import StatutEdition, annee_courante
 from .gabarits import DEFAULT_ANNONCE_TEMPLATE
 
+CTA = Cta("Accéder à mon Espace Lutin", "#b30000")
+
 
 def format_annonce_body(template: str, fullname: str, magic_url: str, year: int) -> str:
     """Injecte le nom, l'année et le Lien magique dans le modèle d'email d'Annonce."""
-    content = (
-        template.replace("{fullname}", html.escape(fullname))
-        .replace("{lien_magique}", magic_url)
-        .replace("{magic_url}", magic_url)
-        .replace("{year}", str(year))
-    )
-
-    # Si le modèle ne contenait aucun marqueur de Lien magique, on l'ajoute automatiquement
-    if magic_url not in content:
-        cta_html = (
-            f'\n<p style="margin-top: 20px;">'
-            f'👉 <a href="{magic_url}" style="font-weight: bold; color: #b30000;">Accéder à mon Espace Lutin</a>'
-            f"</p>\n"
-        )
-        if "</body>" in content:
-            content = content.replace("</body>", f"{cta_html}</body>")
-        else:
-            content += cta_html
-
-    return content
+    return rendre_gabarit(template, fullname, magic_url, year, CTA)
 
 
 def format_annonce_text(fullname: str, magic_url: str, year: int) -> str:
