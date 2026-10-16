@@ -17,6 +17,7 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 ### Changed
 
+- Nouveau module `edition` : unique propriétaire du statut d'une Édition (`statut`, `avancer`, `est_scellee`, `annee_courante`), l'Annonce fait passer l'Édition de `draft` à `announced` après le premier envoi réussi, et les années `2026` codées en dur de la CLI, de l'Annonce et de la Révélation sont remplacées par l'Édition la plus récente (#61).
 - Le tirage audite les paires en mémoire (`audit_pairs`) avant toute écriture, y compris sous `--dry-run` (qui peut donc échouer) ; un audit invalide n'écrit rien et laisse l'état précédent intact. `snapshot_attributions` et `restore_attributions` sont supprimées (#36, #50).
 - Catégories d'erreur de l'audit sans identifiant, pour préserver l'Admin aveugle (#36).
 - `try_build_gmail_service` partagé par l'Annonce et la Révélation (#36).

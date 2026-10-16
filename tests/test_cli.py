@@ -991,3 +991,15 @@ def test_cli_tirage_invalid_audit_shows_categories_without_ids(
     assert "Violation d'exclusion" in out
     for lutin_id in ids:
         assert lutin_id not in out
+
+
+def test_cli_annee_par_defaut_est_l_edition_la_plus_recente(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from pere_noel_fremo.database import init_db, set_edition_status
+
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+    set_edition_status(db_path, 2031, "drawn")
+
+    main(["audit-tirage", "--db-path", str(db_path)])
+
+    assert "(2031)" in capsys.readouterr().out

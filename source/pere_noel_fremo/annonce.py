@@ -6,7 +6,8 @@ from typing import Any
 import yaml
 
 from . import helper
-from .database import get_lutins
+from .database import get_db_connection, get_lutins
+from .edition import StatutEdition, annee_courante, avancer, statut
 from .tokens import build_lien_magique_url, create_or_get_token, mark_token_sent
 
 logger = logging.getLogger(__name__)
@@ -162,10 +163,21 @@ def format_annonce_text(fullname: str, magic_url: str, year: int) -> str:
     )
 
 
+def _enregistrer_annonce(db_path: Path | str, year: int) -> None:
+    """Passe l'Édition de `draft` à `announced` ; sans effet si elle est déjà annoncée ou plus avancée."""
+    conn = get_db_connection(db_path)
+    try:
+        with conn:
+            if statut(conn, year) is StatutEdition.DRAFT:
+                avancer(conn, year, StatutEdition.ANNOUNCED)
+    finally:
+        conn.close()
+
+
 def send_annonces(
     db_path: Path | str,
     secure_data_path: Path | str,
-    year: int = 2026,
+    year: int | None = None,
     base_url: str | None = None,
     template_path: Path | str | None = None,
     subject: str | None = None,
@@ -177,7 +189,12 @@ def send_annonces(
     recipient_override: str | None = None,
     interactive_auth: bool = False,
 ) -> dict[str, int]:
-    """Exécute la campagne d'envoi de l'Annonce aux Lutins actifs et consigne l'état d'envoi en base."""
+    """Exécute la campagne d'envoi de l'Annonce aux Lutins actifs et consigne l'état d'envoi en base.
+
+    Après le premier envoi réussi, l'Édition passe de `draft` à `announced` (jamais en simulation).
+    """
+    if year is None:
+        year = annee_courante(db_path)
     secure_data: dict[str, Any] = {}
     sec_path = Path(secure_data_path)
     if sec_path.exists():
@@ -213,6 +230,7 @@ def send_annonces(
     absent_count = 0
     sans_email_count = 0
     echecs_count = 0
+    annonce_enregistree = False
 
     for lutin_id, params in lutins.items():
         if targets_set and lutin_id not in targets_set:
@@ -260,6 +278,9 @@ def send_annonces(
             )
             mark_token_sent(db_path, token)
             sent_count += 1
+            if not annonce_enregistree:
+                _enregistrer_annonce(db_path, year)
+                annonce_enregistree = True
         except helper.EmailSendError as exc:
             echecs_count += 1
             logger.error(f"Échec de l'envoi du courriel au Lutin '{lutin_id}' ({helper.mask_email(to_addr)}): {exc}")

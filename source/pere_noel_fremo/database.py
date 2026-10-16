@@ -8,6 +8,8 @@ from typing import Any
 
 import yaml
 
+from .edition import STATUTS_SQL, StatutEdition, sceller, statut
+
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS pseudos (
     year INTEGER NOT NULL,
@@ -33,7 +35,7 @@ CREATE TABLE IF NOT EXISTS exclusions (
 
 CREATE TABLE IF NOT EXISTS editions (
     year INTEGER PRIMARY KEY,
-    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'announced', 'drawn', 'revealed')),
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN (__STATUTS_EDITION__)),
     date_repas TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -150,7 +152,7 @@ def init_db(db_path: Path | str) -> None:
     conn = get_db_connection(path)
     try:
         with conn:
-            conn.executescript(SCHEMA_SQL)
+            conn.executescript(SCHEMA_SQL.replace("__STATUTS_EDITION__", STATUTS_SQL))
             table_info = conn.execute("PRAGMA table_info(scores_defi);").fetchall()
             if table_info:
                 cols = [c[1] for c in table_info]
@@ -533,16 +535,12 @@ def set_lutin_presence(db_path: Path | str, lutin_id: str, year: int, present: b
 
 
 def get_edition_status(db_path: Path | str, year: int) -> str | None:
-    """Récupère le statut d'une édition ('draft', 'drawn', 'revealed')."""
+    """Statut brut d'une édition, ou None si elle n'existe pas (lecture seule ; la logique vit dans `edition`)."""
     conn = get_db_connection(db_path)
     try:
-        row = conn.execute(
-            "SELECT status FROM editions WHERE year = ?;",
-            (year,),
-        ).fetchone()
-        if not row:
+        if conn.execute("SELECT 1 FROM editions WHERE year = ?;", (year,)).fetchone() is None:
             return None
-        return str(row["status"])
+        return statut(conn, year).value
     finally:
         conn.close()
 
@@ -562,11 +560,12 @@ def get_edition_date_repas(db_path: Path | str, year: int) -> str | None:
         conn.close()
 
 
-VALID_EDITION_STATUSES: tuple[str, ...] = ("draft", "announced", "drawn", "revealed")
+VALID_EDITION_STATUSES: tuple[str, ...] = tuple(s.value for s in StatutEdition)
 
 
 def set_edition_status(db_path: Path | str, year: int, status: str) -> None:
-    """Met à jour le statut d'une édition ('draft', 'announced', 'drawn', 'revealed')."""
+    """Écrit un statut d'édition sans contrôle de transition (réparation et fixtures ; le code applicatif
+    passe par `edition.avancer`)."""
     if status not in VALID_EDITION_STATUSES:
         raise ValueError(f"Statut d'édition invalide : {status!r}. Valeurs acceptées : {VALID_EDITION_STATUSES}")
     conn = get_db_connection(db_path)
@@ -639,15 +638,8 @@ def save_attributions(db_path: Path | str, year: int, attributions_map: dict[str
                     (donneur_id, beneficiaire_id, year, next_order_index),
                 )
 
-            # 2. Marquer le statut de l'édition comme 'drawn'
-            conn.execute(
-                """
-                INSERT INTO editions (year, status)
-                VALUES (?, 'drawn')
-                ON CONFLICT(year) DO UPDATE SET status = 'drawn';
-                """,
-                (year,),
-            )
+            # 2. Sceller l'Édition dans la même transaction (TransitionEditionInterdite => rollback)
+            sceller(conn, year)
     finally:
         conn.close()
 
@@ -1036,17 +1028,5 @@ def get_scores_classement(
             entry = dict(r)
             result.append(entry)
         return result
-    finally:
-        conn.close()
-
-
-def get_latest_edition_year(db_path: Path | str) -> int:
-    """Récupère l'année de l'édition la plus récente (ou 2026 par défaut)."""
-    conn = get_db_connection(db_path)
-    try:
-        row = conn.execute("SELECT MAX(year) AS max_year FROM editions;").fetchone()
-        if row and row["max_year"] is not None:
-            return int(row["max_year"])
-        return 2026
     finally:
         conn.close()

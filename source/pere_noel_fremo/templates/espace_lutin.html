@@ -78,7 +78,7 @@
                 {% endif %}
             </div>
 
-            {% if is_locked %}
+            {% if edition_scellee %}
                 <p><em>🔒 Le tirage au sort a été effectué, les confirmations de présence sont désormais verrouillées.</em></p>
             {% else %}
                 <div class="btn-group">
@@ -95,7 +95,7 @@
         <!-- 2. Révélation du Bénéficiaire (Carte à gratter) -->
         <section class="card" id="card-beneficiaire">
             <h2>✨ Ton Bénéficiaire mystère</h2>
-            {% if status in ['drawn', 'revealed'] %}
+            {% if edition_scellee %}
                 {% if beneficiaire %}
                     <p>Frotte la carte avec ta souris ou ton doigt pour découvrir le Lutin à qui tu offres un cadeau !</p>
                     <div class="scratch-wrap">
@@ -353,7 +353,7 @@
     <script>
         const TOKEN = "{{ lutin.token }}";
         const ACTIVE_MANCHE_ID = {{ active_manche_id }};
-        const IS_LOCKED = {{ 'true' if is_locked else 'false' }};
+        const IS_LOCKED = {{ 'true' if edition_scellee else 'false' }};
         const LUTIN_NAMES = {{ (active_manche.categories.lutins if (active_manche.categories and active_manche.categories.lutins) else []) | tojson }};
         const ATTRIBUTE_KEYS = {{ (active_manche.attributes | map(attribute='key') | list if active_manche.attributes else []) | tojson }};
         const INDICES_COUNT = {{ indices_count }};

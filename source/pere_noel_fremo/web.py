@@ -15,8 +15,6 @@ from .config import default_db_path, resolve_res_dir
 from .database import (
     get_beneficiaire_for_lutin,
     get_edition_date_repas,
-    get_edition_status,
-    get_latest_edition_year,
     get_lutin_presence,
     get_lutin_pseudo,
     get_score_defi,
@@ -39,6 +37,7 @@ from .defi import (
     is_solution_complete,
     validate_grille_solution,
 )
+from .edition import annee_courante, est_scellee, statut
 from .helper import format_date_repas
 from .parcours import ResultatParcours, StatutParcours, abandonner, demarrer
 from .tokens import get_lutin_by_token
@@ -109,7 +108,7 @@ def create_app(
     @app.get("/scores/{year}", response_class=HTMLResponse)
     def get_scores_page(request: Request, year: int | None = None) -> Any:
         now_dt = clock_fn()
-        target_year = year if year is not None else get_latest_edition_year(db_path)
+        target_year = year if year is not None else annee_courante(db_path)
         standings = calculate_championship_standings(db_path, target_year, res_dir=res_dir, now=now_dt)
         # Repli si aucune manche agrégée
         classement = standings if standings else get_scores_classement(db_path, target_year)
@@ -144,8 +143,7 @@ def create_app(
         lutin_id = lutin_info["id"]
         now_dt = clock_fn()
         presence = get_lutin_presence(db_path, lutin_id, year)
-        status = get_edition_status(db_path, year) or "draft"
-        is_locked = status in ("drawn", "revealed")
+        edition_scellee = est_scellee(statut(db_path, year))
 
         # Lecture seule : on ne génère pas de pseudo s'il n'existe pas encore
         pseudo = get_lutin_pseudo(db_path, lutin_id, year)
@@ -232,7 +230,7 @@ def create_app(
 
         # Bénéficiaire pour la Carte à gratter (si tirage scellé)
         beneficiaire = None
-        if status in ("drawn", "revealed"):
+        if edition_scellee:
             beneficiaire = get_beneficiaire_for_lutin(db_path, lutin_id, year)
 
         # Date du Repas de Noël
@@ -249,8 +247,7 @@ def create_app(
                 "edition": year,
                 "date_repas_info": date_repas_info,
                 "presence": presence,
-                "is_locked": is_locked,
-                "status": status,
+                "edition_scellee": edition_scellee,
                 "score_info": active_score,
                 "pseudo_lutin": pseudo,
                 "active_manche": display_manche,
@@ -272,8 +269,7 @@ def create_app(
             raise HTTPException(status_code=404, detail="Lien magique introuvable")
 
         year = lutin_info["year"]
-        status = get_edition_status(db_path, year) or "draft"
-        if status in ("drawn", "revealed"):
+        if est_scellee(statut(db_path, year)):
             raise HTTPException(
                 status_code=403,
                 detail="Le tirage au sort a été effectué, le statut de présence est verrouillé.",
@@ -540,8 +536,7 @@ def create_app(
             raise HTTPException(status_code=404, detail="Lien magique introuvable")
 
         year = lutin_info["year"]
-        status = get_edition_status(db_path, year) or "draft"
-        if status not in ("drawn", "revealed"):
+        if not est_scellee(statut(db_path, year)):
             raise HTTPException(
                 status_code=403,
                 detail="Le tirage au sort n'a pas encore été validé pour cette édition.",

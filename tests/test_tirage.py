@@ -448,6 +448,21 @@ def test_invalid_audit_on_force_retirage_leaves_previous_draw_untouched(
     assert get_edition_status(db_path, 2026) == "revealed"
 
 
+def test_force_retirage_sur_edition_revealed_est_refuse_sans_ecriture(test_db_setup: tuple[Path, Path, Path]) -> None:
+    db_path, _, _ = test_db_setup
+    _confirm_all(db_path, 2026, ["lutin_1", "lutin_2", "lutin_3", "lutin_4"])
+    assert run_tirage(db_path=db_path, year=2026, cheaters=[]).success is True
+    set_edition_status(db_path, 2026, "revealed")
+    before = _dump_year(db_path, 2026)
+
+    result = run_tirage(db_path=db_path, year=2026, cheaters=[], force=True)
+
+    assert result.success is False
+    assert "interdite" in result.message
+    assert _dump_year(db_path, 2026) == before
+    assert get_edition_status(db_path, 2026) == "revealed"
+
+
 def test_invalid_audit_without_categories_reports_unspecified(
     test_db_setup: tuple[Path, Path, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:

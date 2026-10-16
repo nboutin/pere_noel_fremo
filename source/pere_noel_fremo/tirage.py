@@ -8,9 +8,9 @@ from typing import Any
 from .audit import audit_pairs
 from .database import (
     get_confirmed_lutins,
-    get_edition_status,
     save_attributions,
 )
+from .edition import TransitionEditionInterdite, est_scellee, statut
 
 logger = logging.getLogger(__name__)
 
@@ -160,17 +160,17 @@ def run_tirage(
 ) -> TirageResult:
     """Extrait les Lutins confirmés présents, applique le solveur, scelle en SQLite et retourne le résultat.
 
-    Le tirage est une transition d'état gardée : sur une édition `drawn` ou `revealed`, il est refusé
+    Le tirage est une transition d'état gardée : sur une édition scellée (`drawn` ou `revealed`), il est refusé
     (sans écriture) sauf si `force` est vrai. Les paires sont auditées en mémoire avant toute écriture ;
     seul un audit valide est scellé.
     """
-    status = get_edition_status(db_path, year)
-    if status in ("drawn", "revealed") and not force and not dry_run:
+    status = statut(db_path, year)
+    if est_scellee(status) and not force and not dry_run:
         return TirageResult(
             success=False,
             year=year,
             message=(
-                f"L'édition {year} est déjà au statut '{status}' : un nouveau tirage changerait les "
+                f"L'édition {year} est déjà au statut '{status.value}' : un nouveau tirage changerait les "
                 "Bénéficiaires déjà consultables. Utilisez --force-retirage pour le forcer explicitement."
             ),
         )
@@ -217,7 +217,16 @@ def run_tirage(
         )
 
     if not dry_run:
-        save_attributions(db_path, year, pairs)
+        try:
+            save_attributions(db_path, year, pairs)
+        except TransitionEditionInterdite as exc:
+            # Le scellement a échoué dans la transaction : rien n'a été écrit.
+            return TirageResult(
+                success=False,
+                year=year,
+                confirmed_count=confirmed_count,
+                message=f"{exc} Rien n'a été écrit, l'état précédent est inchangé.",
+            )
 
     # En mode admin aveugle, logger les informations d'exécution sans divulguer les paires
     logger.info(

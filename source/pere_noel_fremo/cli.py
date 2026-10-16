@@ -7,6 +7,7 @@ from typing import Any, cast
 from .annonce import send_annonces
 from .config import default_db_path, resolve_res_dir
 from .database import import_yaml_data
+from .edition import annee_courante
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -34,8 +35,8 @@ def create_parser() -> argparse.ArgumentParser:
     init_db_parser.add_argument(
         "--year",
         type=int,
-        default=2026,
-        help="Année de l'édition à initialiser (défaut: 2026)",
+        default=None,
+        help="Année de l'édition à initialiser (défaut: édition la plus récente de la base, sinon année courante)",
     )
     init_db_parser.add_argument(
         "--data-in",
@@ -70,8 +71,8 @@ def create_parser() -> argparse.ArgumentParser:
     annonce_parser.add_argument(
         "--year",
         type=int,
-        default=2026,
-        help="Année de l'édition (défaut: 2026)",
+        default=None,
+        help="Année de l'édition (défaut: édition la plus récente de la base, sinon année courante)",
     )
     annonce_parser.add_argument(
         "--base-url",
@@ -169,8 +170,8 @@ def create_parser() -> argparse.ArgumentParser:
     tirage_parser.add_argument(
         "--year",
         type=int,
-        default=2026,
-        help="Année de l'édition (défaut: 2026)",
+        default=None,
+        help="Année de l'édition (défaut: édition la plus récente de la base, sinon année courante)",
     )
     tirage_parser.add_argument(
         "--organizer",
@@ -209,8 +210,8 @@ def create_parser() -> argparse.ArgumentParser:
     audit_parser.add_argument(
         "--year",
         type=int,
-        default=2026,
-        help="Année de l'édition (défaut: 2026)",
+        default=None,
+        help="Année de l'édition (défaut: édition la plus récente de la base, sinon année courante)",
     )
 
     # Subcommand: revelation
@@ -233,8 +234,8 @@ def create_parser() -> argparse.ArgumentParser:
     revelation_parser.add_argument(
         "--year",
         type=int,
-        default=2026,
-        help="Année de l'édition (défaut: 2026)",
+        default=None,
+        help="Année de l'édition (défaut: édition la plus récente de la base, sinon année courante)",
     )
     revelation_parser.add_argument(
         "--base-url",
@@ -291,8 +292,8 @@ def create_parser() -> argparse.ArgumentParser:
     export_parser.add_argument(
         "--year",
         type=int,
-        default=2026,
-        help="Année de l'édition (défaut: 2026)",
+        default=None,
+        help="Année de l'édition (défaut: édition la plus récente de la base, sinon année courante)",
     )
     export_parser.add_argument(
         "--output",
@@ -580,6 +581,9 @@ def main(argv: list[str] | None = None) -> int:
         args = parser.parse_args(argv)
     except SystemExit as exc:
         return int(exc.code) if isinstance(exc.code, int) else 1
+
+    if getattr(args, "year", 0) is None:
+        args.year = annee_courante(args.db_path)
 
     if args.command == "init-db":
         return handle_init_db(args)

@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from .database import get_db_connection
+from .edition import creer_si_absente
 
 
 def generate_magic_token() -> str:
@@ -26,10 +27,7 @@ def create_or_get_token(db_path: Path | str, lutin_id: str, year: int) -> str:
     try:
         with conn:
             # S'assurer que l'édition existe
-            conn.execute(
-                "INSERT OR IGNORE INTO editions (year, status) VALUES (?, 'draft');",
-                (year,),
-            )
+            creer_si_absente(conn, year)
             # Vérifier si un jeton existe déjà
             existing = conn.execute(
                 "SELECT token FROM tokens WHERE lutin_id = ? AND year = ?;",

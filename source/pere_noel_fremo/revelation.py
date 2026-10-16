@@ -6,7 +6,8 @@ from typing import Any
 import yaml
 
 from . import helper
-from .database import get_confirmed_lutins, get_edition_status, set_edition_status
+from .database import get_confirmed_lutins, get_db_connection
+from .edition import StatutEdition, annee_courante, avancer, est_scellee, statut
 from .tokens import build_lien_magique_url, create_or_get_token, mark_token_sent
 
 logger = logging.getLogger(__name__)
@@ -149,7 +150,7 @@ def format_revelation_text(fullname: str, lien_magique: str, year: int) -> str:
 def send_revelations(
     db_path: Path | str,
     secure_data_path: Path | str,
-    year: int = 2026,
+    year: int | None = None,
     base_url: str | None = None,
     template_path: Path | str | None = None,
     subject: str | None = None,
@@ -160,10 +161,12 @@ def send_revelations(
 ) -> dict[str, int]:
     """Exécute la campagne d'envoi de la Révélation aux Lutins confirmés et passe l'Édition à 'revealed'."""
     # Contrôle d'intégrité : refus strict si l'édition n'est pas 'drawn' ou 'revealed'
-    status = get_edition_status(db_path, year)
-    if status not in ("drawn", "revealed"):
+    if year is None:
+        year = annee_courante(db_path)
+    status = statut(db_path, year)
+    if not est_scellee(status):
         raise ValueError(
-            f"Impossible d'envoyer la Révélation : l'édition {year} a le statut '{status}', "
+            f"Impossible d'envoyer la Révélation : l'édition {year} a le statut '{status.value}', "
             f"elle doit être 'drawn' ou 'revealed'."
         )
 
@@ -256,7 +259,13 @@ def send_revelations(
     # Transition du statut de l'édition : 'revealed' sur envoi nominal uniquement
     is_targeted_run = target_lutins is not None and len(target_lutins) > 0
     if not (dry_run or no_email) and not is_targeted_run and echecs_count == 0 and sent_count > 0:
-        set_edition_status(db_path, year, "revealed")
+        conn = get_db_connection(db_path)
+        try:
+            with conn:
+                if statut(conn, year) is StatutEdition.DRAWN:
+                    avancer(conn, year, StatutEdition.REVEALED)
+        finally:
+            conn.close()
 
     return {
         "total": len(confirmed_lutins),

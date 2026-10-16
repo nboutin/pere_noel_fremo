@@ -5,7 +5,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 from pere_noel_fremo.annonce import format_annonce_body, format_annonce_text, send_annonces
-from pere_noel_fremo.database import get_db_connection, import_yaml_data, init_db
+from pere_noel_fremo.database import get_db_connection, import_yaml_data, init_db, set_edition_status
+from pere_noel_fremo.edition import StatutEdition, statut
 from pere_noel_fremo.helper import EmailSendError
 
 
@@ -384,3 +385,43 @@ def test_format_annonce_body_escapes_fullname_html_but_text_version_is_unchanged
     assert "Zoé &lt;b&gt;&amp;&lt;/b&gt;" in body
     assert "<b>" not in body
     assert fullname in text
+
+
+def test_send_annonces_fait_passer_l_edition_de_draft_a_announced(tmp_path: Path) -> None:
+    db_path, secure_data_path = _prepare_campaign(tmp_path, {"l1": "Un", "l2": "Deux"})
+    assert statut(db_path, 2026) is StatutEdition.DRAFT
+
+    with patch("pere_noel_fremo.helper.gmail_send_email"):
+        send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026)
+        assert statut(db_path, 2026) is StatutEdition.ANNOUNCED
+        # Idempotent : un second envoi laisse l'Édition annoncée sans erreur.
+        send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026)
+    assert statut(db_path, 2026) is StatutEdition.ANNOUNCED
+
+
+@pytest.mark.parametrize(("dry_run", "no_email"), [(True, False), (False, True)])
+def test_send_annonces_sans_envoi_reel_laisse_l_edition_en_draft(tmp_path: Path, dry_run: bool, no_email: bool) -> None:
+    db_path, secure_data_path = _prepare_campaign(tmp_path, {"l1": "Un"})
+
+    send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026, dry_run=dry_run, no_email=no_email)
+
+    assert statut(db_path, 2026) is StatutEdition.DRAFT
+
+
+def test_send_annonces_sans_aucun_envoi_reussi_laisse_l_edition_en_draft(tmp_path: Path) -> None:
+    db_path, secure_data_path = _prepare_campaign(tmp_path, {"l1": "Un"})
+
+    with patch("pere_noel_fremo.helper.gmail_send_email", side_effect=EmailSendError("boom")):
+        send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026)
+
+    assert statut(db_path, 2026) is StatutEdition.DRAFT
+
+
+def test_send_annonces_ne_regresse_pas_une_edition_deja_scellee(tmp_path: Path) -> None:
+    db_path, secure_data_path = _prepare_campaign(tmp_path, {"l1": "Un"})
+    set_edition_status(db_path, 2026, "drawn")
+
+    with patch("pere_noel_fremo.helper.gmail_send_email"):
+        send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026)
+
+    assert statut(db_path, 2026) is StatutEdition.DRAWN
