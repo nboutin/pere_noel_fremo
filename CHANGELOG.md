@@ -5,6 +5,18 @@ Toutes les modifications notables apportées à ce projet sont documentées dans
 Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/)
 et ce projet adhère à la spécification [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [Unreleased]
+
+### Added
+
+### Changed
+
+### Fixed
+
+### Removed
+
+### Security
+
 ## [2.0.1] - 2026-10-15
 
 ### Added
