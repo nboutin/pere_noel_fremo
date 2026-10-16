@@ -15,6 +15,8 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 - `try_build_gmail_service` partagé par l'Annonce et la Révélation (#36).
 - Message explicite pour une grille de Défi invalide au lieu d'une grille vide (#36).
 
+- Les routes de l'Espace Lutin sont désormais synchrones (`def`) et s'exécutent dans le pool de threads de FastAPI au lieu de bloquer la boucle d'événements avec SQLite et la lecture des YAML (#53).
+
 ### Fixed
 
 ### Removed

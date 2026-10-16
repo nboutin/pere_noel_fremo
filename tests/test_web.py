@@ -1119,3 +1119,46 @@ def test_scores_page_shows_french_unlock_time_for_locked_manche(client: TestClie
     assert resp.status_code == 200
     assert "19h00" in resp.text
     assert "lundi 19 octobre, 19h00" in resp.text
+
+
+def test_aucune_route_n_est_asynchrone(client: TestClient) -> None:
+    import inspect
+
+    from fastapi.routing import APIRoute
+
+    routes = [r for r in client.app.routes if isinstance(r, APIRoute)]  # type: ignore[attr-defined]
+    assert routes
+    coroutines = [r.path for r in routes if inspect.iscoroutinefunction(r.endpoint)]
+    assert coroutines == []
+
+
+def test_solve_faux_concurrent_scelle_apres_trois_essais(client: TestClient, test_db: Path) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    from pere_noel_fremo.database import set_lutin_presence
+
+    sol_wrong = {
+        "Barnabé": {"luge": "Éclair Vert", "friandise": "Canne de sucre"},
+        "Clémence": {"luge": "Comète Bleue", "friandise": "Chocolat chaud"},
+        "Gaspard": {"luge": "Étoile Rouge", "friandise": "Pain d'épices"},
+    }
+    token = create_or_get_token(test_db, "fbonnet", 2025)
+    set_lutin_presence(test_db, "fbonnet", 2025, present=True)
+    assert client.post(f"/api/lutin/{token}/defi/1/start").status_code == 200
+
+    def _solve(_: int) -> dict[str, object]:
+        resp = client.post(f"/api/lutin/{token}/defi/1/solve", json={"solution": sol_wrong})
+        assert resp.status_code in (200, 400)
+        return dict(resp.json())
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(_solve, i) for i in range(20)]
+        bodies = [f.result() for f in futures]
+
+    assert all("database is locked" not in str(b.get("detail", "")) for b in bodies)
+    sealed = [b for b in bodies if "scellée" in str(b.get("detail", ""))]
+    assert len(sealed) == 1
+    conn = get_db_connection(test_db)
+    row = conn.execute("SELECT attempts FROM scores_defi WHERE lutin_id = 'fbonnet' AND manche_id = 1;").fetchone()
+    conn.close()
+    assert row["attempts"] == 3

@@ -104,12 +104,12 @@ def create_app(
     templates.env.filters["unlock_fr"] = format_unlock_at
 
     @app.get("/", response_class=RedirectResponse)
-    async def get_root() -> RedirectResponse:
+    def get_root() -> RedirectResponse:
         return RedirectResponse(url="/scores")
 
     @app.get("/scores", response_class=HTMLResponse)
     @app.get("/scores/{year}", response_class=HTMLResponse)
-    async def get_scores_page(request: Request, year: int | None = None) -> Any:
+    def get_scores_page(request: Request, year: int | None = None) -> Any:
         now_dt = clock_fn()
         target_year = year if year is not None else get_latest_edition_year(db_path)
         standings = calculate_championship_standings(db_path, target_year, res_dir=res_dir, now=now_dt)
@@ -133,7 +133,7 @@ def create_app(
         )
 
     @app.get("/lutin/{token}", response_class=HTMLResponse)
-    async def get_espace_lutin(request: Request, token: str, manche: int | None = None) -> Any:
+    def get_espace_lutin(request: Request, token: str, manche: int | None = None) -> Any:
         lutin_info = get_lutin_by_token(db_path, token)
         if not lutin_info:
             return templates.TemplateResponse(
@@ -268,7 +268,7 @@ def create_app(
         )
 
     @app.post("/api/lutin/{token}/presence")
-    async def post_presence(token: str, payload: PresenceRequest) -> JSONResponse:
+    def post_presence(token: str, payload: PresenceRequest) -> JSONResponse:
         lutin_info = get_lutin_by_token(db_path, token)
         if not lutin_info:
             raise HTTPException(status_code=404, detail="Lien magique introuvable")
@@ -312,7 +312,7 @@ def create_app(
 
         return lutin_info, manche
 
-    async def _handle_start_defi(token: str, manche_id: int = 1) -> JSONResponse:
+    def _handle_start_defi(token: str, manche_id: int = 1) -> JSONResponse:
         lutin_info, manche = _get_lutin_and_manche_or_raise(token, manche_id)
         year = lutin_info["year"]
         lutin_id = lutin_info["id"]
@@ -359,7 +359,7 @@ def create_app(
             }
         )
 
-    async def _handle_get_indices(token: str, manche_id: int = 1) -> JSONResponse:
+    def _handle_get_indices(token: str, manche_id: int = 1) -> JSONResponse:
         lutin_info, manche = _get_lutin_and_manche_or_raise(token, manche_id)
         year = lutin_info["year"]
         lutin_id = lutin_info["id"]
@@ -379,7 +379,7 @@ def create_app(
             }
         )
 
-    async def _handle_solve_defi(token: str, payload: GrilleSolveRequest, manche_id: int = 1) -> JSONResponse:
+    def _handle_solve_defi(token: str, payload: GrilleSolveRequest, manche_id: int = 1) -> JSONResponse:
         lutin_info, manche = _get_lutin_and_manche_or_raise(token, manche_id)
         year = lutin_info["year"]
         lutin_id = lutin_info["id"]
@@ -469,7 +469,7 @@ def create_app(
             },
         )
 
-    async def _handle_abandon_defi(token: str, manche_id: int = 1) -> JSONResponse:
+    def _handle_abandon_defi(token: str, manche_id: int = 1) -> JSONResponse:
         lutin_info, _manche = _get_lutin_and_manche_or_raise(token, manche_id)
         year = lutin_info["year"]
         lutin_id = lutin_info["id"]
@@ -499,39 +499,39 @@ def create_app(
         )
 
     @app.post("/api/lutin/{token}/defi/start")
-    async def start_defi(token: str) -> JSONResponse:
-        return await _handle_start_defi(token=token, manche_id=1)
+    def start_defi(token: str) -> JSONResponse:
+        return _handle_start_defi(token=token, manche_id=1)
 
     @app.post("/api/lutin/{token}/defi/{manche_id}/start")
-    async def start_defi_manche(token: str, manche_id: int) -> JSONResponse:
-        return await _handle_start_defi(token=token, manche_id=manche_id)
+    def start_defi_manche(token: str, manche_id: int) -> JSONResponse:
+        return _handle_start_defi(token=token, manche_id=manche_id)
 
     @app.post("/api/lutin/{token}/defi/solve")
-    async def solve_defi(token: str, payload: GrilleSolveRequest) -> JSONResponse:
-        return await _handle_solve_defi(token=token, payload=payload, manche_id=1)
+    def solve_defi(token: str, payload: GrilleSolveRequest) -> JSONResponse:
+        return _handle_solve_defi(token=token, payload=payload, manche_id=1)
 
     @app.post("/api/lutin/{token}/defi/{manche_id}/solve")
-    async def solve_defi_manche(token: str, manche_id: int, payload: GrilleSolveRequest) -> JSONResponse:
-        return await _handle_solve_defi(token=token, payload=payload, manche_id=manche_id)
+    def solve_defi_manche(token: str, manche_id: int, payload: GrilleSolveRequest) -> JSONResponse:
+        return _handle_solve_defi(token=token, payload=payload, manche_id=manche_id)
 
     @app.post("/api/lutin/{token}/defi/abandon")
-    async def abandon_defi(token: str) -> JSONResponse:
-        return await _handle_abandon_defi(token=token, manche_id=1)
+    def abandon_defi(token: str) -> JSONResponse:
+        return _handle_abandon_defi(token=token, manche_id=1)
 
     @app.post("/api/lutin/{token}/defi/{manche_id}/abandon")
-    async def abandon_defi_manche(token: str, manche_id: int) -> JSONResponse:
-        return await _handle_abandon_defi(token=token, manche_id=manche_id)
+    def abandon_defi_manche(token: str, manche_id: int) -> JSONResponse:
+        return _handle_abandon_defi(token=token, manche_id=manche_id)
 
     @app.get("/api/lutin/{token}/defi/indices")
-    async def get_defi_indices(token: str) -> JSONResponse:
-        return await _handle_get_indices(token=token, manche_id=1)
+    def get_defi_indices(token: str) -> JSONResponse:
+        return _handle_get_indices(token=token, manche_id=1)
 
     @app.get("/api/lutin/{token}/defi/{manche_id}/indices")
-    async def get_defi_manche_indices(token: str, manche_id: int) -> JSONResponse:
-        return await _handle_get_indices(token=token, manche_id=manche_id)
+    def get_defi_manche_indices(token: str, manche_id: int) -> JSONResponse:
+        return _handle_get_indices(token=token, manche_id=manche_id)
 
     @app.get("/api/lutin/{token}/beneficiaire")
-    async def get_beneficiaire(token: str) -> JSONResponse:
+    def get_beneficiaire(token: str) -> JSONResponse:
         lutin_info = get_lutin_by_token(db_path, token)
         if not lutin_info:
             raise HTTPException(status_code=404, detail="Lien magique introuvable")
