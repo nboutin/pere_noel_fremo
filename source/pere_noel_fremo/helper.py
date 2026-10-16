@@ -229,14 +229,15 @@ def format_date_repas(
 
     clean_str = str(date_str).strip()[:10]
     try:
-        from datetime import date, datetime, timezone
+        from datetime import date, datetime
+        from zoneinfo import ZoneInfo
 
         d = date.fromisoformat(clean_str)
     except Exception:
         return None
 
     if now is None:
-        today = datetime.now(timezone.utc).date()
+        today = datetime.now(ZoneInfo("Europe/Paris")).date()
     elif isinstance(now, datetime):
         today = now.date()
     else:

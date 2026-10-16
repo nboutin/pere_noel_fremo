@@ -8,7 +8,7 @@ le statut retourné.
 
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -26,6 +26,7 @@ from .database import (
 )
 from .defi import (
     MAX_ESSAIS_PAR_MANCHE,
+    PARIS_TZ,
     PENALITE_ESSAI_FAUX_SECONDES,
     GrilleInvalideError,
     get_manche_attributes,
@@ -46,6 +47,7 @@ class StatutParcours(Enum):
     MANCHE_INTROUVABLE = "manche_introuvable"
     MANCHE_VERROUILLEE = "manche_verrouillee"
     GRILLE_INVALIDE = "grille_invalide"
+    DEFI_CLOS = "defi_clos"
     ABANDONNE = "abandonne"
 
 
@@ -72,6 +74,7 @@ class StatutSoumission(Enum):
     PRESENCE_REQUISE = "presence_requise"
     MANCHE_INTROUVABLE = "manche_introuvable"
     MANCHE_VERROUILLEE = "manche_verrouillee"
+    DEFI_CLOS = "defi_clos"
 
 
 @dataclass(frozen=True)
@@ -101,6 +104,7 @@ class StatutManche(Enum):
     DISPONIBLE = "disponible"
     EN_COURS = "en_cours"
     VERROUILLEE = "verrouillee"
+    CLOSE = "close"
 
 
 @dataclass(frozen=True)
@@ -113,6 +117,25 @@ class EtatParcours:
     time_seconds: float | None = None
     pseudo_lutin: str | None = None
     started_at: str | None = None
+
+
+def defi_clos(date_repas: str | None, now: datetime) -> bool:
+    """Vrai si `now` (converti en `Europe/Paris`) est postérieur à la fin du jour du Repas de Noël.
+
+    Sans `date_repas` (ou illisible), le Défi reste ouvert.
+    """
+    if not date_repas or not str(date_repas).strip():
+        return False
+    try:
+        jour = date.fromisoformat(str(date_repas).strip()[:10])
+    except ValueError:
+        return False
+    return now.astimezone(PARIS_TZ).date() > jour
+
+
+def _date_repas(conn: sqlite3.Connection, year: int) -> str | None:
+    row = conn.execute("SELECT date_repas FROM editions WHERE year = ?;", (year,)).fetchone()
+    return str(row["date_repas"]) if row and row["date_repas"] else None
 
 
 def statut_score(score: dict[str, Any], unlocked: bool = True) -> StatutManche:
@@ -148,6 +171,7 @@ def etat(
             "FROM scores_defi WHERE lutin_id = ? AND year = ?;",
             (lutin_id, year),
         ).fetchall()
+        clos = defi_clos(_date_repas(conn, year), now)
     finally:
         conn.close()
     scores = {int(row["manche_id"]): dict(row) for row in rows}
@@ -155,10 +179,13 @@ def etat(
     for manche in manches:
         manche_id = int(manche["id"])
         score = scores.get(manche_id, {})
+        statut = statut_score(score, unlocked=is_manche_unlocked(manche, now=now))
+        if clos and statut in (StatutManche.DISPONIBLE, StatutManche.EN_COURS, StatutManche.VERROUILLEE):
+            statut = StatutManche.CLOSE
         resultat.append(
             EtatParcours(
                 manche_id=manche_id,
-                statut=statut_score(score, unlocked=is_manche_unlocked(manche, now=now)),
+                statut=statut,
                 attempts=int(score.get("attempts") or 0),
                 time_seconds=score.get("time_seconds"),
                 pseudo_lutin=score.get("pseudo_lutin"),
@@ -175,13 +202,18 @@ def _garde_acces(
     manche: dict[str, Any] | None,
     now: datetime,
 ) -> ResultatParcours | dict[str, Any]:
-    """Présence, existence puis déverrouillage de la manche ; retourne la manche si l'accès est autorisé."""
+    """Présence, existence, déverrouillage puis clôture du Défi (lue dans la transaction).
+
+    Retourne la manche si l'accès est autorisé.
+    """
     if not get_lutin_presence(conn, lutin_id, year):
         return ResultatParcours(StatutParcours.PRESENCE_REQUISE)
     if manche is None:
         return ResultatParcours(StatutParcours.MANCHE_INTROUVABLE)
     if not is_manche_unlocked(manche, now=now):
         return ResultatParcours(StatutParcours.MANCHE_VERROUILLEE)
+    if defi_clos(_date_repas(conn, year), now):
+        return ResultatParcours(StatutParcours.DEFI_CLOS)
     return manche
 
 

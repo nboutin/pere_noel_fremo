@@ -26,6 +26,7 @@ La version initiale à manche unique ne permettait ni bataille de classement ni 
    - Chaque manche possède une date d'ouverture (`unlock_at`).
    - Un Lutin peut rattraper à tout moment les manches passées déjà déverrouillées jusqu'au réveillon du samedi 5 décembre 2026.
    - Aucune manche passée n'est pénalisée ni fermée prématurément.
+   - **Clôture après le Repas de Noël** : lorsque l'Édition porte une `date_repas` (ADR-0012), le Défi du lutin est clos dès que l'instant courant, converti en `Europe/Paris`, tombe après la fin du jour du Repas de Noël (ouvert le 05/12 à 23:59, clos le 06/12 à 00:00 pour un repas le 05/12). La garde `parcours._garde_acces` lit `editions.date_repas` dans la transaction et refuse le démarrage, la Soumission et l'abandon (statut `DEFI_CLOS`, HTTP 403 « Le Défi du lutin est clos depuis le Repas de Noël. »). Une manche démarrée et non terminée ne peut plus être soumise : le Tableau des scores est figé. L'Espace Lutin affiche ces manches comme closes (`StatutManche.CLOSE`, dérivé dans `parcours.etat`). Sans `date_repas`, le Défi reste ouvert (rétrocompatibilité).
 
 3. **Protection multicouche anti-capture et anti-triche IA (Défense en profondeur)** :
    Pour neutraliser la transmission immédiate de l'énigme à une IA (ChatGPT, Claude, etc.) pendant le chronomètre :

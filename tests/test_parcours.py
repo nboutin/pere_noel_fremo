@@ -2,6 +2,7 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 from pere_noel_fremo.database import (
@@ -437,4 +438,75 @@ def test_etat_une_manche_dans_chaque_statut_en_une_seule_requete(
     assert etats[4].started_at == NOW.isoformat()
     assert etats[3].started_at is None
     assert (etats[3].attempts, etats[3].time_seconds, etats[3].pseudo_lutin) == (0, None, None)
-    assert len(requetes) == 1
+    assert len([r for r in requetes if "FROM scores_defi" in r]) == 1
+
+
+# --- Clôture du Défi après le Repas de Noël (ADR-0007 §2) ---
+
+PARIS = ZoneInfo("Europe/Paris")
+DERNIERE_MINUTE = datetime(2026, 12, 5, 23, 59, tzinfo=PARIS)
+PREMIERE_MINUTE = datetime(2026, 12, 6, 0, 0, tzinfo=PARIS)
+
+
+def _fixer_date_repas(db_path: Path, date_repas: str | None) -> None:
+    conn = get_db_connection(db_path)
+    with conn:
+        conn.execute("UPDATE editions SET date_repas = ? WHERE year = ?;", (date_repas, YEAR))
+    conn.close()
+
+
+def test_defi_ouvert_jusqu_a_la_fin_du_jour_du_repas(present: Path) -> None:
+    _fixer_date_repas(present, "2026-12-05")
+
+    assert demarrer(present, "l1", YEAR, _manche(), DERNIERE_MINUTE).statut is StatutParcours.DEMARRE
+    assert soumettre(present, "l1", YEAR, _manche(), FAUSSE, DERNIERE_MINUTE).statut is StatutSoumission.FAUSSE
+    assert abandonner(present, "l1", YEAR, _manche(), DERNIERE_MINUTE).statut is StatutParcours.ABANDONNE
+
+
+def test_defi_clos_des_minuit_heure_de_paris(present: Path) -> None:
+    _fixer_date_repas(present, "2026-12-05")
+
+    assert demarrer(present, "l1", YEAR, _manche(), PREMIERE_MINUTE).statut is StatutParcours.DEFI_CLOS
+    assert soumettre(present, "l1", YEAR, _manche(), JUSTE, PREMIERE_MINUTE).statut is StatutSoumission.DEFI_CLOS
+    assert abandonner(present, "l1", YEAR, _manche(), PREMIERE_MINUTE).statut is StatutParcours.DEFI_CLOS
+    assert _count(present, "scores_defi") == 0
+
+
+def test_defi_clos_compare_en_heure_de_paris_pas_en_utc(present: Path) -> None:
+    _fixer_date_repas(present, "2026-12-05")
+    # 05/12 23:30 UTC = 06/12 00:30 Paris : clos ; 05/12 22:30 UTC = 23:30 Paris : ouvert
+    assert demarrer(present, "l1", YEAR, _manche(), datetime(2026, 12, 5, 23, 30, tzinfo=timezone.utc)).statut is (
+        StatutParcours.DEFI_CLOS
+    )
+    assert demarrer(present, "l1", YEAR, _manche(), datetime(2026, 12, 5, 22, 30, tzinfo=timezone.utc)).statut is (
+        StatutParcours.DEMARRE
+    )
+
+
+def test_sans_date_repas_le_defi_ne_ferme_jamais(present: Path) -> None:
+    assert demarrer(present, "l1", YEAR, _manche(), datetime(2030, 1, 1, tzinfo=PARIS)).statut is (
+        StatutParcours.DEMARRE
+    )
+
+
+def test_manche_demarree_non_terminee_ne_peut_plus_etre_soumise_apres_cloture(present: Path) -> None:
+    _fixer_date_repas(present, "2026-12-05")
+    demarrer(present, "l1", YEAR, _manche(), DERNIERE_MINUTE)
+
+    res = soumettre(present, "l1", YEAR, _manche(), JUSTE, PREMIERE_MINUTE)
+
+    assert res.statut is StatutSoumission.DEFI_CLOS
+    assert _score(present)["solved"] == 0
+
+
+def test_etat_derive_close_pour_les_manches_non_terminees(present: Path) -> None:
+    _fixer_date_repas(present, "2026-12-05")
+    _inserer_score(present, 1, solved=1, attempts=1, time_seconds=40.0, completed=True)
+    _inserer_score(present, 2, attempts=1)
+    manches = [_manche(id=1), _manche(id=2), _manche(id=3)]
+
+    etats = etat(present, "l1", YEAR, manches, PREMIERE_MINUTE)
+
+    assert [e.statut for e in etats] == [StatutManche.RESOLUE, StatutManche.CLOSE, StatutManche.CLOSE]
+    ouverts = etat(present, "l1", YEAR, manches, DERNIERE_MINUTE)
+    assert [e.statut for e in ouverts] == [StatutManche.RESOLUE, StatutManche.EN_COURS, StatutManche.DISPONIBLE]

@@ -9,6 +9,7 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 ### Added
 
+- Clôture du Défi du lutin après le Repas de Noël : avec une `date_repas`, le démarrage, la Soumission et l'abandon sont refusés (`DEFI_CLOS`, HTTP 403) dès minuit à Paris le lendemain du Repas, et les manches non terminées s'affichent comme closes (`StatutManche.CLOSE`) ; ADR-0007 amendée. Le compte à rebours du Repas se calcule désormais avec l'horloge de l'application en heure de Paris (#68).
 - Workflow Forgejo Actions `.forgejo/workflows/ci.yml` (verrou, ruff, mypy, bandit, pytest sur Python 3.12 et 3.10, `uv` 0.12.10) et couverture de branches (`--cov-branch`) ; seuil abaissé de 93 % à 92 %, la mesure lignes+branches donnant 92,73 % (#56).
 
 ### Changed

@@ -23,6 +23,7 @@ from .database import (
     set_lutin_presence,
 )
 from .defi import (
+    PARIS_TZ,
     GrilleInvalideError,
     calculate_championship_standings,
     format_unlock_at,
@@ -236,7 +237,7 @@ def create_app(
 
         # Date du Repas de Noël
         date_repas_raw = get_edition_date_repas(db_path, year)
-        date_repas_info = format_date_repas(date_repas_raw)
+        date_repas_info = format_date_repas(date_repas_raw, now=now_dt.astimezone(PARIS_TZ))
 
         classement = standings if standings else get_scores_classement(db_path, year)
 
@@ -249,6 +250,7 @@ def create_app(
                 "date_repas_info": date_repas_info,
                 "presence": presence,
                 "edition_scellee": edition_scellee,
+                "defi_clos": etat_actif is not None and etat_actif.statut is StatutManche.CLOSE,
                 "score_info": active_score,
                 "pseudo_lutin": pseudo,
                 "active_manche": display_manche,
@@ -320,6 +322,8 @@ def create_app(
             return HTTPException(status_code=404, detail=f"Manche {manche_id} introuvable.")
         if statut is StatutParcours.MANCHE_VERROUILLEE or statut is StatutSoumission.MANCHE_VERROUILLEE:
             return HTTPException(status_code=403, detail=f"La manche {manche_id} n'est pas encore déverrouillée.")
+        if statut is StatutParcours.DEFI_CLOS or statut is StatutSoumission.DEFI_CLOS:
+            return HTTPException(status_code=403, detail="Le Défi du lutin est clos depuis le Repas de Noël.")
         if statut is StatutParcours.GRILLE_INVALIDE:
             return HTTPException(
                 status_code=409,

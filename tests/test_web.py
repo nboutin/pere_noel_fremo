@@ -1198,3 +1198,49 @@ def test_manche_yaml_illisible_repond_404(
     warnings = [r for r in caplog.records if r.levelname == "WARNING" and "manche_2.yml" in r.getMessage()]
     assert warnings
     assert all(r.exc_info is None for r in warnings)
+
+
+def _app_avec_horloge(test_db: Path, instant: Any) -> TestClient:
+    return TestClient(create_app(db_path=test_db, clock=lambda: instant))
+
+
+def _fixer_date_repas_2025(test_db: Path) -> None:
+    from pere_noel_fremo.database import set_lutin_presence
+
+    conn = get_db_connection(test_db)
+    with conn:
+        conn.execute("UPDATE editions SET date_repas = '2026-12-05' WHERE year = 2025;")
+    conn.close()
+    set_lutin_presence(test_db, "fbonnet", 2025, present=True)
+
+
+def test_compte_a_rebours_utilise_la_date_de_paris(test_db: Path) -> None:
+    from datetime import datetime, timezone
+
+    _fixer_date_repas_2025(test_db)
+    token = create_or_get_token(test_db, "fbonnet", 2025)
+    # 04/12 23:30 UTC = 05/12 00:30 à Paris
+    page = _app_avec_horloge(test_db, datetime(2026, 12, 4, 23, 30, tzinfo=timezone.utc)).get(f"/lutin/{token}")
+
+    assert "Aujourd&#39;hui ! 🎅" in page.text
+
+
+def test_defi_clos_apres_le_repas_refuse_start_solve_abandon_en_403(test_db: Path) -> None:
+    from datetime import datetime, timezone
+
+    _fixer_date_repas_2025(test_db)
+    token = create_or_get_token(test_db, "fbonnet", 2025)
+    # 05/12 23:00 UTC = 06/12 00:00 à Paris
+    client = _app_avec_horloge(test_db, datetime(2026, 12, 5, 23, 0, tzinfo=timezone.utc))
+
+    for action, corps in (
+        ("start", None),
+        ("solve", {"solution": {}}),
+        ("abandon", None),
+    ):
+        resp = client.post(f"/api/lutin/{token}/defi/1/{action}", json=corps)
+        assert resp.status_code == 403
+        assert resp.json()["detail"] == "Le Défi du lutin est clos depuis le Repas de Noël."
+
+    page = client.get(f"/lutin/{token}")
+    assert "Le Défi du lutin est clos depuis le Repas de Noël." in page.text
