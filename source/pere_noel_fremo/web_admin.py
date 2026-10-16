@@ -30,6 +30,7 @@ SESSION_DURATION_SECONDS = 7200
 SESSION_ABSOLUTE_LIFETIME_SECONDS = 43200
 SESSION_CLOCK_SKEW_SECONDS = 300
 MIN_SESSION_SECRET_BYTES = 32
+_COOKIE_ATTRS: dict[str, Any] = {"httponly": True, "samesite": "strict", "secure": True}
 
 logger = logging.getLogger(__name__)
 
@@ -113,11 +114,9 @@ def create_admin_app(
     admin_session_secret: str | None = None,
 ) -> FastAPI:
     """Crée l'application FastAPI de l'Espace Admin (listener dédié, réservé au tailnet)."""
-    resolved_res_dir = Path(res_dir) if res_dir is not None else resolve_res_dir()
-    resolved_db_path = Path(db_path) if db_path is not None else default_db_path(resolved_res_dir)
-    init_db(resolved_db_path)
-    db_path = resolved_db_path
-    res_dir = resolved_res_dir
+    res_dir = Path(res_dir) if res_dir is not None else resolve_res_dir()
+    db_path = Path(db_path) if db_path is not None else default_db_path(res_dir)
+    init_db(db_path)
     clock_fn: Callable[[], datetime] = clock if clock is not None else (lambda: datetime.now(timezone.utc))
 
     admin_pwd = admin_password if admin_password is not None else get_admin_password(res_dir)
@@ -156,9 +155,7 @@ def create_admin_app(
             key=SESSION_COOKIE_NAME,
             value=token,
             max_age=SESSION_DURATION_SECONDS,
-            httponly=True,
-            samesite="strict",
-            secure=True,
+            **_COOKIE_ATTRS,
         )
 
     @app.get("/admin/login", response_class=HTMLResponse)
@@ -221,9 +218,7 @@ def create_admin_app(
         resp = RedirectResponse(url="/admin/login", status_code=303)
         resp.delete_cookie(
             key=SESSION_COOKIE_NAME,
-            httponly=True,
-            samesite="strict",
-            secure=True,
+            **_COOKIE_ATTRS,
         )
         return resp
 

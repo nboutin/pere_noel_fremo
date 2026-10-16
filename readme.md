@@ -40,6 +40,8 @@ Deux clés dans `res/secure_data.yml`, ou les variables d'environnement correspo
 
 Sans `admin_session_secret` valide (absent, vide ou de moins de 32 octets), l'Espace Admin est désactivé :
 `/admin` et `/admin/*` répondent le même 404 que les routes inconnues, et un avertissement est journalisé au démarrage.
+
+La session expire après 2 heures d'inactivité et au plus tard 12 heures après la connexion. Le cookie est signé avec une empreinte SHA-256 de dmin_password : changer ce mot de passe révoque toutes les sessions en cours.
 Générer un secret :
 
     python -c "import secrets; print(secrets.token_urlsafe(48))"

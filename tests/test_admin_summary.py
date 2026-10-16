@@ -13,7 +13,7 @@ from pere_noel_fremo.admin import (
     LutinSuivi,
     MetriquesEdition,
     StatutDefi,
-    StatutPresence,
+    StatutPresenceAdmin,
     SuiviDefi,
     SuiviLienMagique,
     SuiviPresence,
@@ -124,7 +124,7 @@ def test_admin_summary_nominal(test_db: Path) -> None:
         confirmes=2,
         absents=1,
         en_attente=1,
-        tokens_envoyes=2,  # Albert, Bernard
+        liens_magiques_envoyes=2,  # Albert, Bernard
         defi_resolus=1,  # Albert
         taux_resolution_defi=25.0,
         total_inscrits=5,
@@ -145,7 +145,7 @@ def test_admin_summary_nominal(test_db: Path) -> None:
     assert alb.id == "albert"
     assert alb.email == "alb@ex.com"
     assert alb.is_active is True
-    assert alb.presence == SuiviPresence(statut=StatutPresence.CONFIRME)
+    assert alb.presence == SuiviPresence(statut=StatutPresenceAdmin.CONFIRME)
     assert alb.presence.statut == "confirme"
     assert alb.lien_magique == SuiviLienMagique(token="tok_alb", sent_at="2026-11-01")
     assert alb.lien_magique is not None
@@ -161,7 +161,7 @@ def test_admin_summary_nominal(test_db: Path) -> None:
 
     ber = lutins[1]
     assert ber.id == "bernard"
-    assert ber.presence.statut is StatutPresence.ABSENT
+    assert ber.presence.statut is StatutPresenceAdmin.ABSENT
     assert ber.lien_magique is not None
     assert ber.lien_magique.sent is True
     assert ber.lien_magique.token == "tok_ber"
@@ -169,7 +169,7 @@ def test_admin_summary_nominal(test_db: Path) -> None:
 
     cla = lutins[2]
     assert cla.id == "claire"
-    assert cla.presence.statut is StatutPresence.EN_ATTENTE
+    assert cla.presence.statut is StatutPresenceAdmin.EN_ATTENTE
     assert cla.lien_magique is not None
     assert cla.lien_magique.sent is False
     assert cla.lien_magique.token == "tok_cla"
@@ -179,12 +179,12 @@ def test_admin_summary_nominal(test_db: Path) -> None:
     ina = lutins[3]
     assert ina.id == "inactif"
     assert ina.is_active is False
-    assert ina.presence.statut is StatutPresence.CONFIRME
+    assert ina.presence.statut is StatutPresenceAdmin.CONFIRME
 
     zoe = lutins[4]
     assert zoe.id == "zaza"
     assert zoe.is_active is True
-    assert zoe.presence.statut is StatutPresence.CONFIRME
+    assert zoe.presence.statut is StatutPresenceAdmin.CONFIRME
     assert zoe.lien_magique is None
     assert zoe.defi.statut is StatutDefi.NON_COMMENCE
     assert zoe.defi.manches_resolues == 0
@@ -207,12 +207,12 @@ def test_admin_summary_all_en_attente(test_db: Path) -> None:
     assert summary.metrics.confirmes == 0
     assert summary.metrics.absents == 0
     assert summary.metrics.en_attente == 2
-    assert summary.metrics.tokens_envoyes == 0
+    assert summary.metrics.liens_magiques_envoyes == 0
     assert summary.metrics.defi_resolus == 0
     assert summary.metrics.taux_resolution_defi == 0.0
 
     for lutin_item in summary.lutins:
-        assert lutin_item.presence.statut is StatutPresence.EN_ATTENTE
+        assert lutin_item.presence.statut is StatutPresenceAdmin.EN_ATTENTE
         assert lutin_item.lien_magique is None
         assert lutin_item.defi.statut is StatutDefi.NON_COMMENCE
 
@@ -253,7 +253,7 @@ def test_admin_summary_previous_year_historical(test_db: Path) -> None:
     assert summary_2025.metrics.confirmes == 1
     assert summary_2025.metrics.absents == 0
     assert summary_2025.metrics.defi_resolus == 1
-    assert summary_2025.lutins[0].presence.statut is StatutPresence.CONFIRME
+    assert summary_2025.lutins[0].presence.statut is StatutPresenceAdmin.CONFIRME
     assert summary_2025.lutins[0].defi.statut is StatutDefi.RESOLU
     assert summary_2025.lutins[0].lien_magique is not None
     assert summary_2025.lutins[0].lien_magique.token == "tok_2025"
@@ -264,7 +264,7 @@ def test_admin_summary_previous_year_historical(test_db: Path) -> None:
     assert summary_2026.metrics.confirmes == 0
     assert summary_2026.metrics.absents == 1
     assert summary_2026.metrics.defi_resolus == 0
-    assert summary_2026.lutins[0].presence.statut is StatutPresence.ABSENT
+    assert summary_2026.lutins[0].presence.statut is StatutPresenceAdmin.ABSENT
     assert summary_2026.lutins[0].defi.statut is StatutDefi.ABANDONNE
     assert summary_2026.lutins[0].lien_magique is not None
     assert summary_2026.lutins[0].lien_magique.token == "tok_2026"
@@ -338,7 +338,7 @@ def test_admin_summary_empty_database(test_db: Path) -> None:
         confirmes=0,
         absents=0,
         en_attente=0,
-        tokens_envoyes=0,
+        liens_magiques_envoyes=0,
         defi_resolus=0,
         taux_resolution_defi=0.0,
         total_inscrits=0,

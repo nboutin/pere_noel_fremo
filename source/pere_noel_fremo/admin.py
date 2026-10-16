@@ -15,7 +15,7 @@ from pathlib import Path
 from .database import connection
 
 
-class StatutPresence(str, Enum):
+class StatutPresenceAdmin(str, Enum):
     """Statut de présence d'un Lutin à l'Édition."""
 
     CONFIRME = "confirme"
@@ -36,7 +36,7 @@ class StatutDefi(str, Enum):
 class SuiviPresence:
     """Présence d'un Lutin pour l'Édition."""
 
-    statut: StatutPresence
+    statut: StatutPresenceAdmin
 
 
 @dataclass(frozen=True)
@@ -84,7 +84,7 @@ class MetriquesEdition:
     confirmes: int
     absents: int
     en_attente: int
-    tokens_envoyes: int
+    liens_magiques_envoyes: int
     defi_resolus: int
     taux_resolution_defi: float
     total_inscrits: int
@@ -185,11 +185,11 @@ def get_admin_edition_summary(
         for l_row in lutin_rows:
             lid = str(l_row["id"])
             if lid not in presences_map:
-                presence = StatutPresence.EN_ATTENTE
+                presence = StatutPresenceAdmin.EN_ATTENTE
             elif presences_map[lid] == 1:
-                presence = StatutPresence.CONFIRME
+                presence = StatutPresenceAdmin.CONFIRME
             else:
-                presence = StatutPresence.ABSENT
+                presence = StatutPresenceAdmin.ABSENT
 
             t_row = tokens_map.get(lid)
             lien = (
@@ -217,10 +217,10 @@ def get_admin_edition_summary(
         defi_resolus = sum(1 for lutin in actifs if lutin.defi.statut is StatutDefi.RESOLU)
         metrics = MetriquesEdition(
             total_lutins=len(actifs),
-            confirmes=sum(1 for lutin in actifs if lutin.presence.statut is StatutPresence.CONFIRME),
-            absents=sum(1 for lutin in actifs if lutin.presence.statut is StatutPresence.ABSENT),
-            en_attente=sum(1 for lutin in actifs if lutin.presence.statut is StatutPresence.EN_ATTENTE),
-            tokens_envoyes=sum(1 for lutin in actifs if lutin.lien_magique and lutin.lien_magique.sent),
+            confirmes=sum(1 for lutin in actifs if lutin.presence.statut is StatutPresenceAdmin.CONFIRME),
+            absents=sum(1 for lutin in actifs if lutin.presence.statut is StatutPresenceAdmin.ABSENT),
+            en_attente=sum(1 for lutin in actifs if lutin.presence.statut is StatutPresenceAdmin.EN_ATTENTE),
+            liens_magiques_envoyes=sum(1 for lutin in actifs if lutin.lien_magique and lutin.lien_magique.sent),
             defi_resolus=defi_resolus,
             taux_resolution_defi=round(defi_resolus / len(actifs) * 100, 1) if actifs else 0.0,
             total_inscrits=len(lutins),
