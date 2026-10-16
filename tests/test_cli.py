@@ -859,7 +859,7 @@ def test_cli_init_db_missing_file_message(tmp_path: Path, capsys: pytest.Capture
     assert "introuvable" in capsys.readouterr().out
 
 
-def test_cli_init_db_default_data_in_falls_back_to_2025(
+def test_cli_init_db_does_not_fall_back_to_2025(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     res_dir = tmp_path / "res"
@@ -868,11 +868,33 @@ def test_cli_init_db_default_data_in_falls_back_to_2025(
         yaml.dump({"l1": {"fullname": "L1", "email": None, "exclude": [], "history": []}}), encoding="utf-8"
     )
     monkeypatch.setenv("FREMO_RES_DIR", str(res_dir))
+    db_path = tmp_path / "fremo.db"
 
-    ret = main(["init-db", "--db-path", str(tmp_path / "fremo.db"), "--year", "2026"])
+    ret = main(["init-db", "--db-path", str(db_path), "--year", "2027"])
 
-    assert ret == 0
-    assert "1 lutins" in capsys.readouterr().out
+    assert ret == 1
+    out = capsys.readouterr().out
+    assert str(res_dir / "2027" / "data_in.yml") in out
+    assert not db_path.exists()
+
+
+def test_cli_init_db_reports_deactivated_lutins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    res_dir = tmp_path / "res"
+    (res_dir / "2027").mkdir(parents=True)
+    monkeypatch.setenv("FREMO_RES_DIR", str(res_dir))
+    db_path = tmp_path / "fremo.db"
+    data_in = res_dir / "2027" / "data_in.yml"
+    two: dict[str, Any] = {k: {"fullname": k, "email": None, "exclude": [], "history": []} for k in ("a", "b")}
+    data_in.write_text(yaml.dump(two), encoding="utf-8")
+    assert main(["init-db", "--db-path", str(db_path), "--year", "2027"]) == 0
+    data_in.write_text(yaml.dump({"a": two["a"]}), encoding="utf-8")
+    capsys.readouterr()
+
+    assert main(["init-db", "--db-path", str(db_path), "--year", "2027"]) == 0
+
+    assert "1 lutins désactivés" in capsys.readouterr().out
 
 
 def test_cli_annonce_send_annonces_raising_returns_1(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -907,9 +929,11 @@ def test_cli_annonce_defaults_to_year_template(tmp_path: Path, monkeypatch: pyte
     assert template == tmp_path / "res" / "2026" / "annonce.txt"
 
 
-def test_cli_annonce_falls_back_to_2025_template(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    template = _annonce_template_used(tmp_path, monkeypatch, ("2025",))
-    assert template == tmp_path / "res" / "2025" / "annonce.txt"
+def test_cli_annonce_does_not_fall_back_to_2025_template(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert _annonce_template_used(tmp_path, monkeypatch, ("2025",)) is None
+    assert "gabarit intégré" in capsys.readouterr().out
 
 
 def test_cli_annonce_without_any_template_uses_builtin(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

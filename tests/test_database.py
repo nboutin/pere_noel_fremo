@@ -937,3 +937,29 @@ def test_save_attributions_refuse_des_paires_qui_ne_couvrent_pas_les_confirmes(t
 
     assert get_attributions(db_path, 2026) == {}
     assert get_edition_status(db_path, 2026) == "announced"
+
+
+def test_import_deactivates_lutins_absent_from_data_in(tmp_path: Path) -> None:
+    db_path = tmp_path / "fremo.db"
+    secure = tmp_path / "secure.yml"
+    secure.write_text(yaml.dump({"personnes": {}}), encoding="utf-8")
+    data_in = tmp_path / "data_in.yml"
+    entry: dict[str, Any] = {"fullname": "X", "email": None, "exclude": []}
+    data_in.write_text(
+        yaml.dump({"lutin_x": {**entry, "history": ["lutin_y"]}, "lutin_y": {**entry, "history": []}}),
+        encoding="utf-8",
+    )
+    import_yaml_data(db_path, data_in, secure, year=2027)
+
+    data_in.write_text(yaml.dump({"lutin_y": {**entry, "history": []}}), encoding="utf-8")
+    counts = import_yaml_data(db_path, data_in, secure, year=2027)
+
+    assert counts["desactives"] == 1
+    assert "lutin_x" not in get_lutins(db_path, active_only=True)
+    assert "lutin_x" in get_lutins(db_path, active_only=False)
+    conn = get_db_connection(db_path)
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM attributions WHERE donneur_id = 'lutin_x'").fetchone()[0] == 1
+    finally:
+        conn.close()
+    assert import_yaml_data(db_path, data_in, secure, year=2027)["desactives"] == 0

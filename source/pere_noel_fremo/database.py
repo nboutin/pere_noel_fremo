@@ -383,6 +383,13 @@ def import_yaml_data(
                     (lutin_id, fullname, email),
                 )
 
+            # Désactivation des lutins actifs retirés du fichier d'entrée (attributions et historique conservés)
+            retires = [
+                row[0] for row in conn.execute("SELECT id FROM lutins WHERE is_active = 1;") if row[0] not in data_in
+            ]
+            conn.executemany("UPDATE lutins SET is_active = 0 WHERE id = ?;", [(lutin_id,) for lutin_id in retires])
+            desactives = len(retires)
+
             # Enregistrement des participants historiques passés non actifs pour cette édition
             for _lutin_id, params in data_in.items():
                 for historical_id in params.get("history") or []:
@@ -425,6 +432,7 @@ def import_yaml_data(
         "lutins": len(data_in),
         "exclusions": exclusion_count,
         "attributions": attribution_count,
+        "desactives": desactives,
     }
 
 

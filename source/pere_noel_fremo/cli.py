@@ -329,9 +329,7 @@ def handle_init_db(args: argparse.Namespace) -> int:
 
     if data_in_path is None:
         res_dir = resolve_res_dir()
-        candidate_data_in = res_dir / str(args.year) / "data_in.yml"
-        default_data_in = res_dir / "2025" / "data_in.yml"
-        data_in_path = candidate_data_in if candidate_data_in.exists() else default_data_in
+        data_in_path = res_dir / str(args.year) / "data_in.yml"
 
     if not data_in_path.exists():
         print(f"Erreur: Fichier de données introuvable : {data_in_path}")
@@ -347,7 +345,8 @@ def handle_init_db(args: argparse.Namespace) -> int:
         print(
             f"Importation réussie : {counts['lutins']} lutins, "
             f"{counts['exclusions']} exclusions, "
-            f"{counts['attributions']} attributions d'historique enregistrées dans {db_path}."
+            f"{counts['attributions']} attributions d'historique enregistrées dans {db_path}, "
+            f"{counts['desactives']} lutins désactivés."
         )
         return 0
     except Exception as exc:
@@ -366,8 +365,8 @@ def handle_annonce(args: argparse.Namespace) -> int:
         candidate_template = res_dir / str(args.year) / "annonce.txt"
         if candidate_template.exists():
             template_path = candidate_template
-        elif (res_dir / "2025" / "annonce.txt").exists():
-            template_path = res_dir / "2025" / "annonce.txt"
+        else:
+            print(f"Gabarit {candidate_template} introuvable : utilisation du gabarit intégré.")
 
     absents_list = list(args.absent or []) + list(args.skip or [])
 
