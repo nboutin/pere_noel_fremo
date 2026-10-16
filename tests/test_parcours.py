@@ -434,5 +434,7 @@ def test_etat_une_manche_dans_chaque_statut_en_une_seule_requete(
     assert [e.manche_id for e in etats] == [1, 2, 3, 4, 5, 6]
     assert (etats[0].attempts, etats[0].time_seconds, etats[0].pseudo_lutin) == (2, 42.5, "Lutin Test")
     assert etats[2].attempts == MAX_ESSAIS_PAR_MANCHE
+    assert etats[4].started_at == NOW.isoformat()
+    assert etats[3].started_at is None
     assert (etats[3].attempts, etats[3].time_seconds, etats[3].pseudo_lutin) == (0, None, None)
     assert len(requetes) == 1

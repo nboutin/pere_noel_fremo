@@ -380,7 +380,7 @@ def test_espace_lutin_multi_manches_and_anti_cheat_ui(
     assert ".manches-grid" in css_resp.text
 
 
-def test_abandon_defi_flow(client: TestClient, test_db: Path) -> None:
+def test_abandon_defi_flow(client: TestClient, test_db: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     token = create_or_get_token(test_db, "alacroix", 2025)
     client.post(f"/api/lutin/{token}/presence", json={"present": True})
 
@@ -409,6 +409,16 @@ def test_abandon_defi_flow(client: TestClient, test_db: Path) -> None:
     assert "🏳️ Abandonnée" in page.text
     assert "let isCompleted = true;" in page.text
     assert "let isChallengeActive = isStarted && !isCompleted;" in page.text
+
+    # La page s'appuie sur l'état du Parcours : aucune requête get_score_defi supplémentaire
+    def _interdit(*args: object, **kwargs: object) -> None:
+        raise AssertionError("get_score_defi ne doit plus être appelée par l'Espace Lutin")
+
+    monkeypatch.setattr("pere_noel_fremo.web.get_score_defi", _interdit)
+    page_bis = client.get(f"/lutin/{token}?manche=1")
+    assert page_bis.status_code == 200
+    assert "let isCompleted = true;" in page_bis.text
+    monkeypatch.undo()
 
     # Impossible de relancer la manche après abandon (essai unique officiel)
     resp_restart = client.post(f"/api/lutin/{token}/defi/1/start")

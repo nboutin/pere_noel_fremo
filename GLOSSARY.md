@@ -33,7 +33,7 @@ Liste exhaustive et permanente de tous les Bénéficiaires reçus par un Donneur
 _Avoid_: Antécédents, mémoire, historique glissant
 
 **Édition**:
-Itération annuelle du Père Noël secret désignée par son millésime (`year`), progressant à travers un cycle d'états (`draft` -> `announced` -> `drawn` -> `revealed`) dont le module `edition` est l'unique propriétaire. L'**Annonce** fait passer `draft` à `announced` (au premier envoi réussi, jamais en simulation) ; le **Tirage au sort** fait passer à `drawn` (scellement, rejouable uniquement par `--force-retirage`) ; la **Révélation** fait passer `drawn` à `revealed`. Une Édition est « scellée » dès `drawn` : présences verrouillées et Bénéficiaires consultables.
+Itération annuelle du Père Noël secret désignée par son millésime (`year`), progressant à travers un cycle d'états (`draft` -> `announced` -> `drawn` -> `revealed`) dont le module `edition` est l'unique propriétaire. L'**Annonce** fait passer `draft` à `announced` (au premier envoi réussi, jamais en simulation) ; le **Tirage au sort** fait passer à `drawn` (scellement, rejouable uniquement par `--force-retirage` ; un tirage sans Annonce enchaîne `draft` -> `announced` -> `drawn`) ; la **Révélation** fait passer `drawn` à `revealed`. Une Édition est « scellée » dès `drawn` : présences verrouillées et Bénéficiaires consultables.
 _Avoid_: Campagne (au sens d'Édition ; voir **Campagne**), saison, tournoi, session
 
 **Repas de Noël**:

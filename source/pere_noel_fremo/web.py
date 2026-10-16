@@ -173,7 +173,19 @@ def create_app(
         if active_manche is None:
             active_manche = get_or_load_grille(year, res_dir=res_dir)
 
-        active_score = get_score_defi(db_path, lutin_id, year, manche_id=active_manche_id)
+        etat_actif = next((e for e in etats if e.manche_id == active_manche_id), None)
+        if etat_actif is None:
+            active_score: dict[str, Any] = {}
+        else:
+            # Dérivé de l'état déjà lu : solved et completed_at se déduisent du statut
+            terminee = etat_actif.statut in (StatutManche.RESOLUE, StatutManche.ABANDONNEE, StatutManche.SCELLEE)
+            active_score = {
+                "solved": etat_actif.statut is StatutManche.RESOLUE,
+                "completed_at": terminee or None,
+                "started_at": etat_actif.started_at,
+                "attempts": etat_actif.attempts,
+                "time_seconds": etat_actif.time_seconds,
+            }
 
         # 3. Profil championnat et classement
         standings = calculate_championship_standings(db_path, year, res_dir=res_dir, now=now_dt)

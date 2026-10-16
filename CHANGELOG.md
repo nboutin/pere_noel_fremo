@@ -7,16 +7,13 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 ## [Unreleased]
 
-### Fixed
-
-- Une Édition future n'influence plus le tirage ni l'audit : l'Historique est unique (`historique_avant`, millésimes strictement antérieurs), chargé en une requête et partagé par le tirage, l'audit et l'export (#62).
-
 ### Added
 
 - Workflow Forgejo Actions `.forgejo/workflows/ci.yml` (verrou, ruff, mypy, bandit, pytest sur Python 3.12 et 3.10, `uv` 0.12.10) et couverture de branches (`--cov-branch`) ; seuil abaissé de 93 % à 92 %, la mesure lignes+branches donnant 92,73 % (#56).
 
 ### Changed
 
+- `--force-retirage` sur une Édition déjà `revealed` est désormais refusé (transition `revealed` -> `drawn` interdite : une Édition close ne se rouvre pas) (#57).
 - Nouveau module `campagne` : une seule boucle d'envoi (`envoyer_campagne`) pour l'Annonce et la Révélation, derrière le port `Expediteur` (adaptateurs `ExpediteurGmail` et `ExpediteurMemoire`) ; `send_annonces` et `send_revelations` deviennent de minces configurations (signatures et sortie de la CLI inchangées, paramètre optionnel `expediteur` ajouté), le repli sur l'adresse de `secure_data` s'applique aux deux, et les gabarits par défaut migrent vers `gabarits.py` (#63).
 - `parcours.etat` : le statut d'une manche (`resolue`, `abandonnee`, `scellee`, `disponible`, `en_cours`, `verrouillee`) est dérivé du Parcours en une seule requête pour toutes les manches d'un Lutin ; le barème (1 pt pour `scellee`, 0 pt pour `abandonnee`, ADR-0007 inchangé) s'appuie sur ce statut au lieu d'un seuil sur `attempts`, et l'Espace Lutin n'a plus de `status_tag` ni de boucle `get_score_defi` (`scellee` s'affiche comme `abandonnee`) (#60).
 - Nouveau module `edition` : unique propriétaire du statut d'une Édition (`statut`, `avancer`, `est_scellee`, `annee_courante`), l'Annonce fait passer l'Édition de `draft` à `announced` après le premier envoi réussi, et les années `2026` codées en dur de la CLI, de l'Annonce et de la Révélation sont remplacées par l'Édition la plus récente (#61).
@@ -31,6 +28,7 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 ### Fixed
 
+- Une Édition future n'influence plus le tirage ni l'audit : l'Historique est unique (`historique_avant`, millésimes strictement antérieurs), chargé en une requête et partagé par le tirage, l'audit et l'export (#62).
 - `get_or_assign_pseudo` ne valide plus la transaction de l'appelant : l'attribution du pseudo et la création de la ligne `scores_defi` restent atomiques dans `start_score_defi` (#49).
 - `parse_iso_or_legacy` accepte le suffixe `Z` sous Python 3.10, où `datetime.fromisoformat` le refuse.
 

@@ -69,14 +69,15 @@ def send_revelations(
     expediteur: Expediteur | None = None,
 ) -> dict[str, int]:
     """Exécute la Campagne de Révélation aux Lutins confirmés et passe l'Édition à 'revealed'."""
-    # Contrôle d'intégrité : refus strict si l'édition n'est pas 'drawn' ou 'revealed'
+    # Contrôle d'intégrité : refus strict si l'Édition n'est pas scellée (statuts définis par `edition`)
     if year is None:
         year = annee_courante(db_path)
     status = statut(db_path, year)
     if not est_scellee(status):
+        attendus = " ou ".join(f"'{s.value}'" for s in StatutEdition if est_scellee(s))
         raise ValueError(
             f"Impossible d'envoyer la Révélation : l'édition {year} a le statut '{status.value}', "
-            f"elle doit être 'drawn' ou 'revealed'."
+            f"elle doit être {attendus}."
         )
 
     secure_data = charger_secure_data(secure_data_path)

@@ -90,7 +90,10 @@ def avancer(conn: sqlite3.Connection, year: int, vers: StatutEdition) -> None:
 
 
 def sceller(conn: sqlite3.Connection, year: int) -> None:
-    """Scelle le Tirage au sort : passe l'Édition à `drawn`, y compris sans Annonce préalable."""
+    """Scelle le Tirage au sort : passe l'Édition à `drawn`.
+
+    Un tirage sans Annonce préalable enchaîne `draft` -> `announced` -> `drawn`.
+    """
     if statut(conn, year) is StatutEdition.DRAFT:
         avancer(conn, year, StatutEdition.ANNOUNCED)
     avancer(conn, year, StatutEdition.DRAWN)

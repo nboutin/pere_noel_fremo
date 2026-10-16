@@ -112,6 +112,7 @@ class EtatParcours:
     attempts: int = 0
     time_seconds: float | None = None
     pseudo_lutin: str | None = None
+    started_at: str | None = None
 
 
 def statut_score(score: dict[str, Any], unlocked: bool = True) -> StatutManche:
@@ -161,6 +162,7 @@ def etat(
                 attempts=int(score.get("attempts") or 0),
                 time_seconds=score.get("time_seconds"),
                 pseudo_lutin=score.get("pseudo_lutin"),
+                started_at=score.get("started_at"),
             )
         )
     return resultat
