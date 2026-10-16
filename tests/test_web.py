@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from pere_noel_fremo.database import get_db_connection, init_db
+from pere_noel_fremo.database import get_db_connection, get_score_defi, init_db
 from pere_noel_fremo.tokens import create_or_get_token
 from pere_noel_fremo.web import create_app
 from starlette.testclient import TestClient
@@ -682,10 +682,7 @@ def test_solve_defi_attempts_and_penalties_lifecycle(client: TestClient, test_db
     assert resp_inc.status_code == 400
     assert resp_inc.json()["solved"] is False
     # Vérifier que attempts est toujours à 0
-    conn = get_db_connection(test_db)
-    row = conn.execute("SELECT attempts FROM scores_defi WHERE lutin_id = 'jdupont' AND manche_id = 1;").fetchone()
-    assert row["attempts"] == 0
-    conn.close()
+    assert get_score_defi(test_db, "jdupont", 2025, manche_id=1)["attempts"] == 0
 
     # Essai 1 : faux complet
     resp_wrong1 = client.post(
@@ -749,13 +746,11 @@ def test_solve_defi_attempts_and_penalties_lifecycle(client: TestClient, test_db
     assert d_third["essais_restants"] == 0
 
     # Vérification en base : scellé avec solved=0 et time_seconds=None
-    conn = get_db_connection(test_db)
-    row3 = conn.execute("SELECT * FROM scores_defi WHERE lutin_id = 'plefebvre' AND manche_id = 1;").fetchone()
+    row3 = get_score_defi(test_db, "plefebvre", 2025, manche_id=1)
     assert row3["solved"] == 0
     assert row3["time_seconds"] is None
     assert row3["completed_at"] is not None
     assert row3["attempts"] == 3
-    conn.close()
 
     # 4e tentative -> 400
     r_fourth = client.post(f"/api/lutin/{token_3}/defi/1/solve", json={"solution": sol_ok})
@@ -773,9 +768,7 @@ def test_solve_defi_attempts_and_penalties_lifecycle(client: TestClient, test_db
 
     standings = calculate_championship_standings(test_db, 2025)
     p_third = next(s for s in standings if s["pseudo_lutin"] == row3["pseudo_lutin"])
-    conn = get_db_connection(test_db)
-    pseudo_4 = conn.execute("SELECT pseudo_lutin FROM scores_defi WHERE lutin_id = 'cbernard';").fetchone()[0]
-    conn.close()
+    pseudo_4 = get_score_defi(test_db, "cbernard", 2025)["pseudo_lutin"]
     p_fourth = next(s for s in standings if s["pseudo_lutin"] == pseudo_4)
 
     # 3 essais faux donne 1 point de participation
@@ -922,7 +915,7 @@ def test_regression_jdenis_mdenis_standings(client: TestClient, test_db: Path) -
 
     grille = get_or_load_grille(2026)
 
-    # Note: solve_defi utilise register_solve_attempt qui utilise datetime.now(timezone.utc) par défaut,
+    # Note: solve_defi utilise l'horloge réelle de l'application (datetime.now(timezone.utc)) par défaut,
     # donc on valide via l'API puis on simule le temps final si nécessaire
     res_j = client.post(f"/api/lutin/{tok_j}/defi/1/solve", json={"solution": grille["solution"]})
     assert res_j.status_code == 200

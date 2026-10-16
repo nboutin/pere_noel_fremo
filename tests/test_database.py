@@ -1,6 +1,6 @@
 import sqlite3
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -19,12 +19,12 @@ from pere_noel_fremo.database import (
     historique_avant,
     import_yaml_data,
     init_db,
-    register_solve_attempt,
     save_attributions,
     set_edition_status,
     set_lutin_presence,
     start_score_defi,
 )
+from pere_noel_fremo.parcours import StatutSoumission
 
 
 def test_init_db_creates_all_required_tables(tmp_path: Path) -> None:
@@ -291,16 +291,15 @@ def test_scores_defi_and_beneficiaire_operations(tmp_path: Path, solve_manche: C
     with conn:
         conn.execute("UPDATE scores_defi SET started_at = ? WHERE lutin_id = 'l1';", (t0.isoformat(),))
     conn.close()
-    result = register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=True, now=t0 + timedelta(seconds=42.5))
-    assert result["solved"] is True
-    assert result["penalty_seconds"] == 0
+    result = solve_manche(db_path, "l1", 2026, 42.5)
+    assert result["statut"] is StatutSoumission.RESOLUE
     completed = get_score_defi(db_path, "l1", 2026)
     assert completed["solved"] == 1
     assert completed["time_seconds"] == 42.5
 
     # Idempotence complétion (ne modifie pas un score déjà résolu)
-    again = register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=True, now=t0 + timedelta(seconds=999))
-    assert again["already_completed"] is True
+    again = solve_manche(db_path, "l1", 2026, 999)
+    assert again["statut"] is StatutSoumission.DEJA_TERMINEE
     assert get_score_defi(db_path, "l1", 2026)["time_seconds"] == 42.5
 
     # 3. Classement ordonné
@@ -590,104 +589,6 @@ def test_init_db_adds_attempts_column_and_migrates_data(tmp_path: Path) -> None:
     conn_check2.close()
 
 
-def test_register_solve_attempt_lifecycle(tmp_path: Path) -> None:
-    from datetime import datetime, timezone
-
-    from pere_noel_fremo.database import (
-        register_solve_attempt,
-        start_score_defi,
-    )
-
-    db_path = tmp_path / "fremo_attempts.db"
-    init_db(db_path)
-    conn = get_db_connection(db_path)
-    with conn:
-        conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
-        conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l1', 'Lutin 1');")
-        conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l2', 'Lutin 2');")
-        # Ligne non démarrée (fixture d'insertion directe)
-        conn.execute(
-            "INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lutin, solved) "
-            "VALUES ('l1', 2026, 1, 'Renne Agile', 0);"
-        )
-    conn.close()
-
-    # 1. Tentative sans démarrage préalable -> ValueError
-    with pytest.raises(ValueError, match="(?i)démarré"):
-        register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=False)
-
-    # 2. Démarrage
-    start_score_defi(db_path, "l1", 2026, manche_id=1)
-
-    # Forcer started_at pour un temps contrôlé
-    conn = get_db_connection(db_path)
-    with conn:
-        conn.execute(
-            "UPDATE scores_defi SET started_at = '2026-10-14 20:00:00' WHERE lutin_id = 'l1' AND manche_id = 1;"
-        )
-    conn.close()
-
-    # Tentative 1 fausse à t0 + 10s
-    t1 = datetime(2026, 10, 14, 20, 0, 10, tzinfo=timezone.utc)
-    res1 = register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=False, now=t1)
-    assert res1["solved"] is False
-    assert res1["attempts"] == 1
-    assert res1["essais_restants"] == 2
-    assert res1["sealed"] is False
-
-    # Tentative 2 fausse à t0 + 20s
-    t2 = datetime(2026, 10, 14, 20, 0, 20, tzinfo=timezone.utc)
-    res2 = register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=False, now=t2)
-    assert res2["solved"] is False
-    assert res2["attempts"] == 2
-    assert res2["essais_restants"] == 1
-    assert res2["sealed"] is False
-
-    # Tentative 3 fausse à t0 + 30s -> Scellement de la manche
-    t3 = datetime(2026, 10, 14, 20, 0, 30, tzinfo=timezone.utc)
-    res3 = register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=False, now=t3)
-    assert res3["solved"] is False
-    assert res3["attempts"] == 3
-    assert res3["essais_restants"] == 0
-    assert res3["sealed"] is True
-
-    # Vérification en base : solved=0, time_seconds=None, completed_at non nul
-    conn = get_db_connection(db_path)
-    row = conn.execute("SELECT * FROM scores_defi WHERE lutin_id = 'l1' AND manche_id = 1;").fetchone()
-    assert row["solved"] == 0
-    assert row["time_seconds"] is None
-    assert row["completed_at"] is not None
-    assert row["attempts"] == 3
-    conn.close()
-
-    # Tentative 4 après scellement -> already_completed=True
-    res4 = register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=True)
-    assert res4["already_completed"] is True
-
-    # Lutin 2 : 1 faux puis 1 juste avec pénalité
-    start_score_defi(db_path, "l2", 2026, "Lutin Givré", manche_id=1)
-    conn = get_db_connection(db_path)
-    with conn:
-        conn.execute(
-            "UPDATE scores_defi SET started_at = '2026-10-14 20:00:00' WHERE lutin_id = 'l2' AND manche_id = 1;"
-        )
-    conn.close()
-
-    # Essai 1 faux à +10s
-    res_l2_1 = register_solve_attempt(db_path, "l2", 2026, manche_id=1, is_valid=False, now=t1)
-    assert res_l2_1["attempts"] == 1
-    assert res_l2_1["solved"] is False
-
-    # Essai 2 juste à +25s (temps brut = 25s, pénalité = 15s -> total = 40.0s)
-    t_l2_ok = datetime(2026, 10, 14, 20, 0, 25, tzinfo=timezone.utc)
-    res_l2_2 = register_solve_attempt(db_path, "l2", 2026, manche_id=1, is_valid=True, now=t_l2_ok)
-    assert res_l2_2["solved"] is True
-    assert res_l2_2["attempts"] == 2
-    assert res_l2_2["raw_time_seconds"] == 25.0
-    assert res_l2_2["penalty_seconds"] == 15.0
-    assert res_l2_2["time_seconds"] == 40.0
-
-
 def test_get_or_assign_pseudo_all_26_lutins_from_res_2025_get_unique_pseudos(tmp_path: Path) -> None:
     from pere_noel_fremo.database import get_or_assign_pseudo
 
@@ -922,85 +823,6 @@ def test_set_edition_status_validation(tmp_path: Path) -> None:
     # Bogus status should raise ValueError
     with pytest.raises(ValueError, match="Statut d'édition invalide"):
         set_edition_status(db_path, 2026, "bogus")
-
-
-def _seed_started_manche(db_path: Path) -> None:
-    init_db(db_path)
-    conn = get_db_connection(db_path)
-    with conn:
-        conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'draft');")
-        conn.execute("INSERT INTO lutins (id, fullname) VALUES ('l1', 'Lutin 1');")
-    conn.close()
-    start_score_defi(db_path, "l1", 2026, manche_id=1)
-
-
-def test_register_solve_attempt_concurrent_wrong_answers_cap_at_three(tmp_path: Path) -> None:
-    import threading
-    from concurrent.futures import ThreadPoolExecutor
-
-    from pere_noel_fremo.database import register_solve_attempt
-
-    db_path = tmp_path / "concurrent.db"
-    _seed_started_manche(db_path)
-    nb_threads = 10
-    barrier = threading.Barrier(nb_threads)
-
-    def submit() -> dict[str, object]:
-        barrier.wait()
-        return register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=False)
-
-    with ThreadPoolExecutor(max_workers=nb_threads) as pool:
-        results = list(pool.map(lambda _: submit(), range(nb_threads)))
-
-    conn = get_db_connection(db_path)
-    row = conn.execute("SELECT attempts, completed_at, solved FROM scores_defi WHERE lutin_id = 'l1';").fetchone()
-    conn.close()
-    assert row["attempts"] == 3
-    assert row["completed_at"] is not None
-    assert row["solved"] == 0
-    restants = [r for r in results if not r["already_completed"] and not r["sealed"]]
-    scellees = [r for r in results if not r["already_completed"] and r["sealed"]]
-    deja = [r for r in results if r["already_completed"]]
-    assert len(restants) == 2
-    assert len(scellees) == 1
-    assert len(deja) == nb_threads - 3
-
-
-def test_register_solve_attempt_and_abandon_concurrent_single_winner(tmp_path: Path) -> None:
-    import threading
-    from concurrent.futures import ThreadPoolExecutor
-
-    from pere_noel_fremo.database import abandon_score_defi, register_solve_attempt
-
-    db_path = tmp_path / "race.db"
-    _seed_started_manche(db_path)
-    barrier = threading.Barrier(2)
-
-    def solve() -> dict[str, object]:
-        barrier.wait()
-        return register_solve_attempt(db_path, "l1", 2026, manche_id=1, is_valid=True)
-
-    def abandon() -> dict[str, object]:
-        barrier.wait()
-        return abandon_score_defi(db_path, "l1", 2026, manche_id=1)
-
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        f_solve = pool.submit(solve)
-        f_abandon = pool.submit(abandon)
-        res_solve = f_solve.result()
-        f_abandon.result()
-
-    conn = get_db_connection(db_path)
-    row = conn.execute("SELECT attempts, completed_at, solved, time_seconds FROM scores_defi;").fetchone()
-    conn.close()
-    assert row["completed_at"] is not None
-    if row["solved"]:
-        assert res_solve["solved"] is True
-        assert row["time_seconds"] is not None
-        assert row["attempts"] == 1
-    else:
-        assert res_solve["already_completed"] is True
-        assert row["time_seconds"] is None
 
 
 def test_get_db_connection_has_explicit_busy_timeout(tmp_path: Path) -> None:

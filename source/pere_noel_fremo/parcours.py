@@ -1,8 +1,9 @@
-"""Parcours de manche : déroulé chronométré unique d'un Lutin sur une Manche (démarrage, abandon).
+"""Parcours de manche : déroulé chronométré unique d'un Lutin sur une Manche (démarrage, Soumission, abandon).
 
 Chaque appel ouvre une connexion et une transaction `BEGIN IMMEDIATE` uniques qui enchaînent les gardes
-(présence, déverrouillage, validité de la grille, état du score) puis l'écriture. Les couches HTTP se
-contentent de traduire le `StatutParcours` retourné.
+(présence, déverrouillage, validité de la grille, état du score) puis l'écriture. Les règles de la Soumission
+(complétude, plafond d'essais, pénalité, scellement) vivent ici ; les couches HTTP se contentent de traduire
+le statut retourné.
 """
 
 import sqlite3
@@ -17,11 +18,21 @@ from .database import (
     begin_immediate,
     get_db_connection,
     get_lutin_presence,
+    get_lutin_pseudo,
     get_or_assign_pseudo,
     get_score_defi,
+    parse_iso_or_legacy,
     start_score_defi,
 )
-from .defi import GrilleInvalideError, get_manche_attributes, is_manche_unlocked
+from .defi import (
+    MAX_ESSAIS_PAR_MANCHE,
+    PENALITE_ESSAI_FAUX_SECONDES,
+    GrilleInvalideError,
+    get_manche_attributes,
+    is_manche_unlocked,
+    is_solution_complete,
+    validate_grille_solution,
+)
 
 
 class StatutParcours(Enum):
@@ -47,6 +58,38 @@ class ResultatParcours:
     started_at: str | None = None
     indices: list[str] = field(default_factory=list)
     detail: str | None = None
+
+
+class StatutSoumission(Enum):
+    """Issue d'une Soumission de solution sur une Manche."""
+
+    RESOLUE = "resolue"
+    FAUSSE = "fausse"
+    SCELLEE = "scellee"
+    INCOMPLETE = "incomplete"
+    DEJA_TERMINEE = "deja_terminee"
+    NON_DEMARRE = "non_demarre"
+    PRESENCE_REQUISE = "presence_requise"
+    MANCHE_INTROUVABLE = "manche_introuvable"
+    MANCHE_VERROUILLEE = "manche_verrouillee"
+
+
+@dataclass(frozen=True)
+class ResultatSoumission:
+    """Résultat d'une Soumission ; les compteurs reflètent l'état du score après l'opération.
+
+    `penalite_cumulee_secondes` vaut 15 s par Soumission fausse enregistrée (c'est la pénalité qui s'ajoute
+    au temps officiel) ; `time_seconds` n'est renseigné que pour une manche `RESOLUE`.
+    """
+
+    statut: StatutSoumission
+    attempts: int = 0
+    essais_restants: int = MAX_ESSAIS_PAR_MANCHE
+    essais_max: int = MAX_ESSAIS_PAR_MANCHE
+    penalite_essai_secondes: int = PENALITE_ESSAI_FAUX_SECONDES
+    penalite_cumulee_secondes: int = 0
+    time_seconds: float | None = None
+    pseudo_lutin: str | None = None
 
 
 def _garde_acces(
@@ -138,3 +181,80 @@ def abandonner(
             )
     finally:
         conn.close()
+
+
+def soumettre(
+    db_path: Path | str,
+    lutin_id: str,
+    year: int,
+    manche: dict[str, Any] | None,
+    solution: dict[str, Any],
+    now: datetime,
+) -> ResultatSoumission:
+    """Enregistre la Soumission d'un Lutin : complétude, validation, plafond d'essais, pénalité et scellement."""
+    conn = get_db_connection(db_path)
+    try:
+        with conn:
+            begin_immediate(conn)
+            acces = _garde_acces(conn, lutin_id, year, manche, now)
+            if isinstance(acces, ResultatParcours):
+                return ResultatSoumission(StatutSoumission[acces.statut.name])
+            manche = acces
+            manche_id = int(manche["id"])
+
+            score = get_score_defi(conn, lutin_id, year, manche_id=manche_id)
+            attempts = int(score.get("attempts") or 0)
+            pseudo = score.get("pseudo_lutin") or get_lutin_pseudo(conn, lutin_id, year)
+            if score.get("completed_at"):
+                return _resultat(StatutSoumission.DEJA_TERMINEE, attempts, pseudo)
+            if not score.get("started_at"):
+                return ResultatSoumission(StatutSoumission.NON_DEMARRE)
+
+            # Seules les Soumissions complètes consomment un essai (ADR-0007).
+            if not is_solution_complete(manche, solution):
+                return _resultat(StatutSoumission.INCOMPLETE, attempts, pseudo)
+
+            attempts += 1
+            now_str = now.isoformat()
+            if validate_grille_solution(manche, solution):
+                brut = (now - parse_iso_or_legacy(str(score["started_at"]))).total_seconds()
+                temps = max(0.1, round(brut + (attempts - 1) * PENALITE_ESSAI_FAUX_SECONDES, 1))
+                conn.execute(
+                    "UPDATE scores_defi SET solved = 1, attempts = ?, time_seconds = ?, completed_at = ? "
+                    "WHERE lutin_id = ? AND year = ? AND manche_id = ?;",
+                    (attempts, temps, now_str, lutin_id, year, manche_id),
+                )
+                return _resultat(StatutSoumission.RESOLUE, attempts, pseudo, fausses=attempts - 1, time_seconds=temps)
+
+            if attempts >= MAX_ESSAIS_PAR_MANCHE:
+                conn.execute(
+                    "UPDATE scores_defi SET solved = 0, attempts = ?, time_seconds = NULL, completed_at = ? "
+                    "WHERE lutin_id = ? AND year = ? AND manche_id = ?;",
+                    (attempts, now_str, lutin_id, year, manche_id),
+                )
+                return _resultat(StatutSoumission.SCELLEE, attempts, pseudo, fausses=attempts)
+
+            conn.execute(
+                "UPDATE scores_defi SET attempts = ? WHERE lutin_id = ? AND year = ? AND manche_id = ?;",
+                (attempts, lutin_id, year, manche_id),
+            )
+            return _resultat(StatutSoumission.FAUSSE, attempts, pseudo, fausses=attempts)
+    finally:
+        conn.close()
+
+
+def _resultat(
+    statut: StatutSoumission,
+    attempts: int,
+    pseudo: str | None,
+    fausses: int = 0,
+    time_seconds: float | None = None,
+) -> ResultatSoumission:
+    return ResultatSoumission(
+        statut,
+        attempts=attempts,
+        essais_restants=max(0, MAX_ESSAIS_PAR_MANCHE - attempts),
+        penalite_cumulee_secondes=fausses * PENALITE_ESSAI_FAUX_SECONDES,
+        time_seconds=time_seconds,
+        pseudo_lutin=pseudo,
+    )

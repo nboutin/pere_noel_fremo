@@ -20,12 +20,9 @@ from .database import (
     get_score_defi,
     get_scores_classement,
     init_db,
-    register_solve_attempt,
     set_lutin_presence,
 )
 from .defi import (
-    MAX_ESSAIS_PAR_MANCHE,
-    PENALITE_ESSAI_FAUX_SECONDES,
     GrilleInvalideError,
     calculate_championship_standings,
     format_unlock_at,
@@ -34,12 +31,10 @@ from .defi import (
     get_manche_attributes,
     get_or_load_grille,
     is_manche_unlocked,
-    is_solution_complete,
-    validate_grille_solution,
 )
 from .edition import annee_courante, est_scellee, statut
 from .helper import format_date_repas
-from .parcours import ResultatParcours, StatutParcours, abandonner, demarrer
+from .parcours import StatutParcours, StatutSoumission, abandonner, demarrer, soumettre
 from .tokens import get_lutin_by_token
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
@@ -306,22 +301,23 @@ def create_app(
 
         return lutin_info, manche
 
-    def _refus_parcours(resultat: ResultatParcours, manche_id: int) -> HTTPException | None:
-        """Traduit un statut de refus du Parcours en erreur HTTP (None si l'opération a abouti)."""
-        statut = resultat.statut
-        if statut is StatutParcours.PRESENCE_REQUISE:
+    def _refus_parcours(
+        statut: StatutParcours | StatutSoumission, manche_id: int, detail: str | None = None
+    ) -> HTTPException | None:
+        """Traduit un statut de refus du Parcours ou de la Soumission en erreur HTTP (None si l'opération a abouti)."""
+        if statut is StatutParcours.PRESENCE_REQUISE or statut is StatutSoumission.PRESENCE_REQUISE:
             return HTTPException(
                 status_code=403,
                 detail="Tu dois d'abord confirmer ta présence pour lancer le Défi du lutin.",
             )
-        if statut is StatutParcours.MANCHE_INTROUVABLE:
+        if statut is StatutParcours.MANCHE_INTROUVABLE or statut is StatutSoumission.MANCHE_INTROUVABLE:
             return HTTPException(status_code=404, detail=f"Manche {manche_id} introuvable.")
-        if statut is StatutParcours.MANCHE_VERROUILLEE:
+        if statut is StatutParcours.MANCHE_VERROUILLEE or statut is StatutSoumission.MANCHE_VERROUILLEE:
             return HTTPException(status_code=403, detail=f"La manche {manche_id} n'est pas encore déverrouillée.")
         if statut is StatutParcours.GRILLE_INVALIDE:
             return HTTPException(
                 status_code=409,
-                detail=f"La manche {manche_id} est mal configurée et ne peut pas démarrer : {resultat.detail}",
+                detail=f"La manche {manche_id} est mal configurée et ne peut pas démarrer : {detail}",
             )
         if statut is StatutParcours.DEJA_RESOLUE:
             return HTTPException(
@@ -348,7 +344,7 @@ def create_app(
                 status_code=400,
                 detail=f"La manche {manche_id} a été abandonnée (essai unique officiel).",
             )
-        refus = _refus_parcours(resultat, manche_id)
+        refus = _refus_parcours(resultat.statut, manche_id, resultat.detail)
         if refus is not None:
             raise refus
         return JSONResponse(
@@ -383,27 +379,26 @@ def create_app(
         )
 
     def _handle_solve_defi(token: str, payload: GrilleSolveRequest, manche_id: int = 1) -> JSONResponse:
-        lutin_info, manche = _get_lutin_and_manche_or_raise(token, manche_id)
-        year = lutin_info["year"]
-        lutin_id = lutin_info["id"]
+        lutin_info = get_lutin_by_token(db_path, token)
+        if not lutin_info:
+            raise HTTPException(status_code=404, detail="Lien magique introuvable")
+        now_dt = clock_fn()
+        manche = get_manche(year=lutin_info["year"], manche_id=manche_id, res_dir=res_dir, now=now_dt)
 
-        score_entry = get_score_defi(db_path, lutin_id, year, manche_id=manche_id)
-
-        if score_entry.get("completed_at"):
+        resultat = soumettre(db_path, lutin_info["id"], lutin_info["year"], manche, payload.solution, now_dt)
+        statut = resultat.statut
+        if statut is StatutSoumission.DEJA_TERMINEE:
             raise HTTPException(
                 status_code=400,
                 detail=f"La manche {manche_id} est déjà terminée (essai unique officiel).",
             )
+        if statut is StatutSoumission.NON_DEMARRE:
+            raise HTTPException(status_code=400, detail="Le Défi du lutin doit être démarré avant d'être validé.")
+        refus = _refus_parcours(statut, manche_id)
+        if refus is not None:
+            raise refus
 
-        if not score_entry.get("started_at"):
-            raise HTTPException(
-                status_code=400,
-                detail="Le Défi du lutin doit être démarré avant d'être validé.",
-            )
-
-        # Seules les soumissions complètes mais erronées consomment un essai.
-        # Les requêtes incomplètes/malformées sont rejetées sans incrémenter attempts.
-        if not is_solution_complete(manche, payload.solution):
+        if statut is StatutSoumission.INCOMPLETE:
             return JSONResponse(
                 status_code=400,
                 content={
@@ -413,51 +408,27 @@ def create_app(
                 },
             )
 
-        is_valid = validate_grille_solution(manche, payload.solution)
-
-        result = register_solve_attempt(
-            db_path=db_path,
-            lutin_id=lutin_id,
-            year=year,
-            manche_id=manche_id,
-            is_valid=is_valid,
-            max_attempts=MAX_ESSAIS_PAR_MANCHE,
-            penalty_seconds=float(PENALITE_ESSAI_FAUX_SECONDES),
-            now=clock_fn(),
-        )
-
-        if result.get("already_completed"):
-            raise HTTPException(
-                status_code=400,
-                detail=f"La manche {manche_id} est déjà terminée (essai unique officiel).",
-            )
-
-        pseudo = score_entry.get("pseudo_lutin") or get_lutin_pseudo(db_path, lutin_id, year) or "Lutin"
-
-        if result.get("solved"):
+        if statut is StatutSoumission.RESOLUE:
             return JSONResponse(
                 {
                     "ok": True,
                     "manche_id": manche_id,
                     "solved": True,
-                    "attempts": result["attempts"],
-                    "time_seconds": result["time_seconds"],
-                    "pseudo_lutin": pseudo,
+                    "attempts": resultat.attempts,
+                    "time_seconds": resultat.time_seconds,
+                    "pseudo_lutin": resultat.pseudo_lutin or "Lutin",
                 }
             )
 
-        attempts = int(result["attempts"])
-        essais_restants = int(result["essais_restants"])
-        sealed = bool(result.get("sealed", False))
-
-        if sealed:
-            detail = f"Nombre maximal d'essais atteint ({attempts}/{MAX_ESSAIS_PAR_MANCHE}). La manche est scellée."
+        if statut is StatutSoumission.SCELLEE:
+            detail = (
+                f"Nombre maximal d'essais atteint ({resultat.attempts}/{resultat.essais_max}). La manche est scellée."
+            )
         else:
-            penalite_acc = int(attempts * PENALITE_ESSAI_FAUX_SECONDES)
             detail = (
                 f"La solution soumise comporte des erreurs. "
-                f"Essais restants : {essais_restants}/{MAX_ESSAIS_PAR_MANCHE} "
-                f"(pénalité accumulée : +{penalite_acc}s)."
+                f"Essais restants : {resultat.essais_restants}/{resultat.essais_max} "
+                f"(pénalité accumulée : +{resultat.penalite_cumulee_secondes}s)."
             )
 
         return JSONResponse(
@@ -465,9 +436,9 @@ def create_app(
             content={
                 "ok": False,
                 "solved": False,
-                "attempts": attempts,
-                "essais_restants": essais_restants,
-                "penalite_secondes": PENALITE_ESSAI_FAUX_SECONDES,
+                "attempts": resultat.attempts,
+                "essais_restants": resultat.essais_restants,
+                "penalite_secondes": resultat.penalite_essai_secondes,
                 "detail": detail,
             },
         )
@@ -485,7 +456,7 @@ def create_app(
                 status_code=400,
                 detail=f"La manche {manche_id} est déjà terminée (essai unique officiel).",
             )
-        refus = _refus_parcours(resultat, manche_id)
+        refus = _refus_parcours(resultat.statut, manche_id, resultat.detail)
         if refus is not None:
             raise refus
         return JSONResponse(

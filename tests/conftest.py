@@ -17,7 +17,8 @@ def fake_gmail_service() -> Iterator[MagicMock]:
 @pytest.fixture
 def solve_manche() -> Callable[..., dict[str, Any]]:
     """Fabrique : démarre puis résout une manche au premier essai via le chemin de production."""
-    from pere_noel_fremo.database import register_solve_attempt, start_score_defi
+    from pere_noel_fremo.database import set_lutin_presence, start_score_defi
+    from pere_noel_fremo.parcours import soumettre
 
     def _solve(
         db_path: Path,
@@ -28,14 +29,15 @@ def solve_manche() -> Callable[..., dict[str, Any]]:
         manche_id: int = 1,
     ) -> dict[str, Any]:
         t0 = datetime(2026, 10, 14, 20, 0, 0, tzinfo=timezone.utc)
+        manche: dict[str, Any] = {
+            "id": manche_id,
+            "categories": {"lutins": ["Barnabé", "Clémence"], "luges": ["Étoile Rouge", "Comète Bleue"]},
+            "attributs": {"luge": "luges"},
+            "solution": {"Barnabé": {"luge": "Comète Bleue"}, "Clémence": {"luge": "Étoile Rouge"}},
+        }
+        set_lutin_presence(db_path, lutin_id, year, True)
         start_score_defi(db_path, lutin_id, year, pseudo_lutin, manche_id=manche_id, now=t0)
-        return register_solve_attempt(
-            db_path,
-            lutin_id,
-            year,
-            manche_id,
-            is_valid=True,
-            now=t0 + timedelta(seconds=time_seconds),
-        )
+        resultat = soumettre(db_path, lutin_id, year, manche, manche["solution"], t0 + timedelta(seconds=time_seconds))
+        return {"statut": resultat.statut, "time_seconds": resultat.time_seconds, "attempts": resultat.attempts}
 
     return _solve

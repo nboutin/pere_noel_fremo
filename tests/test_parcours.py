@@ -7,10 +7,10 @@ from pere_noel_fremo.database import (
     get_db_connection,
     get_lutin_presence,
     init_db,
-    register_solve_attempt,
     set_lutin_presence,
 )
-from pere_noel_fremo.parcours import StatutParcours, abandonner, demarrer
+from pere_noel_fremo.defi import MAX_ESSAIS_PAR_MANCHE, PENALITE_ESSAI_FAUX_SECONDES
+from pere_noel_fremo.parcours import StatutParcours, StatutSoumission, abandonner, demarrer, soumettre
 
 NOW = datetime(2026, 10, 14, 20, 0, 0, tzinfo=timezone.utc)
 YEAR = 2026
@@ -127,7 +127,7 @@ def test_demarrer_deux_fois_conserve_l_heure_de_depart(present: Path) -> None:
 
 def test_demarrer_manche_resolue(present: Path) -> None:
     demarrer(present, "l1", YEAR, _manche(), NOW)
-    register_solve_attempt(present, "l1", YEAR, 1, is_valid=True, now=NOW + timedelta(seconds=30))
+    soumettre(present, "l1", YEAR, _manche(), _manche()["solution"], NOW + timedelta(seconds=30))
 
     assert demarrer(present, "l1", YEAR, _manche(), NOW).statut is StatutParcours.DEJA_RESOLUE
 
@@ -178,3 +178,189 @@ def test_abandonner_manche_verrouillee(present: Path) -> None:
     res = abandonner(present, "l1", YEAR, _manche(unlock_at="2026-10-20 19:00:00"), NOW)
 
     assert res.statut is StatutParcours.MANCHE_VERROUILLEE
+
+
+# --- Soumission ---------------------------------------------------------------------------------
+
+JUSTE = _manche()["solution"]
+FAUSSE = {
+    "Barnabé": {"luge": "Étoile Rouge"},
+    "Clémence": {"luge": "Comète Bleue"},
+}
+INCOMPLETE = {"Barnabé": {"luge": "Comète Bleue"}}
+
+
+def _score(db_path: Path) -> Any:
+    conn = get_db_connection(db_path)
+    try:
+        return conn.execute("SELECT * FROM scores_defi;").fetchone()
+    finally:
+        conn.close()
+
+
+@pytest.fixture
+def demarree(present: Path) -> Path:
+    demarrer(present, "l1", YEAR, _manche(), NOW)
+    return present
+
+
+def test_soumettre_reussite_au_premier_essai_sans_penalite(demarree: Path) -> None:
+    res = soumettre(demarree, "l1", YEAR, _manche(), JUSTE, NOW + timedelta(seconds=42.5))
+
+    assert res.statut is StatutSoumission.RESOLUE
+    assert res.attempts == 1
+    assert res.essais_restants == MAX_ESSAIS_PAR_MANCHE - 1
+    assert res.penalite_cumulee_secondes == 0
+    assert res.time_seconds == 42.5
+    assert res.pseudo_lutin
+    row = _score(demarree)
+    assert (row["solved"], row["attempts"], row["time_seconds"]) == (1, 1, 42.5)
+    assert row["completed_at"] == (NOW + timedelta(seconds=42.5)).isoformat()
+
+
+def test_soumettre_reussite_au_troisieme_essai_ajoute_trente_secondes(demarree: Path) -> None:
+    for i in (10, 20):
+        faux = soumettre(demarree, "l1", YEAR, _manche(), FAUSSE, NOW + timedelta(seconds=i))
+        assert faux.statut is StatutSoumission.FAUSSE
+
+    res = soumettre(demarree, "l1", YEAR, _manche(), JUSTE, NOW + timedelta(seconds=60))
+
+    assert res.statut is StatutSoumission.RESOLUE
+    assert res.attempts == 3
+    assert res.penalite_cumulee_secondes == 2 * PENALITE_ESSAI_FAUX_SECONDES == 30
+    assert res.time_seconds == 90.0
+    assert _score(demarree)["time_seconds"] == 90.0
+
+
+def test_soumettre_fausse_decompte_les_essais_restants(demarree: Path) -> None:
+    res = soumettre(demarree, "l1", YEAR, _manche(), FAUSSE, NOW + timedelta(seconds=10))
+
+    assert res.statut is StatutSoumission.FAUSSE
+    assert res.attempts == 1
+    assert res.essais_restants == 2
+    assert res.essais_max == MAX_ESSAIS_PAR_MANCHE
+    assert res.penalite_essai_secondes == PENALITE_ESSAI_FAUX_SECONDES
+    assert res.penalite_cumulee_secondes == PENALITE_ESSAI_FAUX_SECONDES
+    assert res.time_seconds is None
+    row = _score(demarree)
+    assert (row["attempts"], row["solved"], row["completed_at"]) == (1, 0, None)
+
+
+def test_soumettre_trois_fausses_scelle_la_manche(demarree: Path) -> None:
+    resultats = [soumettre(demarree, "l1", YEAR, _manche(), FAUSSE, NOW + timedelta(seconds=i)) for i in (10, 20, 30)]
+
+    assert [r.statut for r in resultats] == [
+        StatutSoumission.FAUSSE,
+        StatutSoumission.FAUSSE,
+        StatutSoumission.SCELLEE,
+    ]
+    assert resultats[2].attempts == 3
+    assert resultats[2].essais_restants == 0
+    row = _score(demarree)
+    assert (row["solved"], row["time_seconds"], row["attempts"]) == (0, None, 3)
+    assert row["completed_at"] == (NOW + timedelta(seconds=30)).isoformat()
+
+
+def test_soumettre_incomplete_ne_consomme_pas_d_essai(demarree: Path) -> None:
+    res = soumettre(demarree, "l1", YEAR, _manche(), INCOMPLETE, NOW + timedelta(seconds=5))
+
+    assert res.statut is StatutSoumission.INCOMPLETE
+    assert res.attempts == 0
+    assert res.essais_restants == MAX_ESSAIS_PAR_MANCHE
+    assert _score(demarree)["attempts"] == 0
+
+
+def test_soumettre_sur_manche_scellee_est_deja_terminee(demarree: Path) -> None:
+    for i in (10, 20, 30):
+        soumettre(demarree, "l1", YEAR, _manche(), FAUSSE, NOW + timedelta(seconds=i))
+
+    res = soumettre(demarree, "l1", YEAR, _manche(), JUSTE, NOW + timedelta(seconds=40))
+
+    assert res.statut is StatutSoumission.DEJA_TERMINEE
+    assert res.attempts == 3
+    row = _score(demarree)
+    assert (row["solved"], row["attempts"]) == (0, 3)
+
+
+def test_soumettre_sur_manche_resolue_ne_modifie_pas_le_temps(demarree: Path) -> None:
+    soumettre(demarree, "l1", YEAR, _manche(), JUSTE, NOW + timedelta(seconds=42.5))
+
+    res = soumettre(demarree, "l1", YEAR, _manche(), JUSTE, NOW + timedelta(seconds=999))
+
+    assert res.statut is StatutSoumission.DEJA_TERMINEE
+    assert _score(demarree)["time_seconds"] == 42.5
+
+
+def test_soumettre_sur_manche_abandonnee_est_deja_terminee(demarree: Path) -> None:
+    abandonner(demarree, "l1", YEAR, _manche(), NOW + timedelta(seconds=5))
+
+    res = soumettre(demarree, "l1", YEAR, _manche(), JUSTE, NOW + timedelta(seconds=10))
+
+    assert res.statut is StatutSoumission.DEJA_TERMINEE
+    assert _score(demarree)["solved"] == 0
+
+
+def test_soumettre_sans_demarrage(present: Path) -> None:
+    res = soumettre(present, "l1", YEAR, _manche(), JUSTE, NOW)
+
+    assert res.statut is StatutSoumission.NON_DEMARRE
+    assert _count(present, "scores_defi") == 0
+
+
+def test_soumettre_non_demarre_prime_sur_incomplete(present: Path) -> None:
+    assert soumettre(present, "l1", YEAR, _manche(), INCOMPLETE, NOW).statut is StatutSoumission.NON_DEMARRE
+
+
+def test_soumettre_gardes_presence_existence_et_verrouillage(db_path: Path, present: Path) -> None:
+    assert soumettre(present, "l1", YEAR, None, JUSTE, NOW).statut is StatutSoumission.MANCHE_INTROUVABLE
+    verrouillee = _manche(unlock_at="2026-10-20 19:00:00")
+    assert soumettre(present, "l1", YEAR, verrouillee, JUSTE, NOW).statut is StatutSoumission.MANCHE_VERROUILLEE
+    set_lutin_presence(db_path, "l1", YEAR, False)
+    assert soumettre(present, "l1", YEAR, _manche(), JUSTE, NOW).statut is StatutSoumission.PRESENCE_REQUISE
+    assert _count(present, "scores_defi") == 0
+
+
+def test_soumettre_concurrente_fausses_plafonne_a_trois_essais(demarree: Path) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(soumettre, demarree, "l1", YEAR, _manche(), FAUSSE, NOW) for _ in range(20)]
+        statuts = [f.result().statut for f in futures]
+
+    row = _score(demarree)
+    assert row["attempts"] == 3
+    assert row["completed_at"] is not None
+    assert statuts.count(StatutSoumission.SCELLEE) == 1
+    assert statuts.count(StatutSoumission.FAUSSE) == 2
+    assert statuts.count(StatutSoumission.DEJA_TERMINEE) == 17
+
+
+def test_soumission_juste_et_abandon_concurrents_un_seul_gagnant(demarree: Path) -> None:
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    barrier = threading.Barrier(2)
+
+    def resoudre() -> StatutSoumission:
+        barrier.wait()
+        return soumettre(demarree, "l1", YEAR, _manche(), JUSTE, NOW + timedelta(seconds=30)).statut
+
+    def abandon() -> StatutParcours:
+        barrier.wait()
+        return abandonner(demarree, "l1", YEAR, _manche(), NOW + timedelta(seconds=30)).statut
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f_solve = pool.submit(resoudre)
+        f_abandon = pool.submit(abandon)
+        statut_solve, statut_abandon = f_solve.result(), f_abandon.result()
+
+    row = _score(demarree)
+    assert row["completed_at"] is not None
+    if row["solved"]:
+        assert statut_solve is StatutSoumission.RESOLUE
+        assert statut_abandon is StatutParcours.DEJA_TERMINEE
+        assert row["time_seconds"] == 30.0
+    else:
+        assert statut_solve is StatutSoumission.DEJA_TERMINEE
+        assert statut_abandon is StatutParcours.ABANDONNE
+        assert row["time_seconds"] is None

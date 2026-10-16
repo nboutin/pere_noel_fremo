@@ -23,6 +23,7 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 - `try_build_gmail_service` partagé par l'Annonce et la Révélation (#36).
 - Message explicite pour une grille de Défi invalide au lieu d'une grille vide (#36).
 - Nouveau module `parcours` (`demarrer`, `abandonner`) : présence, déverrouillage, validité de la grille, pseudo et écriture de `scores_defi` s'enchaînent dans une seule transaction ; les routes start et abandon de l'Espace Lutin ne portent plus aucune garde et traduisent le résultat en code HTTP, sans changement de codes ni de messages (#58).
+- `parcours.soumettre` internalise la Soumission : complétude, validation, plafond d'essais, pénalité et scellement s'enchaînent dans une seule transaction, avec les seules constantes de `defi.py` ; `register_solve_attempt` est supprimée et la route solve ne fait plus que traduire le `ResultatSoumission`, sans changement de réponse JSON (#59).
 - Les routes de l'Espace Lutin sont désormais synchrones (`def`) et s'exécutent dans le pool de threads de FastAPI au lieu de bloquer la boucle d'événements avec SQLite et la lecture des YAML (#53).
 - Grilles : les manches illisibles sont désormais journalisées (WARNING) au lieu d'être ignorées en silence, les noms de jours et de mois en français sont factorisés avec `helper.py` et les rejets du validateur de grille sont couverts par des tests (#51).
 
