@@ -7,6 +7,8 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-16
+
 ### Added
 
 - Clôture du Défi du lutin après le Repas de Noël : avec une `date_repas`, le démarrage, la Soumission et l'abandon sont refusés (`DEFI_CLOS`, HTTP 403) dès minuit à Paris le lendemain du Repas, et les manches non terminées s'affichent comme closes (`StatutManche.CLOSE`) ; ADR-0007 amendée. Le compte à rebours du Repas se calcule désormais avec l'horloge de l'application en heure de Paris (#68).
