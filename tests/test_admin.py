@@ -373,3 +373,246 @@ def test_logout_via_get_method(admin_client: TestClient) -> None:
     resp = admin_client.get("/admin/logout", follow_redirects=False)
     assert resp.status_code == 303
     assert resp.headers["location"] == "/admin/login"
+
+
+# ==============================================================================
+# 6. Espace Admin : Interface web, Bandeau de synthèse, Filtres et Admin aveugle
+# ==============================================================================
+
+
+@pytest.fixture
+def rich_admin_db(tmp_path: Path) -> tuple[Path, dict[str, str]]:
+    db_file = tmp_path / "fremo_rich_admin.db"
+    init_db(db_file)
+    from pere_noel_fremo.database import get_db_connection
+    from pere_noel_fremo.tokens import create_or_get_token, mark_token_sent
+
+    conn = get_db_connection(db_file)
+    tokens: dict[str, str] = {}
+    with conn:
+        conn.execute("INSERT INTO editions (year, status) VALUES (2025, 'revealed');")
+        conn.execute("INSERT INTO editions (year, status) VALUES (2026, 'announced');")
+
+        # Lutins (4 actifs, 1 inactif)
+        conn.execute(
+            "INSERT INTO lutins (id, fullname, email, is_active) "
+            "VALUES ('alice', 'Alice Martin', 'alice@test.fr', 1);"
+        )
+        conn.execute(
+            "INSERT INTO lutins (id, fullname, email, is_active) "
+            "VALUES ('bob', 'Bob Dupont', 'bob@test.fr', 1);"
+        )
+        conn.execute(
+            "INSERT INTO lutins (id, fullname, email, is_active) "
+            "VALUES ('charlie', 'Charlie Durand', 'charlie@test.fr', 1);"
+        )
+        conn.execute(
+            "INSERT INTO lutins (id, fullname, email, is_active) "
+            "VALUES ('denis', 'Denis Inactif', 'denis@test.fr', 0);"
+        )
+        conn.execute(
+            "INSERT INTO lutins (id, fullname, email, is_active) "
+            "VALUES ('eve', 'Eve Lambert', 'eve@test.fr', 1);"
+        )
+
+        # 2026 Presences: Alice=confirme, Bob=absent, Charlie=en attente (aucun enregistrement), Eve=confirme
+        conn.execute(
+            "INSERT INTO presences (lutin_id, year, present, updated_at) "
+            "VALUES ('alice', 2026, 1, '2026-11-01 10:00:00');"
+        )
+        conn.execute(
+            "INSERT INTO presences (lutin_id, year, present, updated_at) "
+            "VALUES ('bob', 2026, 0, '2026-11-02 11:00:00');"
+        )
+        conn.execute(
+            "INSERT INTO presences (lutin_id, year, present, updated_at) "
+            "VALUES ('eve', 2026, 1, '2026-11-03 12:00:00');"
+        )
+
+        # 2025 Presences: Alice=absent
+        conn.execute(
+            "INSERT INTO presences (lutin_id, year, present, updated_at) "
+            "VALUES ('alice', 2025, 0, '2025-11-01 10:00:00');"
+        )
+
+        # 2026 Scores Défi:
+        # Alice: résolu manche 1, 42.5s, 2 tentatives
+        conn.execute("""
+            INSERT INTO scores_defi (
+                lutin_id, year, manche_id, pseudo_lutin, started_at, solved, time_seconds, completed_at, attempts
+            ) VALUES ('alice', 2026, 1, 'LutinAgile', '2026-12-01 10:00:00', 1, 42.5, '2026-12-01 10:00:42', 2);
+        """)
+        # Bob: en cours (commencé mais non terminé)
+        conn.execute("""
+            INSERT INTO scores_defi (
+                lutin_id, year, manche_id, pseudo_lutin, started_at, solved, time_seconds, completed_at, attempts
+            ) VALUES ('bob', 2026, 1, 'LutinRapide', '2026-12-01 10:00:00', 0, NULL, NULL, 1);
+        """)
+        # Eve: abandonné (terminé sans résoudre)
+        conn.execute("""
+            INSERT INTO scores_defi (
+                lutin_id, year, manche_id, pseudo_lutin, started_at, solved, time_seconds, completed_at, attempts
+            ) VALUES ('eve', 2026, 1, 'LutinMalicieux', '2026-12-01 10:00:00', 0, NULL, '2026-12-01 10:10:00', 3);
+        """)
+
+        # Attributions secrètes en 2026 (Alice offre à Bob)
+        conn.execute("INSERT INTO attributions (year, donneur_id, beneficiaire_id) VALUES (2026, 'alice', 'bob');")
+
+    conn.close()
+
+    tok_alice = create_or_get_token(db_file, "alice", 2026)
+    mark_token_sent(db_file, tok_alice)
+    tok_bob = create_or_get_token(db_file, "bob", 2026)
+    tokens["alice"] = tok_alice
+    tokens["bob"] = tok_bob
+
+    return db_file, tokens
+
+
+@pytest.fixture
+def rich_admin_client(
+    rich_admin_db: tuple[Path, dict[str, str]], mutable_clock: list[datetime]
+) -> tuple[TestClient, dict[str, str]]:
+    db_file, tokens = rich_admin_db
+    app = create_app(
+        db_path=db_file,
+        clock=lambda: mutable_clock[0],
+        admin_password="secret_admin_test_password",
+        admin_session_secret="test_session_secret_at_least_32_bytes_long",
+    )
+    return TestClient(app, base_url="https://testserver"), tokens
+
+
+def test_admin_dashboard_rendering_and_metrics(
+    rich_admin_client: tuple[TestClient, dict[str, str]],
+) -> None:
+    client, tokens = rich_admin_client
+
+    # Connexion préalable
+    login_resp = client.post(
+        "/admin/login",
+        data={"password": "secret_admin_test_password"},
+        follow_redirects=False,
+    )
+    assert login_resp.status_code == 303
+
+    # Consultation de /admin (année par défaut: 2026)
+    resp = client.get("/admin")
+    assert resp.status_code == 200
+    html = resp.text
+
+    # 1. En-tête et navigation
+    assert "🎅 Espace Admin 🎄" in html
+    assert "Suivi confidentiel de l'Édition" in html
+    assert "Se déconnecter" in html
+    assert '<select id="select-year"' in html
+    assert '<option value="2026" selected>2026</option>' in html
+    assert '<option value="2025" >2025</option>' in html
+
+    # 2. Cartes de synthèse (métriques)
+    assert "Inscrits" in html
+    assert "Confirmés" in html
+    assert "Absents" in html
+    assert "En attente" in html
+    assert "Liens magiques envoyés" in html
+    assert "Résolution du Défi" in html
+
+    # Valeurs attendues pour 2026 (4 lutins actifs)
+    assert ">4</div>" in html  # Total actifs
+    assert ">2</div>" in html  # Confirmés (Alice, Eve)
+    assert ">1</div>" in html  # Absents (Bob) et En attente (Charlie)
+    assert "25.0%" in html  # Taux résolution défi (1 / 4)
+
+    # 3. Barre de filtres
+    assert "Tous (5)" in html
+    assert "Confirmés (2)" in html
+    assert "Absents (1)" in html
+    assert "En attente (1)" in html
+    assert "filterLutins('all')" in html
+    assert "filterLutins('confirme')" in html
+    assert "filterLutins('absent')" in html
+    assert "filterLutins('en_attente')" in html
+
+    # 4. Badges présence
+    assert "✅ Confirmé" in html
+    assert "❌ Absent" in html
+    assert "⏳ En attente" in html
+
+    # 5. Badges Défi
+    assert "🏆 Résolu" in html
+    assert "42.5s" in html
+    assert "(2 tent.)" in html
+    assert "⏳ En cours" in html
+    assert "🚫 Abandonné" in html
+    assert "⚪ Non commencé" in html
+
+    # 6. Comptes Actifs / Inactifs
+    assert "Denis Inactif" in html
+    assert "Inactif" in html
+
+    # 7. Lien magique & Bouton Copier l'URL
+    assert "✉️ Envoyé" in html
+    assert "Non envoyé" in html
+    assert "Copier l'URL" in html
+    assert f"https://testserver/lutin/{tokens['alice']}" in html
+
+
+def test_admin_dashboard_year_switching(
+    rich_admin_client: tuple[TestClient, dict[str, str]],
+) -> None:
+    client, _ = rich_admin_client
+    client.post(
+        "/admin/login",
+        data={"password": "secret_admin_test_password"},
+        follow_redirects=False,
+    )
+
+    resp_2025 = client.get("/admin?year=2025")
+    assert resp_2025.status_code == 200
+    html = resp_2025.text
+
+    assert '<option value="2025" selected>2025</option>' in html
+    assert "Édition 2025" in html
+    assert "revealed" in html
+
+
+def test_blind_admin_strict_guarantee(
+    rich_admin_client: tuple[TestClient, dict[str, str]],
+) -> None:
+    client, _ = rich_admin_client
+    client.post(
+        "/admin/login",
+        data={"password": "secret_admin_test_password"},
+        follow_redirects=False,
+    )
+
+    resp = client.get("/admin")
+    assert resp.status_code == 200
+    html = resp.text.lower()
+
+    # Garantie absolue d'Admin aveugle (ADR-0005, ADR-0013) :
+    # Aucun terme ni association de table attributions ne doit être présent
+    assert "attributions" not in html
+    assert "donneur" not in html
+    assert "beneficiaire" not in html
+
+    # Vérification que le couple secret 'Alice -> Bob' n'est aucunement exposé
+    assert "alice martin -> bob dupont" not in html
+    assert "bob dupont (bénéficiaire)" not in html
+
+
+def test_public_pages_do_not_leak_admin(
+    rich_admin_client: tuple[TestClient, dict[str, str]],
+) -> None:
+    client, tokens = rich_admin_client
+
+    # 1. Page publique de classement des scores (/scores)
+    resp_scores = client.get("/scores")
+    assert resp_scores.status_code == 200
+    assert "/admin" not in resp_scores.text
+
+    # 2. Page publique de l'Espace Lutin (/lutin/{token})
+    tok = tokens["alice"]
+    resp_lutin = client.get(f"/lutin/{tok}")
+    assert resp_lutin.status_code == 200
+    assert "/admin" not in resp_lutin.text

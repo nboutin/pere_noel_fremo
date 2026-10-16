@@ -3,10 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Espace Admin - Père Noël de la Frémo</title>
+    <title>Espace Admin - Édition {{ selected_year }} - Père Noël de la Frémo</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
-        .admin-nav {
+        .container-admin {
+            width: 100%;
+            max-width: 1100px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .admin-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -15,10 +22,53 @@
             padding-bottom: 1rem;
             border-bottom: 1px solid var(--color-card-border);
         }
-        .admin-nav h1 {
-            font-size: 1.5rem;
+        .admin-header-title {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        .admin-header h1 {
+            font-size: 1.75rem;
             color: var(--color-gold);
             margin: 0;
+        }
+        .admin-subtitle {
+            color: var(--color-text-muted);
+            font-size: 0.95rem;
+            margin: 0;
+        }
+        .admin-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .year-selector-wrap {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: #0f172a;
+            border: 1px solid var(--color-card-border);
+            padding: 0.35rem 0.75rem;
+            border-radius: 8px;
+        }
+        .year-selector-wrap label {
+            font-size: 0.85rem;
+            color: var(--color-text-muted);
+            font-weight: 600;
+        }
+        .year-select {
+            background: transparent;
+            color: var(--color-gold);
+            border: none;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            outline: none;
+        }
+        .year-select option {
+            background-color: var(--color-card);
+            color: var(--color-text);
         }
         .btn-logout {
             background-color: transparent;
@@ -34,24 +84,494 @@
             background-color: rgba(239, 68, 68, 0.15);
             border-color: #f87171;
         }
+
+        /* Bandeau de synthèse (Cards) */
+        .metrics-banner {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+        .metric-card {
+            background-color: var(--color-card);
+            border: 1px solid var(--color-card-border);
+            border-radius: 10px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+            transition: transform 0.15s ease;
+        }
+        .metric-card:hover {
+            transform: translateY(-2px);
+        }
+        .metric-label {
+            font-size: 0.8rem;
+            color: var(--color-text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+        }
+        .metric-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1.1;
+        }
+        .metric-sub {
+            font-size: 0.75rem;
+            color: var(--color-text-muted);
+        }
+        .metric-val-green { color: #4ade80; }
+        .metric-val-red { color: #f87171; }
+        .metric-val-orange { color: #fbbf24; }
+        .metric-val-gold { color: var(--color-gold); }
+
+        /* Barre de filtres */
+        .filter-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            background-color: var(--color-card);
+            border: 1px solid var(--color-card-border);
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+        }
+        .filter-tabs {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .btn-filter {
+            background-color: #0f172a;
+            color: var(--color-text-muted);
+            border: 1px solid var(--color-card-border);
+            padding: 0.45rem 0.9rem;
+            font-size: 0.85rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-filter:hover {
+            color: #fff;
+            border-color: #475569;
+        }
+        .btn-filter.active {
+            background-color: var(--color-gold);
+            color: #0f172a;
+            border-color: var(--color-gold);
+            font-weight: bold;
+        }
+        .filter-count {
+            font-size: 0.85rem;
+            color: var(--color-text-muted);
+        }
+
+        /* Tableau détaillé */
+        .table-container {
+            background-color: var(--color-card);
+            border: 1px solid var(--color-card-border);
+            border-radius: 12px;
+            overflow-x: auto;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+        .admin-table th {
+            background-color: #0f172a;
+            color: var(--color-text-muted);
+            padding: 0.85rem 1rem;
+            font-weight: 600;
+            border-bottom: 1px solid var(--color-card-border);
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+        .admin-table td {
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+            vertical-align: middle;
+        }
+        .admin-table tbody tr:hover {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+        .admin-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.25rem 0.6rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .badge-confirme {
+            background-color: rgba(22, 163, 74, 0.2);
+            color: #4ade80;
+            border: 1px solid rgba(22, 163, 74, 0.4);
+        }
+        .badge-absent {
+            background-color: rgba(220, 38, 38, 0.2);
+            color: #f87171;
+            border: 1px solid rgba(220, 38, 38, 0.4);
+        }
+        .badge-attente {
+            background-color: rgba(245, 158, 11, 0.2);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.4);
+        }
+        .badge-resolu {
+            background-color: rgba(22, 163, 74, 0.2);
+            color: #4ade80;
+            border: 1px solid rgba(22, 163, 74, 0.4);
+        }
+        .badge-en-cours {
+            background-color: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.4);
+        }
+        .badge-abandon {
+            background-color: rgba(148, 163, 184, 0.15);
+            color: #94a3b8;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+        }
+        .badge-non-commence {
+            background-color: rgba(100, 116, 139, 0.15);
+            color: #64748b;
+            border: 1px solid rgba(100, 116, 139, 0.3);
+        }
+        .badge-actif {
+            background-color: rgba(34, 197, 94, 0.15);
+            color: #86efac;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        .badge-inactif {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        /* Colonne Nom */
+        .lutin-fullname {
+            font-weight: 600;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .lutin-email {
+            font-size: 0.8rem;
+            color: var(--color-text-muted);
+            margin-top: 0.15rem;
+        }
+
+        /* Bouton Copie */
+        .token-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+        .token-status-line {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .btn-copy {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            background-color: #0f172a;
+            color: var(--color-text-muted);
+            border: 1px solid var(--color-card-border);
+            padding: 0.3rem 0.65rem;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-copy:hover {
+            color: #fff;
+            border-color: var(--color-gold);
+            background-color: #1e293b;
+        }
+        .btn-copy.btn-copied {
+            background-color: #16a34a;
+            color: #fff;
+            border-color: #16a34a;
+        }
+        .token-sent-date {
+            font-size: 0.75rem;
+            color: var(--color-text-muted);
+        }
+        .defi-meta {
+            font-size: 0.78rem;
+            color: var(--color-text-muted);
+            margin-top: 0.2rem;
+        }
+        .empty-state {
+            padding: 3rem 1rem;
+            text-align: center;
+            color: var(--color-text-muted);
+        }
     </style>
 </head>
 <body>
-    <div class="container" style="max-width: 900px;">
-        <header class="admin-nav">
-            <div>
+    <div class="container container-admin">
+        <header class="admin-header">
+            <div class="admin-header-title">
                 <h1>🎅 Espace Admin 🎄</h1>
-                <p style="color: var(--color-text-muted); font-size: 0.9rem;">Suivi confidentiel de l'Édition</p>
+                <p class="admin-subtitle">Suivi confidentiel de l'Édition</p>
             </div>
-            <form method="post" action="/admin/logout">
-                <button type="submit" class="btn-logout">Se déconnecter</button>
-            </form>
+            <div class="admin-header-actions">
+                <div class="year-selector-wrap">
+                    <label for="select-year">Édition :</label>
+                    <select id="select-year" class="year-select" onchange="window.location.href='/admin?year=' + this.value">
+                        {% for y in available_years %}
+                            <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <form method="post" action="/admin/logout" style="margin: 0;">
+                    <button type="submit" class="btn-logout">Se déconnecter</button>
+                </form>
+            </div>
         </header>
 
-        <section class="card">
-            <h2>Bienvenue dans l'Espace Admin</h2>
-            <p>Session active et sécurisée.</p>
+        <section class="card" style="padding: 1rem 1.25rem;">
+            <p style="margin: 0; color: var(--color-text-muted); font-size: 0.95rem;">
+                Bienvenue dans l'Espace Admin. Consultation confidentielle et anonymisée de l'Édition {{ selected_year }} (statut : <strong style="color: var(--color-gold);">{{ summary.status }}</strong>).
+            </p>
+        </section>
+
+        <!-- Bandeau de synthèse -->
+        <section class="metrics-banner">
+            <div class="metric-card">
+                <div class="metric-label">Inscrits</div>
+                <div class="metric-value">{{ summary.total_lutins }}</div>
+                {% if summary.metrics.inactifs > 0 %}
+                    <div class="metric-sub">{{ summary.metrics.total_inscrits }} comptes ({{ summary.metrics.inactifs }} inactif{{ 's' if summary.metrics.inactifs > 1 else '' }})</div>
+                {% else %}
+                    <div class="metric-sub">Lutins actifs</div>
+                {% endif %}
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Confirmés</div>
+                <div class="metric-value metric-val-green">{{ summary.confirmes }}</div>
+                <div class="metric-sub">Présents au repas</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Absents</div>
+                <div class="metric-value metric-val-red">{{ summary.absents }}</div>
+                <div class="metric-sub">Indiqués absents</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">En attente</div>
+                <div class="metric-value metric-val-orange">{{ summary.en_attente }}</div>
+                <div class="metric-sub">Sans réponse</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Liens magiques envoyés</div>
+                <div class="metric-value metric-val-gold">{{ summary.tokens_envoyes }} <span style="font-size: 1rem; color: var(--color-text-muted); font-weight: normal;">/ {{ summary.total_lutins }}</span></div>
+                <div class="metric-sub">Invitations expédiées</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Résolution du Défi</div>
+                <div class="metric-value metric-val-gold">{{ summary.taux_resolution_defi }}%</div>
+                <div class="metric-sub">{{ summary.defi_resolus }} résolu{{ 's' if summary.defi_resolus > 1 else '' }}</div>
+            </div>
+        </section>
+
+        <!-- Barre de filtres -->
+        <section class="filter-section">
+            <div class="filter-tabs">
+                <button type="button" class="btn-filter active" data-filter="all" onclick="filterLutins('all')">
+                    Tous ({{ summary.lutins|length }})
+                </button>
+                <button type="button" class="btn-filter" data-filter="confirme" onclick="filterLutins('confirme')">
+                    Confirmés ({{ summary.confirmes }})
+                </button>
+                <button type="button" class="btn-filter" data-filter="absent" onclick="filterLutins('absent')">
+                    Absents ({{ summary.absents }})
+                </button>
+                <button type="button" class="btn-filter" data-filter="en_attente" onclick="filterLutins('en_attente')">
+                    En attente ({{ summary.en_attente }})
+                </button>
+            </div>
+            <div class="filter-count" id="visible-count">
+                Affichage : {{ summary.lutins|length }} lutin{{ 's' if summary.lutins|length > 1 else '' }}
+            </div>
+        </section>
+
+        <!-- Tableau détaillé des Lutins -->
+        <section class="table-container">
+            {% if summary.lutins %}
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Nom</th>
+                            <th>Présence</th>
+                            <th>Lien magique</th>
+                            <th>Défi du lutin</th>
+                            <th>Compte</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for lutin in summary.lutins %}
+                            <tr class="lutin-row" data-presence="{{ lutin.presence.statut }}">
+                                <td>
+                                    <div class="lutin-fullname">
+                                        {{ lutin.fullname }}
+                                        {% if not lutin.is_active %}
+                                            <span class="badge badge-inactif">Inactif</span>
+                                        {% endif %}
+                                    </div>
+                                    {% if lutin.email %}
+                                        <div class="lutin-email">{{ lutin.email }}</div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if lutin.presence.statut == 'confirme' %}
+                                        <span class="badge badge-confirme">✅ Confirmé</span>
+                                    {% elif lutin.presence.statut == 'absent' %}
+                                        <span class="badge badge-absent">❌ Absent</span>
+                                    {% else %}
+                                        <span class="badge badge-attente">⏳ En attente</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="token-cell">
+                                        <div class="token-status-line">
+                                            {% if lutin.token_sent %}
+                                                <span style="color: #4ade80; font-weight: 500;">✉️ Envoyé</span>
+                                            {% else %}
+                                                <span style="color: var(--color-text-muted);">Non envoyé</span>
+                                            {% endif %}
+                                            {% if lutin.token_value %}
+                                                <button type="button" class="btn-copy" onclick="copyMagicLink(this, '{{ base_url }}/lutin/{{ lutin.token_value }}')">
+                                                    📋 Copier l'URL
+                                                </button>
+                                            {% endif %}
+                                        </div>
+                                        {% if lutin.token_sent_at %}
+                                            <div class="token-sent-date">Le {{ lutin.token_sent_at }}</div>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if lutin.defi.statut == 'resolu' %}
+                                        <span class="badge badge-resolu">🏆 Résolu</span>
+                                        <div class="defi-meta">
+                                            {% if lutin.defi.time_seconds is not none %}
+                                                {{ "%.1f"|format(lutin.defi.time_seconds) }}s
+                                            {% endif %}
+                                            {% if lutin.defi.attempts %}
+                                                ({{ lutin.defi.attempts }} tent.)
+                                            {% endif %}
+                                        </div>
+                                    {% elif lutin.defi.statut == 'en_cours' %}
+                                        <span class="badge badge-en-cours">⏳ En cours</span>
+                                    {% elif lutin.defi.statut == 'abandonne' %}
+                                        <span class="badge badge-abandon">🚫 Abandonné</span>
+                                    {% else %}
+                                        <span class="badge badge-non-commence">⚪ Non commencé</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if lutin.is_active %}
+                                        <span class="badge badge-actif">Actif</span>
+                                    {% else %}
+                                        <span class="badge badge-inactif">Inactif</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="empty-state">
+                    <p>Aucun lutin enregistré dans la base de données.</p>
+                </div>
+            {% endif %}
         </section>
     </div>
+
+    <script>
+        function filterLutins(status) {
+            document.querySelectorAll('.btn-filter').forEach(function(btn) {
+                if (btn.getAttribute('data-filter') === status) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+
+            const rows = document.querySelectorAll('.lutin-row');
+            let visible = 0;
+            rows.forEach(function(row) {
+                const presence = row.getAttribute('data-presence');
+                if (status === 'all' || presence === status) {
+                    row.style.display = '';
+                    visible++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            const countEl = document.getElementById('visible-count');
+            if (countEl) {
+                countEl.textContent = 'Affichage : ' + visible + ' lutin' + (visible > 1 ? 's' : '');
+            }
+        }
+
+        function copyMagicLink(button, url) {
+            function onSuccess() {
+                const originalText = button.innerHTML;
+                button.innerText = 'Copié !';
+                button.classList.add('btn-copied');
+                setTimeout(function() {
+                    button.innerHTML = originalText;
+                    button.classList.remove('btn-copied');
+                }, 2000);
+            }
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(onSuccess).catch(function(err) {
+                    console.error('Erreur clipboard', err);
+                    fallbackCopy(url, onSuccess);
+                });
+            } else {
+                fallbackCopy(url, onSuccess);
+            }
+        }
+
+        function fallbackCopy(text, cb) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            try {
+                document.execCommand('copy');
+                cb();
+            } catch (e) {
+                console.error('Erreur execCommand copy', e);
+            }
+            document.body.removeChild(ta);
+        }
+    </script>
 </body>
 </html>

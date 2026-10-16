@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from .admin import get_admin_edition_summary
 from .config import (
     PARIS_TZ,
     default_db_path,
@@ -689,7 +690,7 @@ def create_app(
         return resp
 
     @app.get("/admin", response_class=HTMLResponse)
-    def get_espace_admin(request: Request) -> Any:
+    def get_espace_admin(request: Request, year: int | None = None) -> Any:
         if is_tailscale_funnel_request(request):
             return templates.TemplateResponse(
                 request=request,
@@ -701,10 +702,21 @@ def create_app(
         if not token or not verify_session_token(token, session_secret, now_ts, max_age=SESSION_DURATION_SECONDS):
             return RedirectResponse(url="/admin/login", status_code=303)
 
+        target_year = year if year is not None else annee_courante(db_path)
+        summary = get_admin_edition_summary(db_path, target_year, res_dir=res_dir)
+        available_years = summary.get("available_years", [target_year])
+        base_url = str(request.base_url).rstrip("/")
+
         return templates.TemplateResponse(
             request=request,
             name="espace_admin.html",
-            context={"request": request},
+            context={
+                "request": request,
+                "summary": summary,
+                "selected_year": target_year,
+                "available_years": available_years,
+                "base_url": base_url,
+            },
         )
 
     return app
