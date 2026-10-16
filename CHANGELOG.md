@@ -18,6 +18,8 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 - Les routes de l'Espace Lutin sont désormais synchrones (`def`) et s'exécutent dans le pool de threads de FastAPI au lieu de bloquer la boucle d'événements avec SQLite et la lecture des YAML (#53).
 - Grilles : les manches illisibles sont désormais journalisées (WARNING) au lieu d'être ignorées en silence, les noms de jours et de mois en français sont factorisés avec `helper.py` et les rejets du validateur de grille sont couverts par des tests (#51).
 
+- Le tirage audite les paires en mémoire (`audit_pairs`) avant toute écriture au lieu de sceller puis restaurer ; `snapshot_attributions` et `restore_attributions` sont supprimées (#50).
+
 ### Fixed
 
 - `get_or_assign_pseudo` ne valide plus la transaction de l'appelant : l'attribution du pseudo et la création de la ligne `scores_defi` restent atomiques dans `start_score_defi` (#49).

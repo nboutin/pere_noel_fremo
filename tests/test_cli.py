@@ -975,7 +975,7 @@ def test_cli_tirage_invalid_audit_shows_categories_without_ids(
     for i in ids:
         set_lutin_presence(db_path, i, 2026, present=True)
 
-    def fake_audit(db_path: Path | str, year: int) -> AuditResult:
+    def fake_audit(*args: object, **kwargs: object) -> AuditResult:
         return AuditResult(
             is_valid=False,
             total_lutins=4,
@@ -983,7 +983,7 @@ def test_cli_tirage_invalid_audit_shows_categories_without_ids(
             error_categories=["Violation d'exclusion"],
         )
 
-    with patch.object(tirage_module, "audit_tirage", fake_audit):
+    with patch.object(tirage_module, "audit_pairs", fake_audit):
         ret = main(["tirage", "--db-path", str(db_path), "--year", "2026"])
 
     assert ret == 1

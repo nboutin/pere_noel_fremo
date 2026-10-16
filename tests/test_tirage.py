@@ -367,24 +367,13 @@ def test_force_retirage_replaces_whole_year_without_stale_rows(test_db_setup: tu
     assert audit_tirage(db_path, year=2026).is_valid is True
 
 
-def test_run_tirage_fails_when_audit_invalid(
-    test_db_setup: tuple[Path, Path, Path], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from pere_noel_fremo import tirage as tirage_module
-
-    db_path, _, _ = test_db_setup
-    _confirm_all(db_path, 2026, ["lutin_1", "lutin_2", "lutin_3", "lutin_4"])
-    monkeypatch.setattr(
-        tirage_module,
-        "audit_tirage",
-        lambda db_path, year: AuditResult(is_valid=False, total_lutins=4, errors=["Violation d'exclusion"]),
-    )
-    result = tirage_module.run_tirage(db_path=db_path, year=2026, cheaters=[])
-    assert result.success is False
-    assert "audit" in result.message.lower()
-
-
-def _fake_invalid_audit(db_path: Path | str, year: int) -> AuditResult:
+def _fake_invalid_pairs_audit(
+    confirmed_lutins: dict[str, dict[str, Any]],
+    pairs: dict[str, str],
+    exclusions: dict[str, list[str]],
+    history: dict[str, list[str]],
+    **kwargs: object,
+) -> AuditResult:
     return AuditResult(
         is_valid=False,
         total_lutins=4,
@@ -393,7 +382,11 @@ def _fake_invalid_audit(db_path: Path | str, year: int) -> AuditResult:
     )
 
 
-def test_invalid_audit_rolls_back_fresh_draw(
+def _forbid_save(*args: object, **kwargs: object) -> None:
+    raise AssertionError("save_attributions ne doit pas être appelée quand l'audit est invalide")
+
+
+def test_invalid_audit_writes_nothing_on_fresh_draw(
     test_db_setup: tuple[Path, Path, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from pere_noel_fremo import tirage as tirage_module
@@ -401,13 +394,15 @@ def test_invalid_audit_rolls_back_fresh_draw(
     db_path, _, _ = test_db_setup
     _confirm_all(db_path, 2026, ["lutin_1", "lutin_2", "lutin_3", "lutin_4"])
     status_before = get_edition_status(db_path, 2026)
-    monkeypatch.setattr(tirage_module, "audit_tirage", _fake_invalid_audit)
+    monkeypatch.setattr(tirage_module, "audit_pairs", _fake_invalid_pairs_audit)
+    monkeypatch.setattr(tirage_module, "save_attributions", _forbid_save)
 
     result = tirage_module.run_tirage(db_path=db_path, year=2026, cheaters=[])
 
     assert result.success is False
+    assert "audit" in result.message.lower()
     assert _dump_year(db_path, 2026) == []
-    assert get_edition_status(db_path, 2026) == (status_before or "draft")
+    assert get_edition_status(db_path, 2026) == status_before
     assert get_edition_status(db_path, 2026) != "drawn"
     # catégories affichées, sans identifiant de Lutin
     assert "Violation d'exclusion (x2)" in result.message
@@ -415,7 +410,7 @@ def test_invalid_audit_rolls_back_fresh_draw(
     assert "lutin_" not in result.message
 
 
-def test_invalid_audit_on_force_retirage_restores_previous_draw(
+def test_invalid_audit_on_force_retirage_leaves_previous_draw_untouched(
     test_db_setup: tuple[Path, Path, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from pere_noel_fremo import tirage as tirage_module
@@ -425,7 +420,8 @@ def test_invalid_audit_on_force_retirage_restores_previous_draw(
     assert run_tirage(db_path=db_path, year=2026, cheaters=[]).success is True
     set_edition_status(db_path, 2026, "revealed")
     before = _dump_year(db_path, 2026)
-    monkeypatch.setattr(tirage_module, "audit_tirage", _fake_invalid_audit)
+    monkeypatch.setattr(tirage_module, "audit_pairs", _fake_invalid_pairs_audit)
+    monkeypatch.setattr(tirage_module, "save_attributions", _forbid_save)
 
     result = tirage_module.run_tirage(db_path=db_path, year=2026, cheaters=[], force=True)
 
@@ -443,8 +439,8 @@ def test_invalid_audit_without_categories_reports_unspecified(
     _confirm_all(db_path, 2026, ["lutin_1", "lutin_2", "lutin_3", "lutin_4"])
     monkeypatch.setattr(
         tirage_module,
-        "audit_tirage",
-        lambda db_path, year: AuditResult(is_valid=False, total_lutins=4, errors=["x"]),
+        "audit_pairs",
+        lambda *args, **kwargs: AuditResult(is_valid=False, total_lutins=4, errors=["x"]),
     )
     result = tirage_module.run_tirage(db_path=db_path, year=2026, cheaters=[])
     assert "non précisées" in result.message

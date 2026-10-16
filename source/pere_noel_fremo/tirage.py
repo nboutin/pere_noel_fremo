@@ -5,13 +5,11 @@ from pathlib import Path
 from random import randint
 from typing import Any
 
-from .audit import audit_tirage
+from .audit import audit_pairs
 from .database import (
     get_confirmed_lutins,
     get_edition_status,
-    restore_attributions,
     save_attributions,
-    snapshot_attributions,
 )
 
 logger = logging.getLogger(__name__)
@@ -163,7 +161,8 @@ def run_tirage(
     """Extrait les Lutins confirmés présents, applique le solveur, scelle en SQLite et retourne le résultat.
 
     Le tirage est une transition d'état gardée : sur une édition `drawn` ou `revealed`, il est refusé
-    (sans écriture) sauf si `force` est vrai. Après scellement, un audit est lancé automatiquement.
+    (sans écriture) sauf si `force` est vrai. Les paires sont auditées en mémoire avant toute écriture ;
+    seul un audit valide est scellé.
     """
     status = get_edition_status(db_path, year)
     if status in ("drawn", "revealed") and not force and not dry_run:
@@ -197,28 +196,28 @@ def run_tirage(
             message="Impossible de trouver une combinaison valide satisfaisant toutes les contraintes.",
         )
 
+    # Audit en mémoire avant toute écriture : un tirage invalide n'atteint jamais la base.
+    exclusions = {lutin_id: list(params.get("exclude") or []) for lutin_id, params in confirmed_lutins.items()}
+    history = {lutin_id: list(params.get("history") or []) for lutin_id, params in confirmed_lutins.items()}
+    audit = audit_pairs(confirmed_lutins, pairs, exclusions, history, year=year)
+    if not audit.is_valid:
+        # Les erreurs détaillées nomment des paires : on n'expose que des catégories sans identifiant.
+        categories = _summarize_categories(audit.error_categories)
+        logger.error(f"Audit du tirage {year} invalide ({len(audit.errors)} erreur(s)) : {categories}")
+        return TirageResult(
+            success=False,
+            year=year,
+            confirmed_count=confirmed_count,
+            message=(
+                f"Audit du tirage invalide ({len(audit.errors)} erreur(s) détectée(s)) ; "
+                "rien n'a été écrit, l'état précédent est inchangé. "
+                f"Catégories : {categories}. "
+                "Les identifiants ne sont pas affichés pour préserver l'Admin aveugle."
+            ),
+        )
+
     if not dry_run:
-        previous_attributions = snapshot_attributions(db_path, year)
-        previous_status = status
         save_attributions(db_path, year, pairs)
-        audit = audit_tirage(db_path, year)
-        if not audit.is_valid:
-            # Le tirage invalide ne doit jamais rester visible des Lutins : retour à l'état antérieur.
-            restore_attributions(db_path, year, previous_attributions, previous_status)
-            # Les erreurs détaillées nomment des paires : on n'expose que des catégories sans identifiant.
-            categories = _summarize_categories(audit.error_categories)
-            logger.error(f"Audit du tirage {year} invalide ({len(audit.errors)} erreur(s)) : {categories}")
-            return TirageResult(
-                success=False,
-                year=year,
-                confirmed_count=confirmed_count,
-                message=(
-                    f"Audit du tirage invalide ({len(audit.errors)} erreur(s) détectée(s)) ; "
-                    "le tirage a été annulé, l'état précédent est restauré. "
-                    f"Catégories : {categories}. "
-                    "Les identifiants ne sont pas affichés pour préserver l'Admin aveugle."
-                ),
-            )
 
     # En mode admin aveugle, logger les informations d'exécution sans divulguer les paires
     logger.info(

@@ -6,7 +6,7 @@ from .database import (
     get_attributions,
     get_confirmed_lutins,
     get_lutin_exclusions,
-    get_lutin_history,
+    get_past_attributions,
 )
 
 
@@ -29,14 +29,34 @@ class AuditResult:
 
 
 def audit_tirage(db_path: Path | str, year: int) -> AuditResult:
-    """Inspecte la validité du graphe d'attribution et décèle d'éventuelles impasses ou violations.
+    """Inspecte la validité du graphe d'attribution scellé en base et décèle impasses ou violations.
 
-    Cette fonction offre une interface programmatique exploitable par l'agent Antigravity
-    pour diagnostiquer le tirage au sort sans divulgation publique.
+    Charge les données puis délègue à `audit_pairs`, qui ne fait aucune E/S. Cette fonction offre une
+    interface programmatique exploitable par l'agent Antigravity pour diagnostiquer le tirage au sort
+    sans divulgation publique.
     """
     confirmed_lutins = get_confirmed_lutins(db_path, year)
     attributions = get_attributions(db_path, year)
+    exclusions = {donneur: get_lutin_exclusions(db_path, donneur) for donneur in attributions}
+    history = get_past_attributions(db_path, year)
+    return audit_pairs(confirmed_lutins, attributions, exclusions, history, year=year)
 
+
+def audit_pairs(
+    confirmed_lutins: dict[str, dict[str, Any]],
+    pairs: dict[str, str],
+    exclusions: dict[str, list[str]],
+    history: dict[str, list[str]],
+    *,
+    year: int | None = None,
+) -> AuditResult:
+    """Audit pur (sans E/S) d'un ensemble de paires {donneur: bénéficiaire}.
+
+    `exclusions` et `history` (passé seul, hors édition courante) indexent les listes par donneur.
+    `year` n'est utilisé que pour l'affichage.
+    Contrôles : impasse de graphe, présence, bijection, auto-cadeau, exclusion et historique.
+    """
+    attributions = pairs
     errors: list[str] = []
     error_categories: list[str] = []
     warnings: list[str] = []
@@ -52,12 +72,10 @@ def audit_tirage(db_path: Path | str, year: int) -> AuditResult:
     # 1. Analyse préventive du graphe des candidats (détection d'impasses)
     deadlock_candidates: dict[str, list[str]] = {}
     for lutin_id, params in confirmed_lutins.items():
-        exclusions = set(params.get("exclude") or [])
-        history = set(params.get("history") or [])
+        excluded = set(params.get("exclude") or [])
+        past = set(params.get("history") or [])
         # Candidats potentiels = autres Lutins confirmés qui ne sont ni soi-même, ni exclus, ni dans l'historique
-        eligible = [
-            cand for cand in confirmed_ids if cand != lutin_id and cand not in exclusions and cand not in history
-        ]
+        eligible = [cand for cand in confirmed_ids if cand != lutin_id and cand not in excluded and cand not in past]
         if not eligible:
             add_error(
                 f"Impasse de graphe : le Lutin '{lutin_id}' n'a aucun Bénéficiaire admissible "
@@ -74,7 +92,7 @@ def audit_tirage(db_path: Path | str, year: int) -> AuditResult:
     # 2. Vérification de la présence
     if not confirmed_ids:
         add_error(
-            f"Aucun Lutin confirmé présent pour l'édition {year}.",
+            f"Aucun Lutin confirmé présent pour l'édition{'' if year is None else f' {year}'}.",
             "Aucun Lutin confirmé présent pour l'édition",
         )
 
@@ -121,17 +139,14 @@ def audit_tirage(db_path: Path | str, year: int) -> AuditResult:
             add_error(f"Auto-cadeau détecté pour le Lutin '{donneur_id}'.", "Auto-cadeau détecté")
 
         # Exclusions
-        donneur_exclusions = get_lutin_exclusions(db_path, donneur_id)
-        if beneficiaire_id in donneur_exclusions:
+        if beneficiaire_id in exclusions.get(donneur_id, []):
             add_error(
                 f"Violation d'exclusion : '{donneur_id}' s'est vu attribuer '{beneficiaire_id}', qui est exclu.",
                 "Violation d'exclusion",
             )
 
         # Historique strict
-        donneur_history = get_lutin_history(db_path, donneur_id)
-        matching_count = donneur_history.count(beneficiaire_id)
-        if matching_count > 1:
+        if beneficiaire_id in history.get(donneur_id, []):
             add_error(
                 f"Violation d'historique : '{donneur_id}' a déjà offert à '{beneficiaire_id}' par le passé.",
                 "Violation d'historique",
@@ -146,7 +161,6 @@ def audit_tirage(db_path: Path | str, year: int) -> AuditResult:
         error_categories=error_categories,
         warnings=warnings,
         graph_details={
-            "year": year,
             "confirmed_count": len(confirmed_ids),
             "attributions_count": len(attributions),
             "donneurs": sorted(list(donneurs)),
