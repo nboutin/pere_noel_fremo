@@ -11,8 +11,13 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 - Espace Admin : interface web `/admin` (connexion par mot de passe, session signée, bandeau de synthèse, filtres) sous Admin aveugle, avec garde Tailscale Funnel (#80).
 
+### Changed
+
+- Espace Admin : application distincte (`create_admin_app`, module `web_admin`) servie par la nouvelle sous-commande `pere-noel serve-admin` (port 8001 par défaut) et par un second service compose `pere_noel_fremo_admin`. L'application publique ne contient plus aucune route `/admin*` ; les deux services sont publiés sur `127.0.0.1` seulement (ADR-0009 §2, §5 ; ADR-0013 §4) (#92).
+
 ### Security
 
+- Espace Admin : cookie de session `Secure` inconditionnel, garde-fou unique sur l'en-tête `Tailscale-Funnel-Request: ?1` (404), suppression du test sur `Host`/`X-Forwarded-Host` `:10000` et du port 8000 publié sur `0.0.0.0` (#92).
 - Espace Admin : le secret de session (`admin_session_secret` / `ADMIN_SESSION_SECRET`, 32 octets minimum) est obligatoire ; le secret par défaut codé en dur est supprimé. Sans secret valide, `/admin` et `/admin/*` répondent un 404 furtif et un avertissement est journalisé au démarrage (#87).
 
 ## [2.1.1] - 2026-10-16

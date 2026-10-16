@@ -19,6 +19,18 @@ Apres modification des dependances : `uv lock`, puis `uv lock --check` pour veri
 
 ## Espace Admin
 
+L'Espace Admin est une application distincte de l'Espace Lutin, sur son propre listener (ADR-0009 §5, ADR-0013 §4) :
+
+| Service compose | Commande | Port loopback | Exposition |
+| --- | --- | --- | --- |
+| `pere_noel_fremo` | `pere-noel serve` | `127.0.0.1:8000` | Funnel `:10000` (public) |
+| `pere_noel_fremo_admin` | `pere-noel serve-admin` (port 8001 par défaut) | `127.0.0.1:8001` | `tailscale serve` seulement |
+
+L'application publique ne contient aucune route `/admin*`. Le cookie de session est toujours `Secure` : l'accès se fait en
+HTTPS via Tailscale, à l'adresse `https://homelab.tail7d8b91.ts.net:8444/admin` (publication :
+`tailscale serve --bg --https=8444 http://127.0.0.1:8001`). Toute requête portant l'en-tête `Tailscale-Funnel-Request: ?1`
+reçoit un 404.
+
 Deux clés dans `res/secure_data.yml`, ou les variables d'environnement correspondantes (prioritaires) :
 
 | Clé YAML | Variable | Rôle |

@@ -6,7 +6,22 @@ services:
     container_name: pere_noel_fremo
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./res:/app/res
+    environment:
+      - PYTHONUNBUFFERED=1
+      - FREMO_RES_DIR=/app/res
+
+  pere_noel_fremo_admin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pere_noel_fremo_admin
+    restart: unless-stopped
+    command: pere-noel serve-admin --host 0.0.0.0 --port 8001 --db-path /app/res/fremo.db
+    ports:
+      - "127.0.0.1:8001:8001"
     volumes:
       - ./res:/app/res
     environment:

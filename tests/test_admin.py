@@ -7,15 +7,14 @@ from pathlib import Path
 import pytest
 from pere_noel_fremo.database import init_db
 from pere_noel_fremo.tokens import create_or_get_token
-from pere_noel_fremo.web import (
+from pere_noel_fremo.web import create_app
+from pere_noel_fremo.web_admin import (
     SESSION_COOKIE_NAME,
     LoginRateLimiter,
-    create_app,
+    create_admin_app,
     create_session_token,
-    is_tailscale_funnel_request,
     verify_session_token,
 )
-from starlette.requests import Request
 from starlette.testclient import TestClient
 
 
@@ -44,7 +43,7 @@ def mutable_clock() -> list[datetime]:
 
 @pytest.fixture
 def admin_client(admin_db: Path, mutable_clock: list[datetime]) -> TestClient:
-    app = create_app(
+    app = create_admin_app(
         db_path=admin_db,
         clock=lambda: mutable_clock[0],
         admin_password="secret_admin_test_password",
@@ -89,32 +88,6 @@ def test_session_token_lifecycle_and_tampering() -> None:
     assert verify_session_token(future_token, secret, now=now_ts) is False
 
 
-def test_is_tailscale_funnel_request() -> None:
-    # 1. En-tête Tailscale-Funnel-Request
-    req1 = Request({"type": "http", "headers": [(b"tailscale-funnel-request", b"?1")]})
-    assert is_tailscale_funnel_request(req1) is True
-
-    # 2. Port 10000 dans Host
-    req2 = Request({"type": "http", "headers": [(b"host", b"homelab.tail7d8b91.ts.net:10000")]})
-    assert is_tailscale_funnel_request(req2) is True
-
-    # 3. Port 10000 dans X-Forwarded-Host
-    req3 = Request({"type": "http", "headers": [(b"x-forwarded-host", b"site.example.com:10000")]})
-    assert is_tailscale_funnel_request(req3) is True
-
-    # 4. Requête normale sans Funnel
-    req4 = Request(
-        {
-            "type": "http",
-            "headers": [
-                (b"host", b"192.168.2.20:8000"),
-                (b"user-agent", b"pytest"),
-            ],
-        }
-    )
-    assert is_tailscale_funnel_request(req4) is False
-
-
 def test_login_rate_limiter_logic() -> None:
     limiter = LoginRateLimiter(max_attempts=3, window_seconds=60)
     ip = "192.168.1.10"
@@ -143,7 +116,7 @@ def test_login_rate_limiter_logic() -> None:
 
 
 # ==============================================================================
-# 2. Garde Tailscale Funnel : Rejet furtif 404
+# 2. Garde-fou Funnel : rejet furtif 404
 # ==============================================================================
 
 
@@ -152,8 +125,7 @@ def test_login_rate_limiter_logic() -> None:
     [
         {"tailscale-funnel-request": "?1"},
         {"Tailscale-Funnel-Request": "?1"},
-        {"host": "homelab.tail7d8b91.ts.net:10000"},
-        {"x-forwarded-host": "homelab.tail7d8b91.ts.net:10000"},
+        {"tailscale-funnel-request": "?1", "host": "homelab.tail7d8b91.ts.net:8444"},
     ],
 )
 def test_funnel_request_blocked_on_admin_routes(admin_client: TestClient, headers: dict[str, str]) -> None:
@@ -181,22 +153,59 @@ def test_funnel_request_blocked_on_admin_routes(admin_client: TestClient, header
     assert resp_logout.status_code == 404
 
 
-def test_funnel_request_allows_public_routes(admin_client: TestClient, admin_db: Path) -> None:
-    token = create_or_get_token(admin_db, "fbonnet", 2026)
+def test_funnel_guard_covers_every_path(admin_client: TestClient) -> None:
+    resp = admin_client.get("/static/inexistant.css", headers={"Tailscale-Funnel-Request": "?1"})
+    assert resp.status_code == 404
+    assert "Lien magique introuvable" in resp.text
 
-    # /scores est public, ne doit pas renvoyer 404
-    resp_scores = admin_client.get(
-        "/scores",
-        headers={"tailscale-funnel-request": "?1", "host": "homelab.tail7d8b91.ts.net:10000"},
-    )
-    assert resp_scores.status_code == 200
 
-    # /lutin/{token} est public
-    resp_lutin = admin_client.get(
-        f"/lutin/{token}",
-        headers={"tailscale-funnel-request": "?1", "host": "homelab.tail7d8b91.ts.net:10000"},
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"host": "homelab.tail7d8b91.ts.net:10000"},
+        {"x-forwarded-host": "homelab.tail7d8b91.ts.net:10000"},
+        {"Tailscale-Funnel-Request": "?0"},
+    ],
+)
+def test_port_10000_without_funnel_header_is_served_normally(admin_client: TestClient, headers: dict[str, str]) -> None:
+    # Le tailnet atteint l'Espace Admin avec n'importe quel Host : seul l'en-tête Funnel compte.
+    resp = admin_client.get("/admin/login", headers=headers, follow_redirects=False)
+    assert resp.status_code == 200
+    assert admin_client.get("/admin", headers=headers, follow_redirects=False).status_code == 303
+
+
+@pytest.mark.parametrize("scheme", ["http", "https"])
+def test_all_admin_cookies_are_secure_whatever_the_scheme(admin_db: Path, scheme: str) -> None:
+    app = create_admin_app(
+        db_path=admin_db,
+        admin_password="secret_admin_test_password",
+        admin_session_secret="test_session_secret_at_least_32_bytes_long",
     )
-    assert resp_lutin.status_code == 200
+    client = TestClient(app, base_url=f"{scheme}://testserver")
+    login = client.post("/admin/login", data={"password": "secret_admin_test_password"}, follow_redirects=False)
+    set_cookie = login.headers["set-cookie"]
+    assert "secure" in set_cookie.lower()
+
+    # Cookie réinjecté à la main : le client httpx ne renvoie pas un cookie Secure en http://
+    cookie = set_cookie.split(";")[0].split("=", 1)[1]
+    client.cookies.clear()
+    dash = client.get("/admin", headers={"Cookie": f"{SESSION_COOKIE_NAME}={cookie}"})
+    assert dash.status_code == 200
+    assert "secure" in dash.headers["set-cookie"].lower()
+
+    logout = client.get("/admin/logout", follow_redirects=False)
+    assert "secure" in logout.headers["set-cookie"].lower()
+
+
+def test_public_app_has_no_admin_routes(admin_db: Path) -> None:
+    app = create_app(db_path=admin_db)
+    assert not [r for r in app.routes if getattr(r, "path", "").startswith("/admin")]
+    client = TestClient(app, base_url="https://testserver")
+    assert client.get("/admin", follow_redirects=False).status_code == 404
+    assert client.get("/admin/login", follow_redirects=False).status_code == 404
+    assert client.post("/admin/login", data={"password": "x"}, follow_redirects=False).status_code == 404
+    assert client.get("/admin/logout", follow_redirects=False).status_code == 404
+    assert client.post("/admin/logout", follow_redirects=False).status_code == 404
 
 
 # ==============================================================================
@@ -292,7 +301,7 @@ def test_login_with_json_payload(admin_client: TestClient) -> None:
 
 def test_login_when_no_admin_password_configured(admin_db: Path) -> None:
     # App créée sans mot de passe configuré
-    app_no_pass = create_app(
+    app_no_pass = create_admin_app(
         db_path=admin_db,
         admin_password="",
         admin_session_secret="secret_key_1234567890123456789012345",
@@ -416,7 +425,7 @@ def rich_admin_db(tmp_path: Path) -> tuple[Path, dict[str, str]]:
     db_file = tmp_path / "fremo_rich_admin.db"
     init_db(db_file)
     from pere_noel_fremo.database import get_db_connection
-    from pere_noel_fremo.tokens import create_or_get_token, mark_token_sent
+    from pere_noel_fremo.tokens import mark_token_sent
 
     conn = get_db_connection(db_file)
     tokens: dict[str, str] = {}
@@ -501,7 +510,7 @@ def rich_admin_client(
     rich_admin_db: tuple[Path, dict[str, str]], mutable_clock: list[datetime]
 ) -> tuple[TestClient, dict[str, str]]:
     db_file, tokens = rich_admin_db
-    app = create_app(
+    app = create_admin_app(
         db_path=db_file,
         clock=lambda: mutable_clock[0],
         admin_password="secret_admin_test_password",
@@ -636,9 +645,10 @@ def test_blind_admin_strict_guarantee(
 
 
 def test_public_pages_do_not_leak_admin(
-    rich_admin_client: tuple[TestClient, dict[str, str]],
+    rich_admin_db: tuple[Path, dict[str, str]],
 ) -> None:
-    client, tokens = rich_admin_client
+    db_file, tokens = rich_admin_db
+    client = TestClient(create_app(db_path=db_file), base_url="https://testserver")
 
     # 1. Page publique de classement des scores (/scores)
     resp_scores = client.get("/scores")
@@ -646,8 +656,7 @@ def test_public_pages_do_not_leak_admin(
     assert "/admin" not in resp_scores.text
 
     # 2. Page publique de l'Espace Lutin (/lutin/{token})
-    tok = tokens["alice"]
-    resp_lutin = client.get(f"/lutin/{tok}")
+    resp_lutin = client.get(f"/lutin/{tokens['alice']}")
     assert resp_lutin.status_code == 200
     assert "/admin" not in resp_lutin.text
 
@@ -663,7 +672,7 @@ def _app_without_secret(
     admin_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, secret: str | None
 ) -> TestClient:
     monkeypatch.delenv("ADMIN_SESSION_SECRET", raising=False)
-    app = create_app(
+    app = create_admin_app(
         db_path=admin_db,
         res_dir=tmp_path,
         admin_password="secret_admin_test_password",
@@ -689,7 +698,6 @@ def test_admin_disabled_returns_stealth_404_without_valid_secret(
         assert resp.status_code == 404, (method, path)
         assert resp.text == funnel_body  # même gabarit erreur_404.html que la garde Funnel
         assert "set-cookie" not in resp.headers
-    assert client.get("/scores", follow_redirects=False).status_code == 200
 
 
 def test_legacy_default_secret_cookie_is_rejected(
@@ -700,7 +708,7 @@ def test_legacy_default_secret_cookie_is_rejected(
     client.cookies.set(SESSION_COOKIE_NAME, forged)
     assert client.get("/admin", follow_redirects=False).status_code == 404
 
-    app = create_app(
+    app = create_admin_app(
         db_path=admin_db,
         admin_password="secret_admin_test_password",
         admin_session_secret="test_session_secret_at_least_32_bytes_long",

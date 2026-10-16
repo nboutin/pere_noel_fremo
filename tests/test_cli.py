@@ -323,6 +323,25 @@ def test_cli_serve_invokes_uvicorn(tmp_path: Path) -> None:
         assert kwargs["port"] == 8080
 
 
+def test_cli_serve_admin_invokes_uvicorn_with_default_port(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    db_path = tmp_path / "fremo.db"
+    with patch("uvicorn.run") as mock_uvicorn:
+        ret = main(["serve-admin", "--db-path", str(db_path)])
+        assert ret == 0
+        assert mock_uvicorn.call_count == 1
+        _, kwargs = mock_uvicorn.call_args
+        assert kwargs["host"] == "127.0.0.1"
+        assert kwargs["port"] == 8001
+        assert "token_masking" in kwargs["log_config"]["filters"]
+
+
+def test_cli_serve_admin_help_works(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["serve-admin", "--help"]) == 0
+    assert "--port" in capsys.readouterr().out
+
+
 def test_cli_tirage_admin_aveugle(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     from pere_noel_fremo.database import import_yaml_data, init_db, set_lutin_presence
 

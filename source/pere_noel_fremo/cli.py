@@ -160,6 +160,30 @@ def create_parser() -> argparse.ArgumentParser:
         help="Chemin de la base de données SQLite (défaut: res/fremo.db)",
     )
 
+    # Subcommand: serve-admin
+    serve_admin_parser = subparsers.add_parser(
+        "serve-admin",
+        help="Démarre le serveur web de l'Espace Admin (réservé au tailnet)",
+    )
+    serve_admin_parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="Adresse d'écoute du serveur Admin (défaut: 127.0.0.1)",
+    )
+    serve_admin_parser.add_argument(
+        "--port",
+        type=int,
+        default=8001,
+        help="Port d'écoute du serveur Admin (défaut: 8001)",
+    )
+    serve_admin_parser.add_argument(
+        "--db-path",
+        type=Path,
+        default=default_db,
+        help="Chemin de la base de données SQLite (défaut: res/fremo.db)",
+    )
+
     # Subcommand: tirage
     tirage_parser = subparsers.add_parser(
         "tirage",
@@ -444,6 +468,25 @@ def handle_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_serve_admin(args: argparse.Namespace) -> int:
+    import logging
+
+    import uvicorn
+
+    from .helper import TokenMaskingFilter
+    from .web_admin import create_admin_app
+
+    custom_log_config = build_uvicorn_log_config()
+
+    access_logger = logging.getLogger("uvicorn.access")
+    access_logger.addFilter(TokenMaskingFilter())
+
+    admin_app = create_admin_app(db_path=args.db_path)
+    print(f"Démarrage de l'Espace Admin sur http://{args.host}:{args.port} (DB: {args.db_path})")
+    uvicorn.run(admin_app, host=args.host, port=args.port, log_config=custom_log_config)
+    return 0
+
+
 def handle_tirage(args: argparse.Namespace) -> int:
     from .tirage import run_tirage
 
@@ -599,6 +642,8 @@ def main(argv: list[str] | None = None) -> int:
         return handle_annonce(args)
     if args.command == "serve":
         return handle_serve(args)
+    if args.command == "serve-admin":
+        return handle_serve_admin(args)
     if args.command == "tirage":
         return handle_tirage(args)
     if args.command == "audit-tirage":
