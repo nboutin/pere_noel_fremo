@@ -211,6 +211,24 @@ def is_manche_unlocked(manche: dict[str, Any], now: datetime | None = None) -> b
         return False
 
 
+def _lire_manche(file: Path, manche_id: int, now: datetime | None) -> dict[str, Any] | None:
+    """Lit un fichier manche_N.yml ; None (avec WARNING sans traceback) s'il est illisible ou n'est pas un dict."""
+    try:
+        with open(file, encoding="utf-8") as f:
+            loaded = yaml.safe_load(f)
+        if not isinstance(loaded, dict):
+            logger.warning("Manche ignorée : fichier %s illisible (contenu non dict)", file.name)
+            return None
+        data = dict(loaded)
+        declared = data.get("id")
+        data["id"] = int(manche_id if declared is None else declared)
+    except (yaml.YAMLError, OSError, ValueError, TypeError) as exc:
+        logger.warning("Manche ignorée : fichier %s illisible (%s: %s)", file.name, type(exc).__name__, exc)
+        return None
+    data["is_unlocked"] = is_manche_unlocked(data, now=now)
+    return data
+
+
 def get_manche(
     year: int = 2026,
     manche_id: int = 1,
@@ -224,13 +242,7 @@ def get_manche(
 
     data: dict[str, Any]
     if manche_file.exists():
-        with open(manche_file, encoding="utf-8") as f:
-            loaded = yaml.safe_load(f)
-            if isinstance(loaded, dict):
-                data = dict(loaded)
-                data.setdefault("id", manche_id)
-                data["is_unlocked"] = is_manche_unlocked(data, now=now)
-                return data
+        return _lire_manche(manche_file, manche_id, now)
 
     # Repli sur l'ancien fichier defi_grille.yml ou DEFAULT_GRILLE_2026 pour la manche 1
     if manche_id == 1:
@@ -268,21 +280,11 @@ def get_all_manches(
 
     if found_files:
         for file in sorted(found_files):
-            try:
-                with open(file, encoding="utf-8") as f:
-                    data = yaml.safe_load(f)
-                    if isinstance(data, dict):
-                        manche_num = data.get("id")
-                        if manche_num is None:
-                            stem = file.stem.replace("manche_", "")
-                            manche_num = int(stem) if stem.isdigit() else len(manches) + 1
-                        data["id"] = int(manche_num)
-                        data["is_unlocked"] = is_manche_unlocked(data, now=now_dt)
-
-                        if not only_unlocked or data["is_unlocked"]:
-                            manches.append(data)
-            except (yaml.YAMLError, OSError, ValueError, KeyError) as exc:
-                logger.warning("Manche ignorée : fichier %s illisible (%s: %s)", file.name, type(exc).__name__, exc)
+            stem = file.stem.replace("manche_", "")
+            default_id = int(stem) if stem.isdigit() else len(manches) + 1
+            data = _lire_manche(file, default_id, now_dt)
+            if data is not None and (not only_unlocked or data["is_unlocked"]):
+                manches.append(data)
     else:
         # Aucune grille configurée sur disque : repli sur manche 1 par défaut
         default_manche = get_manche(year=year, manche_id=1, res_dir=base_res, now=now_dt)

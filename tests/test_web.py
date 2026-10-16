@@ -1161,3 +1161,40 @@ def test_solve_faux_concurrent_scelle_apres_trois_essais(client: TestClient, tes
     row = conn.execute("SELECT attempts FROM scores_defi WHERE lutin_id = 'fbonnet' AND manche_id = 1;").fetchone()
     conn.close()
     assert row["attempts"] == 3
+
+
+@pytest.mark.parametrize(
+    ("method", "route"),
+    [
+        ("post", "start"),
+        ("post", "solve"),
+        ("post", "abandon"),
+        ("get", "indices"),
+    ],
+)
+def test_manche_yaml_illisible_repond_404(
+    test_db: Path,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    method: str,
+    route: str,
+) -> None:
+    res_dir = tmp_path / "res"
+    grilles = res_dir / "2025" / "grilles"
+    grilles.mkdir(parents=True)
+    (grilles / "manche_2.yml").write_text("titre: [non fermé\n  : :\n", encoding="utf-8")
+    from pere_noel_fremo.database import set_lutin_presence
+
+    token = create_or_get_token(test_db, "fbonnet", 2025)
+    set_lutin_presence(test_db, "fbonnet", 2025, present=True)
+    test_client = TestClient(create_app(db_path=test_db, res_dir=res_dir))
+
+    kwargs: dict[str, Any] = {"json": {"solution": {}}} if route == "solve" else {}
+    with caplog.at_level("WARNING", logger="pere_noel_fremo.defi"):
+        res = getattr(test_client, method)(f"/api/lutin/{token}/defi/2/{route}", **kwargs)
+
+    assert res.status_code == 404
+    assert "Manche 2 introuvable" in res.json()["detail"]
+    warnings = [r for r in caplog.records if r.levelname == "WARNING" and "manche_2.yml" in r.getMessage()]
+    assert warnings
+    assert all(r.exc_info is None for r in warnings)

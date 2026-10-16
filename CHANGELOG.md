@@ -28,6 +28,8 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 ### Fixed
 
+- Grilles : un `manche_N.yml` illisible (YAML invalide, erreur d'E/S ou contenu non dict) est traité comme une manche introuvable (404 « Manche N introuvable » sur start, solve, abandon et indices, au lieu de 500) avec un WARNING sans traceback ; la lecture passe par un lecteur unique `defi._lire_manche` partagé par `get_manche` et `get_all_manches` (#71).
+
 - Une Édition future n'influence plus le tirage ni l'audit : l'Historique est unique (`historique_avant`, millésimes strictement antérieurs), chargé en une requête et partagé par le tirage, l'audit et l'export (#62).
 - `get_or_assign_pseudo` ne valide plus la transaction de l'appelant : l'attribution du pseudo et la création de la ligne `scores_defi` restent atomiques dans `start_score_defi` (#49).
 - `parse_iso_or_legacy` accepte le suffixe `Z` sous Python 3.10, où `datetime.fromisoformat` le refuse.
