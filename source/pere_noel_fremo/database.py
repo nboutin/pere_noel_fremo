@@ -102,6 +102,9 @@ def parse_iso_or_legacy(val: str | datetime) -> datetime:
         dt = val
     else:
         raw = str(val).strip()
+        # Python 3.10 ne comprend pas le suffixe Z dans fromisoformat.
+        if raw.endswith(("Z", "z")):
+            raw = raw[:-1] + "+00:00"
         try:
             dt = datetime.fromisoformat(raw)
         except ValueError:

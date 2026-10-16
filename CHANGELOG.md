@@ -9,6 +9,7 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 ### Added
 
+- Workflow Forgejo Actions `.forgejo/workflows/ci.yml` (verrou, ruff, mypy, bandit, pytest sur Python 3.12 et 3.10, `uv` 0.12.10) et couverture de branches (`--cov-branch`) ; seuil abaissé de 93 % à 92 %, la mesure lignes+branches donnant 92,73 % (#56).
 ### Changed
 - Tirage annulé (attributions et statut restaurés) quand l'audit automatique est invalide (#36).
 - Catégories d'erreur de l'audit sans identifiant, pour préserver l'Admin aveugle (#36).
