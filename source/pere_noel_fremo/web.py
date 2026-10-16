@@ -638,6 +638,7 @@ def create_app(
 
         is_valid = bool(admin_pwd and hmac.compare_digest(submitted_val.encode("utf-8"), admin_pwd.encode("utf-8")))
 
+        is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
         if is_valid:
             rate_limiter.record_success(client_ip)
             token = create_session_token(session_secret, int(now_ts))
@@ -648,7 +649,7 @@ def create_app(
                 max_age=SESSION_DURATION_SECONDS,
                 httponly=True,
                 samesite="strict",
-                secure=True,
+                secure=is_https,
             )
             return resp
         else:
@@ -662,12 +663,13 @@ def create_app(
 
     @app.api_route("/admin/logout", methods=["GET", "POST"])
     def logout_admin(request: Request) -> Any:
+        is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
         resp = RedirectResponse(url="/admin/login", status_code=303)
         resp.delete_cookie(
             key=SESSION_COOKIE_NAME,
             httponly=True,
             samesite="strict",
-            secure=True,
+            secure=is_https,
         )
         return resp
 
@@ -694,6 +696,7 @@ def create_app(
                 "base_url": base_url,
             },
         )
+        is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
         new_token = create_session_token(session_secret, now_ts)
         resp.set_cookie(
             key=SESSION_COOKIE_NAME,
@@ -701,7 +704,7 @@ def create_app(
             max_age=SESSION_DURATION_SECONDS,
             httponly=True,
             samesite="strict",
-            secure=True,
+            secure=is_https,
         )
         return resp
 
