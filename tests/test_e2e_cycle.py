@@ -1,8 +1,8 @@
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 import yaml
+from pere_noel_fremo.campagne import ExpediteurMemoire
 from pere_noel_fremo.cli import main
 from pere_noel_fremo.database import (
     get_attributions,
@@ -13,7 +13,7 @@ from pere_noel_fremo.database import (
 )
 
 
-def test_complete_edition_cycle_e2e(tmp_path: Path) -> None:
+def test_complete_edition_cycle_e2e(tmp_path: Path, expediteur_memoire: ExpediteurMemoire) -> None:
     """Valide le cycle rituel complet du Père Noël de la Frémo :
 
     1. Initialisation de la base SQLite et import des données sources
@@ -94,20 +94,19 @@ def test_complete_edition_cycle_e2e(tmp_path: Path) -> None:
     assert ret_init == 0
 
     # 2. Annonce (nominal)
-    with patch("pere_noel_fremo.helper.gmail_send_email") as mock_email:
-        ret_annonce = main(
-            [
-                "annonce",
-                "--db-path",
-                str(db_path),
-                "--secure-data",
-                str(secure_data_path),
-                "--year",
-                str(year),
-            ]
-        )
-        assert ret_annonce == 0
-        assert mock_email.call_count == 4
+    ret_annonce = main(
+        [
+            "annonce",
+            "--db-path",
+            str(db_path),
+            "--secure-data",
+            str(secure_data_path),
+            "--year",
+            str(year),
+        ]
+    )
+    assert ret_annonce == 0
+    assert len(expediteur_memoire.messages) == 4
 
     set_edition_status(db_path, year, "announced")
     assert get_edition_status(db_path, year) == "announced"
@@ -141,26 +140,26 @@ def test_complete_edition_cycle_e2e(tmp_path: Path) -> None:
     assert set(attributions.values()) == {"alice", "bob", "charlie"}
 
     # 5. Révélation (nominal)
-    with patch("pere_noel_fremo.helper.gmail_send_email") as mock_email:
-        ret_rev = main(
-            [
-                "revelation",
-                "--db-path",
-                str(db_path),
-                "--secure-data",
-                str(secure_data_path),
-                "--year",
-                str(year),
-            ]
-        )
-        assert ret_rev == 0
-        # Seuls les 3 lutins confirmés reçoivent l'email
-        assert mock_email.call_count == 3
-        rev_recipients = [call.kwargs.get("toaddr") or call.args[3] for call in mock_email.call_args_list]
-        assert "diane@fremo.org" not in rev_recipients
-        assert "alice@fremo.org" in rev_recipients
-        assert "bob@fremo.org" in rev_recipients
-        assert "charlie@fremo.org" in rev_recipients
+    expediteur_memoire.messages.clear()
+    ret_rev = main(
+        [
+            "revelation",
+            "--db-path",
+            str(db_path),
+            "--secure-data",
+            str(secure_data_path),
+            "--year",
+            str(year),
+        ]
+    )
+    assert ret_rev == 0
+    # Seuls les 3 lutins confirmés reçoivent l'email
+    assert len(expediteur_memoire.messages) == 3
+    rev_recipients = [m.destinataire for m in expediteur_memoire.messages]
+    assert "diane@fremo.org" not in rev_recipients
+    assert "alice@fremo.org" in rev_recipients
+    assert "bob@fremo.org" in rev_recipients
+    assert "charlie@fremo.org" in rev_recipients
 
     assert get_edition_status(db_path, year) == "revealed"
 

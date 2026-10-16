@@ -34,7 +34,7 @@ _Avoid_: Antécédents, mémoire, historique glissant
 
 **Édition**:
 Itération annuelle du Père Noël secret désignée par son millésime (`year`), progressant à travers un cycle d'états (`draft` -> `announced` -> `drawn` -> `revealed`) dont le module `edition` est l'unique propriétaire. L'**Annonce** fait passer `draft` à `announced` (au premier envoi réussi, jamais en simulation) ; le **Tirage au sort** fait passer à `drawn` (scellement, rejouable uniquement par `--force-retirage`) ; la **Révélation** fait passer `drawn` à `revealed`. Une Édition est « scellée » dès `drawn` : présences verrouillées et Bénéficiaires consultables.
-_Avoid_: Campagne, saison, tournoi, session
+_Avoid_: Campagne (au sens d'Édition ; voir **Campagne**), saison, tournoi, session
 
 **Repas de Noël**:
 Rassemblement rituel annuel réunissant les Lutins pour célébrer le Père Noël secret, au cours duquel le vainqueur du Défi du lutin ouvre son cadeau en premier avant la distribution des cadeaux.
@@ -61,6 +61,10 @@ _Avoid_: Teaser, invitation, notification
 **Révélation**:
 Courriel officiel notifiant les Lutins que le Tirage au sort a été réalisé, les invitant à se reconnecter à leur Espace Lutin via leur Lien magique pour dévoiler leur Bénéficiaire sous la Carte à gratter, et faisant basculer l'Édition au statut `revealed`.
 _Avoid_: Découverte, déblocage, notification de tirage, alerte
+
+**Campagne**:
+Envoi groupé d'un courriel officiel, Annonce ou Révélation, à un ensemble de Lutins, porté par le module `campagne` (boucle d'envoi unique et port d'envoi `Expediteur`). Une Campagne n'est jamais une Édition : elle se déroule au sein d'une Édition et peut la faire avancer (Annonce : `draft` -> `announced`, Révélation : `drawn` -> `revealed`).
+_Avoid_: Édition, mailing, newsletter
 
 **Lien magique**:
 URL unique et sécurisée transmise à un Lutin pour lui donner un accès direct à son Espace Lutin sans nécessiter de mot de passe.

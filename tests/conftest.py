@@ -2,16 +2,21 @@ from collections.abc import Callable, Iterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
+from pere_noel_fremo.campagne import ExpediteurMemoire
 
 
-@pytest.fixture(autouse=True)
-def fake_gmail_service() -> Iterator[MagicMock]:
-    """Empêche tout accès réel à Gmail/OAuth : le service est remplacé par un mock pour chaque test."""
-    with patch("pere_noel_fremo.helper.build_gmail_service") as mock_build_service:
-        yield mock_build_service
+@pytest.fixture
+def expediteur_memoire() -> Iterator[ExpediteurMemoire]:
+    """Remplace l'adaptateur Gmail par un ExpediteurMemoire pour les campagnes lancées via la CLI."""
+    expediteur = ExpediteurMemoire()
+    with (
+        patch("pere_noel_fremo.annonce.ExpediteurGmail", return_value=expediteur),
+        patch("pere_noel_fremo.revelation.ExpediteurGmail", return_value=expediteur),
+    ):
+        yield expediteur
 
 
 @pytest.fixture

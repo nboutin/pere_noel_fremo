@@ -1,13 +1,12 @@
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
 from pere_noel_fremo.annonce import format_annonce_body, format_annonce_text, send_annonces
+from pere_noel_fremo.campagne import ExpediteurMemoire
 from pere_noel_fremo.database import get_db_connection, import_yaml_data, init_db, set_edition_status
 from pere_noel_fremo.edition import StatutEdition, statut
-from pere_noel_fremo.helper import EmailSendError
 
 
 def test_format_annonce_body_injects_magic_url_and_fullname() -> None:
@@ -67,36 +66,37 @@ def test_send_annonces_creates_tokens_and_sends_emails(tmp_path: Path) -> None:
 
     import_yaml_data(db_path, data_in_path, secure_data_path)
 
-    with patch("pere_noel_fremo.helper.gmail_send_email") as mock_send:
-        stats = send_annonces(
-            db_path=db_path,
-            secure_data_path=secure_data_path,
-            year=2026,
-            template_path=template_path,
-            absents=["lutin_skip"],
-        )
+    exp = ExpediteurMemoire()
+    stats = send_annonces(
+        db_path=db_path,
+        secure_data_path=secure_data_path,
+        year=2026,
+        template_path=template_path,
+        absents=["lutin_skip"],
+        expediteur=exp,
+    )
 
-        assert stats["total"] == 3
-        assert stats["sent"] == 2
-        assert stats["absents"] == 1
-        assert mock_send.call_count == 2
+    assert stats["total"] == 3
+    assert stats["sent"] == 2
+    assert stats["absents"] == 1
+    assert len(exp.messages) == 2
 
-        # Verify recipients and content
-        called_recipients = [call.kwargs.get("toaddr") or call.args[3] for call in mock_send.call_args_list]
-        assert "lutin1@fremo.org" in called_recipients
-        assert "lutin2@fremo.org" in called_recipients
-        assert "skip@fremo.org" not in called_recipients
+    # Verify recipients and content
+    called_recipients = [m.destinataire for m in exp.messages]
+    assert "lutin1@fremo.org" in called_recipients
+    assert "lutin2@fremo.org" in called_recipients
+    assert "skip@fremo.org" not in called_recipients
 
-        # Verify that sent_at timestamp was consigned in database
-        from pere_noel_fremo.tokens import get_lutin_by_token
+    # Verify that sent_at timestamp was consigned in database
+    from pere_noel_fremo.tokens import get_lutin_by_token
 
-        conn = get_db_connection(db_path)
-        token_row = conn.execute("SELECT token FROM tokens WHERE lutin_id = 'lutin_1';").fetchone()
-        conn.close()
-        assert token_row is not None
-        lutin1_info = get_lutin_by_token(db_path, token_row["token"])
-        assert lutin1_info is not None
-        assert lutin1_info["sent_at"] is not None
+    conn = get_db_connection(db_path)
+    token_row = conn.execute("SELECT token FROM tokens WHERE lutin_id = 'lutin_1';").fetchone()
+    conn.close()
+    assert token_row is not None
+    lutin1_info = get_lutin_by_token(db_path, token_row["token"])
+    assert lutin1_info is not None
+    assert lutin1_info["sent_at"] is not None
 
 
 def test_send_annonces_dry_run_does_not_send_emails(tmp_path: Path) -> None:
@@ -120,15 +120,10 @@ def test_send_annonces_dry_run_does_not_send_emails(tmp_path: Path) -> None:
 
     import_yaml_data(db_path, data_in_path, secure_data_path)
 
-    with patch("pere_noel_fremo.helper.gmail_send_email") as mock_send:
-        stats = send_annonces(
-            db_path=db_path,
-            secure_data_path=secure_data_path,
-            year=2026,
-            dry_run=True,
-        )
-        assert stats["sent"] == 1
-        mock_send.assert_not_called()
+    exp = ExpediteurMemoire()
+    stats = send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026, dry_run=True, expediteur=exp)
+    assert stats["sent"] == 1
+    assert exp.messages == []
 
 
 def test_send_annonces_with_port_in_base_url(tmp_path: Path) -> None:
@@ -156,15 +151,10 @@ def test_send_annonces_with_port_in_base_url(tmp_path: Path) -> None:
 
     import_yaml_data(db_path, data_in_path, secure_data_path)
 
-    with patch("pere_noel_fremo.helper.gmail_send_email") as mock_send:
-        stats = send_annonces(
-            db_path=db_path,
-            secure_data_path=secure_data_path,
-            year=2026,
-        )
-        assert stats["sent"] == 1
-        call_body = mock_send.call_args.kwargs["body"]
-        assert "https://homelab.tail7d8b91.ts.net:10000/lutin/" in call_body
+    exp = ExpediteurMemoire()
+    stats = send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026, expediteur=exp)
+    assert stats["sent"] == 1
+    assert "https://homelab.tail7d8b91.ts.net:10000/lutin/" in exp.messages[0].html
 
 
 def test_annonce_templates_contain_bulletproof_fallbacks() -> None:
@@ -215,26 +205,21 @@ def test_send_annonces_handles_send_failure_leaves_sent_at_null_and_increments_e
 
     import_yaml_data(db_path, data_in_path, secure_data_path)
 
-    # Simulation d'un échec d'authentification ou d'envoi Gmail (load_credentials ou build qui lève)
-    with patch("pere_noel_fremo.helper.build_gmail_service", side_effect=RuntimeError("Google API quota exceeded")):
-        stats = send_annonces(
-            db_path=db_path,
-            secure_data_path=secure_data_path,
-            year=2026,
-        )
+    exp = ExpediteurMemoire(echouer_pour=["fail@fremo.org"])
+    stats = send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026, expediteur=exp)
 
-        assert stats["total"] == 1
-        assert stats["sent"] == 0
-        assert stats["absents"] == 0
-        assert stats["sans_email"] == 0
-        assert stats["echecs"] == 1
+    assert stats["total"] == 1
+    assert stats["sent"] == 0
+    assert stats["absents"] == 0
+    assert stats["sans_email"] == 0
+    assert stats["echecs"] == 1
 
-        # Vérification en base : sent_at doit impérativement rester NULL
-        conn = get_db_connection(db_path)
-        row = conn.execute("SELECT sent_at FROM tokens WHERE lutin_id = 'lutin_fail';").fetchone()
-        conn.close()
-        assert row is not None
-        assert row["sent_at"] is None
+    # Vérification en base : sent_at doit impérativement rester NULL
+    conn = get_db_connection(db_path)
+    row = conn.execute("SELECT sent_at FROM tokens WHERE lutin_id = 'lutin_fail';").fetchone()
+    conn.close()
+    assert row is not None
+    assert row["sent_at"] is None
 
 
 def test_send_annonces_success_provides_text_body_with_magic_link(tmp_path: Path) -> None:
@@ -261,30 +246,23 @@ def test_send_annonces_success_provides_text_body_with_magic_link(tmp_path: Path
 
     import_yaml_data(db_path, data_in_path, secure_data_path)
 
-    with patch("pere_noel_fremo.helper.gmail_send_email") as mock_send:
-        stats = send_annonces(
-            db_path=db_path,
-            secure_data_path=secure_data_path,
-            year=2026,
-        )
+    exp = ExpediteurMemoire()
+    stats = send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026, expediteur=exp)
 
-        assert stats["sent"] == 1
-        assert stats["echecs"] == 0
+    assert stats["sent"] == 1
+    assert stats["echecs"] == 0
 
-        # Vérification en base : sent_at doit être renseigné
-        conn = get_db_connection(db_path)
-        row = conn.execute("SELECT sent_at FROM tokens WHERE lutin_id = 'lutin_ok';").fetchone()
-        conn.close()
-        assert row is not None
-        assert row["sent_at"] is not None
+    # Vérification en base : sent_at doit être renseigné
+    conn = get_db_connection(db_path)
+    row = conn.execute("SELECT sent_at FROM tokens WHERE lutin_id = 'lutin_ok';").fetchone()
+    conn.close()
+    assert row is not None
+    assert row["sent_at"] is not None
 
-        # Vérification de l'appel : text_body est fourni avec salutation et Lien magique
-        assert mock_send.call_count == 1
-        call_kwargs = mock_send.call_args.kwargs
-        assert "text_body" in call_kwargs
-        text_body = call_kwargs["text_body"]
-        assert "Lutin Ok" in text_body
-        assert "https://noel.fremo.fr/lutin/" in text_body
+    # Vérification du message : version texte avec salutation et Lien magique
+    assert len(exp.messages) == 1
+    assert "Lutin Ok" in exp.messages[0].texte
+    assert "https://noel.fremo.fr/lutin/" in exp.messages[0].texte
 
 
 def _prepare_campaign(tmp_path: Path, fullnames: dict[str, str]) -> tuple[Path, Path]:
@@ -316,66 +294,6 @@ def _count_sent_tokens(db_path: Path) -> int:
     return int(row["n"])
 
 
-def test_send_annonces_builds_gmail_service_once_for_whole_campaign(
-    tmp_path: Path, fake_gmail_service: MagicMock
-) -> None:
-    db_path, secure_data_path = _prepare_campaign(tmp_path, {"l1": "Un", "l2": "Deux", "l3": "Trois"})
-
-    with patch("pere_noel_fremo.helper.gmail_send_email") as mock_send:
-        stats = send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026)
-
-    assert stats["sent"] == 3
-    fake_gmail_service.assert_called_once_with(interactive=False)
-    assert mock_send.call_count == 3
-    for call in mock_send.call_args_list:
-        assert call.args[0] is fake_gmail_service.return_value
-
-
-def test_send_annonces_interactive_auth_is_forwarded_to_service_builder(
-    tmp_path: Path, fake_gmail_service: MagicMock
-) -> None:
-    db_path, secure_data_path = _prepare_campaign(tmp_path, {"l1": "Un"})
-
-    with patch("pere_noel_fremo.helper.gmail_send_email"):
-        send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026, interactive_auth=True)
-
-    fake_gmail_service.assert_called_once_with(interactive=True)
-
-
-def test_send_annonces_expired_unrefreshable_token_fails_fast_without_browser(
-    tmp_path: Path, fake_gmail_service: MagicMock
-) -> None:
-    db_path, secure_data_path = _prepare_campaign(tmp_path, {"l1": "Un", "l2": "Deux", "l3": "Trois"})
-    fake_gmail_service.side_effect = EmailSendError("Jeton Gmail invalide : ré-authentifier en local")
-
-    with (
-        patch("pere_noel_fremo.helper.gmail_send_email") as mock_send,
-        patch("pere_noel_fremo.helper.InstalledAppFlow") as mock_flow,
-    ):
-        stats = send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026)
-
-    assert stats["echecs"] == 3
-    assert stats["sent"] == 0
-    assert _count_sent_tokens(db_path) == 0
-    mock_send.assert_not_called()
-    mock_flow.from_client_secrets_file.assert_not_called()
-    fake_gmail_service.assert_called_once()
-
-
-@pytest.mark.parametrize(("dry_run", "no_email"), [(True, False), (False, True)])
-def test_send_annonces_simulation_never_touches_credentials(
-    tmp_path: Path, fake_gmail_service: MagicMock, dry_run: bool, no_email: bool
-) -> None:
-    db_path, secure_data_path = _prepare_campaign(tmp_path, {"l1": "Un"})
-
-    stats = send_annonces(
-        db_path=db_path, secure_data_path=secure_data_path, year=2026, dry_run=dry_run, no_email=no_email
-    )
-
-    assert stats["sent"] == 1
-    fake_gmail_service.assert_not_called()
-
-
 def test_format_annonce_body_escapes_fullname_html_but_text_version_is_unchanged() -> None:
     fullname = "Zoé <b>&</b>"
 
@@ -391,11 +309,10 @@ def test_send_annonces_fait_passer_l_edition_de_draft_a_announced(tmp_path: Path
     db_path, secure_data_path = _prepare_campaign(tmp_path, {"l1": "Un", "l2": "Deux"})
     assert statut(db_path, 2026) is StatutEdition.DRAFT
 
-    with patch("pere_noel_fremo.helper.gmail_send_email"):
-        send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026)
-        assert statut(db_path, 2026) is StatutEdition.ANNOUNCED
-        # Idempotent : un second envoi laisse l'Édition annoncée sans erreur.
-        send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026)
+    send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026, expediteur=ExpediteurMemoire())
+    assert statut(db_path, 2026) is StatutEdition.ANNOUNCED
+    # Idempotent : un second envoi laisse l'Édition annoncée sans erreur.
+    send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026, expediteur=ExpediteurMemoire())
     assert statut(db_path, 2026) is StatutEdition.ANNOUNCED
 
 
@@ -403,7 +320,14 @@ def test_send_annonces_fait_passer_l_edition_de_draft_a_announced(tmp_path: Path
 def test_send_annonces_sans_envoi_reel_laisse_l_edition_en_draft(tmp_path: Path, dry_run: bool, no_email: bool) -> None:
     db_path, secure_data_path = _prepare_campaign(tmp_path, {"l1": "Un"})
 
-    send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026, dry_run=dry_run, no_email=no_email)
+    send_annonces(
+        db_path=db_path,
+        secure_data_path=secure_data_path,
+        year=2026,
+        dry_run=dry_run,
+        no_email=no_email,
+        expediteur=ExpediteurMemoire(),
+    )
 
     assert statut(db_path, 2026) is StatutEdition.DRAFT
 
@@ -411,8 +335,8 @@ def test_send_annonces_sans_envoi_reel_laisse_l_edition_en_draft(tmp_path: Path,
 def test_send_annonces_sans_aucun_envoi_reussi_laisse_l_edition_en_draft(tmp_path: Path) -> None:
     db_path, secure_data_path = _prepare_campaign(tmp_path, {"l1": "Un"})
 
-    with patch("pere_noel_fremo.helper.gmail_send_email", side_effect=EmailSendError("boom")):
-        send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026)
+    exp = ExpediteurMemoire(echouer_pour=["l1@fremo.org"])
+    send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026, expediteur=exp)
 
     assert statut(db_path, 2026) is StatutEdition.DRAFT
 
@@ -421,7 +345,6 @@ def test_send_annonces_ne_regresse_pas_une_edition_deja_scellee(tmp_path: Path) 
     db_path, secure_data_path = _prepare_campaign(tmp_path, {"l1": "Un"})
     set_edition_status(db_path, 2026, "drawn")
 
-    with patch("pere_noel_fremo.helper.gmail_send_email"):
-        send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026)
+    send_annonces(db_path=db_path, secure_data_path=secure_data_path, year=2026, expediteur=ExpediteurMemoire())
 
     assert statut(db_path, 2026) is StatutEdition.DRAWN
