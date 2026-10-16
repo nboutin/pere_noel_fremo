@@ -18,6 +18,7 @@ from .config import (
     default_db_path,
     get_admin_password,
     get_admin_session_secret,
+    get_base_url,
     resolve_res_dir,
 )
 from .database import init_db
@@ -121,6 +122,7 @@ def create_admin_app(
 
     admin_pwd = admin_password if admin_password is not None else get_admin_password(res_dir)
     session_sec = admin_session_secret if admin_session_secret is not None else get_admin_session_secret(res_dir)
+    configured_base_url = get_base_url(res_dir)
     session_password = admin_pwd or ""
     admin_enabled = session_sec is not None and len(session_sec.encode("utf-8")) >= MIN_SESSION_SECRET_BYTES
     session_secret = session_sec if admin_enabled and session_sec is not None else ""
@@ -233,9 +235,9 @@ def create_admin_app(
             return RedirectResponse(url="/admin/login", status_code=303)
 
         target_year = year if year is not None else annee_courante(db_path)
-        summary = get_admin_edition_summary(db_path, target_year, res_dir=res_dir)
+        summary = get_admin_edition_summary(db_path, target_year)
         available_years = summary.get("available_years", [target_year])
-        base_url = str(request.base_url).rstrip("/")
+        base_url = (configured_base_url or str(request.base_url)).strip().rstrip("/")
 
         resp = templates.TemplateResponse(
             request=request,

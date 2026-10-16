@@ -56,6 +56,11 @@ def get_admin_password(res_dir: Path | str | None = None) -> str | None:
     return _read_secure_data_key("admin_password", res_dir=res_dir)
 
 
+def get_base_url(res_dir: Path | str | None = None) -> str | None:
+    """URL publique canonique des Liens magiques (clé `base_url` de `secure_data.yml`)."""
+    return _read_secure_data_key("base_url", res_dir=res_dir)
+
+
 def get_admin_session_secret(res_dir: Path | str | None = None) -> str | None:
     env_val = os.environ.get("ADMIN_SESSION_SECRET")
     if env_val:

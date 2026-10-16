@@ -864,3 +864,65 @@ def test_legacy_two_part_cookie_redirects_to_login(admin_client: TestClient, mut
     resp = admin_client.get("/admin", follow_redirects=False)
     assert resp.status_code == 303
     assert resp.headers["location"] == "/admin/login"
+
+
+def _admin_app_with_res_dir(db_file: Path, res_dir: Path, clock: datetime) -> TestClient:
+    app = create_admin_app(
+        db_path=db_file,
+        res_dir=res_dir,
+        clock=lambda: clock,
+        admin_password="secret_admin_test_password",
+        admin_session_secret="test_session_secret_at_least_32_bytes_long",
+    )
+    client = TestClient(app, base_url="https://homelab.tail7d8b91.ts.net:8444")
+    client.post("/admin/login", data={"password": "secret_admin_test_password"}, follow_redirects=False)
+    return client
+
+
+def test_copy_magic_link_uses_configured_base_url(
+    rich_admin_db: tuple[Path, dict[str, str]], mutable_clock: list[datetime], tmp_path: Path
+) -> None:
+    db_file, tokens = rich_admin_db
+    res_dir = tmp_path / "res"
+    res_dir.mkdir()
+    (res_dir / "secure_data.yml").write_text("base_url: https://exemple.test:10000/\n", encoding="utf-8")
+    client = _admin_app_with_res_dir(db_file, res_dir, mutable_clock[0])
+
+    html = client.get("/admin").text
+
+    assert f"copyMagicLink(this, 'https://exemple.test:10000/lutin/{tokens['alice']}')" in html
+    assert "homelab.tail7d8b91.ts.net:8444/lutin/" not in html
+
+
+def test_copy_magic_link_falls_back_to_request_base_url(
+    rich_admin_db: tuple[Path, dict[str, str]], mutable_clock: list[datetime], tmp_path: Path
+) -> None:
+    db_file, tokens = rich_admin_db
+    res_dir = tmp_path / "res_vide"
+    res_dir.mkdir()
+    client = _admin_app_with_res_dir(db_file, res_dir, mutable_clock[0])
+
+    html = client.get("/admin").text
+
+    assert f"copyMagicLink(this, 'https://homelab.tail7d8b91.ts.net:8444/lutin/{tokens['alice']}')" in html
+
+
+def test_admin_page_shows_blind_admin_reminder(
+    rich_admin_client: tuple[TestClient, dict[str, str]],
+) -> None:
+    client, _ = rich_admin_client
+    client.post("/admin/login", data={"password": "secret_admin_test_password"}, follow_redirects=False)
+
+    html = client.get("/admin").text
+
+    assert "Admin aveugle" in html
+    assert "ne pas ouvrir" in html.lower()
+
+
+def test_get_admin_edition_summary_has_no_res_dir_parameter() -> None:
+    import inspect
+
+    from pere_noel_fremo import admin, database
+
+    assert "res_dir" not in inspect.signature(admin.get_admin_edition_summary).parameters
+    assert "res_dir" not in inspect.signature(database.get_admin_edition_summary).parameters

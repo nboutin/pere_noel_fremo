@@ -92,7 +92,6 @@ class DefiInfo(dict[str, Any]):
 def get_admin_edition_summary(
     db_path: Path | str | sqlite3.Connection,
     year: int,
-    res_dir: Path | str | None = None,
 ) -> dict[str, Any]:
     """Agrège l'état d'avancement complet d'une Édition pour l'Espace Admin.
 
@@ -103,7 +102,6 @@ def get_admin_edition_summary(
     Args:
         db_path: Chemin du fichier SQLite ou connexion SQLite ouverte.
         year: Année de l'Édition cible.
-        res_dir: Répertoire optionnel des ressources (`res/`).
 
     Returns:
         Dictionnaire contenant les métriques globales et la liste détaillée des Lutins.

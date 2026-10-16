@@ -15,6 +15,10 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 - Espace Admin : application distincte (`create_admin_app`, module `web_admin`) servie par la nouvelle sous-commande `pere-noel serve-admin` (port 8001 par défaut) et par un second service compose `pere_noel_fremo_admin`. L'application publique ne contient plus aucune route `/admin*` ; les deux services sont publiés sur `127.0.0.1` seulement (ADR-0009 §2, §5 ; ADR-0013 §4) (#92).
 
+### Fixed
+
+- Espace Admin : le bouton « Copier l'URL » copie le Lien magique avec le `base_url` configuré dans `secure_data.yml` (repli sur `request.base_url`), et non l'URL du port admin ; ajout d'un rappel Admin aveugle et suppression du paramètre `res_dir` inutilisé de `get_admin_edition_summary` (#89).
+
 ### Security
 
 - Espace Admin : cookie de session `Secure` inconditionnel, garde-fou unique sur l'en-tête `Tailscale-Funnel-Request: ?1` (404), suppression du test sur `Host`/`X-Forwarded-Host` `:10000` et du port 8000 publié sur `0.0.0.0` (#92).
