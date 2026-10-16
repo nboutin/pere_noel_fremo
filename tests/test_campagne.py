@@ -105,6 +105,37 @@ def test_override_email_redirige_tous_les_messages(tmp_path: Path) -> None:
     assert [m.destinataire for m in exp.messages] == ["test@fremo.org", "test@fremo.org"]
 
 
+def test_override_email_n_a_aucun_effet_d_etat_et_le_bilan_n_est_pas_nominal(tmp_path: Path) -> None:
+    db_path = _db(tmp_path, LUTINS)
+    exp = ExpediteurMemoire()
+
+    bilan = envoyer_campagne(db_path, 2026, LUTINS, _rendu(), exp, base_url=BASE, override_email="test@fremo.org")
+
+    assert bilan.envoyes == 2
+    assert bilan.nominal is False
+    assert _sent_at(db_path, "a") is None
+    assert _sent_at(db_path, "b") is None
+
+
+def test_envoi_cible_pose_sent_at_mais_le_bilan_n_est_pas_nominal(tmp_path: Path) -> None:
+    db_path = _db(tmp_path, LUTINS)
+
+    bilan = envoyer_campagne(
+        db_path, 2026, {"a": LUTINS["a"]}, _rendu(), ExpediteurMemoire(), base_url=BASE, cible=True
+    )
+
+    assert bilan.nominal is False
+    assert _sent_at(db_path, "a") is not None
+
+
+def test_envoi_nominal_donne_un_bilan_nominal(tmp_path: Path) -> None:
+    db_path = _db(tmp_path, LUTINS)
+
+    bilan = envoyer_campagne(db_path, 2026, LUTINS, _rendu(), ExpediteurMemoire(), base_url=BASE)
+
+    assert bilan.nominal is True
+
+
 def test_lutin_sans_adresse_est_compte_sans_email(tmp_path: Path) -> None:
     lutins = {"a": {"fullname": "Lutin A", "email": None}}
     db_path = _db(tmp_path, lutins)

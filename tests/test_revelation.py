@@ -6,6 +6,7 @@ import pytest
 import yaml
 from pere_noel_fremo.campagne import ExpediteurMemoire
 from pere_noel_fremo.database import (
+    get_db_connection,
     get_edition_status,
     import_yaml_data,
     init_db,
@@ -217,6 +218,30 @@ def test_send_revelations_target_lutin_and_override_email(tmp_path: Path) -> Non
 
     # Targeted run with target_lutins must NOT transition edition status to 'revealed'
     assert get_edition_status(db_path, 2026) == "drawn"
+
+
+def test_send_revelations_redirigee_n_a_aucun_effet_d_etat(tmp_path: Path) -> None:
+    db_path, secure_data_path = setup_sample_db(tmp_path)
+    set_lutin_presence(db_path, "lutin_1", 2026, True)
+    set_lutin_presence(db_path, "lutin_2", 2026, True)
+    save_attributions(db_path, 2026, {"lutin_1": "lutin_2", "lutin_2": "lutin_1"})
+    exp = ExpediteurMemoire()
+
+    stats = send_revelations(
+        db_path=db_path,
+        secure_data_path=secure_data_path,
+        year=2026,
+        recipient_override="override@fremo.org",
+        expediteur=exp,
+    )
+
+    assert stats["sent"] == 2
+    assert {m.destinataire for m in exp.messages} == {"override@fremo.org"}
+    assert get_edition_status(db_path, 2026) == "drawn"
+    conn = get_db_connection(db_path)
+    n = conn.execute("SELECT COUNT(*) AS n FROM tokens WHERE sent_at IS NOT NULL;").fetchone()["n"]
+    conn.close()
+    assert n == 0
 
 
 def test_send_revelations_custom_template(tmp_path: Path) -> None:

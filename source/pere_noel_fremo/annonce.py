@@ -106,8 +106,9 @@ def send_annonces(
         base_url=base_url or secure_data.get("base_url") or BASE_URL_PAR_DEFAUT,
         dry_run=simulation,
         override_email=recipient_override,
+        cible=bool(target_lutins),
     )
-    if not simulation and bilan.envoyes > 0:
+    if not simulation and bilan.nominal and bilan.envoyes > 0:
         avancer_edition(db_path, year, StatutEdition.DRAFT, StatutEdition.ANNOUNCED)
 
     return {

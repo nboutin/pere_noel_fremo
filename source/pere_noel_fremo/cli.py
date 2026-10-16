@@ -124,7 +124,10 @@ def create_parser() -> argparse.ArgumentParser:
         "--override-email",
         type=str,
         default=None,
-        help="Redirige l'envoi de tous les courriels vers cette adresse de test",
+        help=(
+            "Redirige l'envoi de tous les courriels vers cette adresse de test "
+            "(envoi sans effet d'état : ni sent_at ni changement de statut)"
+        ),
     )
     annonce_parser.add_argument(
         "--interactive-auth",
@@ -275,7 +278,10 @@ def create_parser() -> argparse.ArgumentParser:
         "--override-email",
         type=str,
         default=None,
-        help="Redirige l'envoi de tous les courriels vers cette adresse de test",
+        help=(
+            "Redirige l'envoi de tous les courriels vers cette adresse de test "
+            "(envoi sans effet d'état : ni sent_at ni changement de statut)"
+        ),
     )
 
     # Subcommand: export

@@ -305,6 +305,39 @@ def test_format_annonce_body_escapes_fullname_html_but_text_version_is_unchanged
     assert fullname in text
 
 
+def test_send_annonces_redirigee_n_a_aucun_effet_d_etat(tmp_path: Path) -> None:
+    db_path, secure_data_path = _prepare_campaign(tmp_path, {"l1": "Un", "l2": "Deux"})
+    exp = ExpediteurMemoire()
+
+    stats = send_annonces(
+        db_path=db_path,
+        secure_data_path=secure_data_path,
+        year=2026,
+        recipient_override="test@fremo.org",
+        expediteur=exp,
+    )
+
+    assert stats["sent"] == 2
+    assert [m.destinataire for m in exp.messages] == ["test@fremo.org", "test@fremo.org"]
+    assert statut(db_path, 2026) is StatutEdition.DRAFT
+    assert _count_sent_tokens(db_path) == 0
+
+
+def test_send_annonces_ciblee_marque_sent_at_sans_changer_le_statut(tmp_path: Path) -> None:
+    db_path, secure_data_path = _prepare_campaign(tmp_path, {"l1": "Un", "l2": "Deux"})
+
+    send_annonces(
+        db_path=db_path,
+        secure_data_path=secure_data_path,
+        year=2026,
+        target_lutins=["l1"],
+        expediteur=ExpediteurMemoire(),
+    )
+
+    assert statut(db_path, 2026) is StatutEdition.DRAFT
+    assert _count_sent_tokens(db_path) == 1
+
+
 def test_send_annonces_fait_passer_l_edition_de_draft_a_announced(tmp_path: Path) -> None:
     db_path, secure_data_path = _prepare_campaign(tmp_path, {"l1": "Un", "l2": "Deux"})
     assert statut(db_path, 2026) is StatutEdition.DRAFT

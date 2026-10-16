@@ -104,11 +104,11 @@ def send_revelations(
         base_url=base_url or secure_data.get("base_url") or BASE_URL_PAR_DEFAUT,
         dry_run=simulation,
         override_email=recipient_override,
+        cible=bool(target_lutins),
     )
 
     # Transition du statut de l'édition : 'revealed' sur envoi nominal uniquement
-    envoi_cible = bool(target_lutins)
-    if not simulation and not envoi_cible and bilan.echecs == 0 and bilan.envoyes > 0:
+    if not simulation and bilan.nominal and bilan.echecs == 0 and bilan.envoyes > 0:
         avancer_edition(db_path, year, StatutEdition.DRAWN, StatutEdition.REVEALED)
 
     return {

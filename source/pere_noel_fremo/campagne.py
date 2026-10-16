@@ -91,6 +91,8 @@ class BilanCampagne:
     envoyes: int
     sans_email: int
     echecs: int
+    nominal: bool = True
+    """Vrai si la campagne n'était ni redirigée ni ciblée : seul un bilan nominal fait avancer l'Édition."""
 
 
 def charger_secure_data(secure_data_path: Path | str) -> dict[str, Any]:
@@ -147,10 +149,13 @@ def envoyer_campagne(
     base_url: str = BASE_URL_PAR_DEFAUT,
     dry_run: bool = False,
     override_email: str | None = None,
+    cible: bool = False,
 ) -> BilanCampagne:
     """Boucle unique d'envoi : Lien magique, rendu, envoi, `sent_at` et compteurs.
 
     En `dry_run`, jeton et rendu sont préparés mais rien n'est envoyé ni marqué.
+    Avec `override_email`, l'envoi est un test sans effet d'état : `sent_at` n'est pas posé.
+    `cible` signale une campagne restreinte à certains Lutins ; ni redirigée ni ciblée, le bilan est nominal.
     Un échec d'envoi n'interrompt pas les autres destinataires.
     """
     envoyes = sans_email = echecs = 0
@@ -173,7 +178,8 @@ def envoyer_campagne(
 
         try:
             expediteur.envoyer(adresse, rendu.objet, html, texte)
-            mark_token_sent(db_path, token)
+            if not override_email:
+                mark_token_sent(db_path, token)
             envoyes += 1
         except helper.EmailSendError as exc:
             echecs += 1
@@ -184,4 +190,5 @@ def envoyer_campagne(
                 f"Erreur inattendue lors de l'envoi au Lutin '{lutin_id}' ({helper.mask_email(adresse)}): {exc}"
             )
 
-    return BilanCampagne(envoyes=envoyes, sans_email=sans_email, echecs=echecs)
+    nominal = not override_email and not cible
+    return BilanCampagne(envoyes=envoyes, sans_email=sans_email, echecs=echecs, nominal=nominal)
