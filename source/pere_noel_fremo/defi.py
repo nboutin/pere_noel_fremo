@@ -88,15 +88,18 @@ def calculate_points_for_rank(rank_1_indexed: int) -> int:
 
 def calculate_manche_points(classement: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Attribue les rangs et points selon le barème Grand Prix aux participants ayant résolu la manche."""
+    from .parcours import StatutManche, statut_score
+
     result: list[dict[str, Any]] = []
     solved_rank = 1
     for entry in classement:
         entry_copy = dict(entry)
-        if entry_copy.get("solved"):
+        statut = statut_score(entry_copy)
+        if statut is StatutManche.RESOLUE:
             entry_copy["rank"] = solved_rank
             entry_copy["points"] = calculate_points_for_rank(solved_rank)
             solved_rank += 1
-        elif int(entry_copy.get("attempts", 0) or 0) >= MAX_ESSAIS_PAR_MANCHE:
+        elif statut is StatutManche.SCELLEE:
             entry_copy["rank"] = None
             entry_copy["points"] = 1
         else:

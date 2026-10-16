@@ -251,11 +251,11 @@ def test_calculate_manche_points_participation_and_voluntary_abandon() -> None:
     classement = [
         {"pseudo_lutin": "Lutin Rapide", "solved": 1, "time_seconds": 22.1, "attempts": 1},
         # Lutin ayant échoué à 3 essais -> 1 point de participation au championnat
-        {"pseudo_lutin": "Lutin Persistant", "solved": 0, "time_seconds": None, "attempts": 3},
+        {"pseudo_lutin": "Lutin Persistant", "solved": 0, "time_seconds": None, "attempts": 3, "completed_at": "t"},
         # Lutin ayant abandonné volontairement avant 3 essais -> 0 point
-        {"pseudo_lutin": "Lutin Découragé", "solved": 0, "time_seconds": None, "attempts": 1},
+        {"pseudo_lutin": "Lutin Découragé", "solved": 0, "time_seconds": None, "attempts": 1, "completed_at": "t"},
         # Lutin ayant abandonné sans aucun essai -> 0 point
-        {"pseudo_lutin": "Lutin Fantôme", "solved": 0, "time_seconds": None, "attempts": 0},
+        {"pseudo_lutin": "Lutin Fantôme", "solved": 0, "time_seconds": None, "attempts": 0, "completed_at": "t"},
     ]
 
     scored = calculate_manche_points(classement)

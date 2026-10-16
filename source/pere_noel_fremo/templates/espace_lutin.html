@@ -129,11 +129,11 @@
                        class="manche-badge {% if m.id == active_manche_id %}active-manche{% endif %}">
                         <span style="font-size: 0.85rem; font-weight: bold; color: var(--color-gold);">Manche #{{ m.id }}</span>
                         <span style="font-size: 0.75rem; margin-top: 0.25rem;">
-                            {% if m.status_tag == 'resolue' %}
+                            {% if m.statut == 'resolue' %}
                                 <span style="color: #4ade80;">✅ Résolue</span>
-                            {% elif m.status_tag == 'abandonnee' %}
+                            {% elif m.statut in ('abandonnee', 'scellee') %}
                                 <span style="color: #f87171;">🏳️ Abandonnée</span>
-                            {% elif m.status_tag == 'disponible' %}
+                            {% elif m.statut in ('disponible', 'en_cours') %}
                                 <span style="color: #38bdf8;">🚀 Disponible</span>
                             {% else %}
                                 <span style="color: #94a3b8;">🔒 Verrouillée</span>

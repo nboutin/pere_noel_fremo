@@ -92,6 +92,80 @@ class ResultatSoumission:
     pseudo_lutin: str | None = None
 
 
+class StatutManche(Enum):
+    """Statut d'une Manche pour un Lutin, tel que dérivé du Parcours."""
+
+    RESOLUE = "resolue"
+    ABANDONNEE = "abandonnee"
+    SCELLEE = "scellee"
+    DISPONIBLE = "disponible"
+    EN_COURS = "en_cours"
+    VERROUILLEE = "verrouillee"
+
+
+@dataclass(frozen=True)
+class EtatParcours:
+    """État d'un Lutin sur une Manche : statut et compteurs du score (valeurs neutres si jamais démarrée)."""
+
+    manche_id: int
+    statut: StatutManche
+    attempts: int = 0
+    time_seconds: float | None = None
+    pseudo_lutin: str | None = None
+
+
+def statut_score(score: dict[str, Any], unlocked: bool = True) -> StatutManche:
+    """Dérive le statut d'une Manche d'une ligne de score (vide ou absente si jamais démarrée).
+
+    Une manche terminée sans résolution est `SCELLEE` si le plafond d'essais est atteint, `ABANDONNEE` sinon.
+    """
+    if score.get("solved"):
+        return StatutManche.RESOLUE
+    if score.get("completed_at") is not None:
+        if int(score.get("attempts") or 0) >= MAX_ESSAIS_PAR_MANCHE:
+            return StatutManche.SCELLEE
+        return StatutManche.ABANDONNEE
+    if score.get("started_at") is not None:
+        return StatutManche.EN_COURS
+    return StatutManche.DISPONIBLE if unlocked else StatutManche.VERROUILLEE
+
+
+def etat(
+    db_path: Path | str,
+    lutin_id: str,
+    year: int,
+    manches: list[dict[str, Any]],
+    now: datetime,
+) -> list[EtatParcours]:
+    """État d'un Lutin sur chacune des manches données, lu en une seule requête."""
+    if not manches:
+        return []
+    conn = get_db_connection(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT manche_id, solved, attempts, time_seconds, started_at, completed_at, pseudo_lutin "
+            "FROM scores_defi WHERE lutin_id = ? AND year = ?;",
+            (lutin_id, year),
+        ).fetchall()
+    finally:
+        conn.close()
+    scores = {int(row["manche_id"]): dict(row) for row in rows}
+    resultat: list[EtatParcours] = []
+    for manche in manches:
+        manche_id = int(manche["id"])
+        score = scores.get(manche_id, {})
+        resultat.append(
+            EtatParcours(
+                manche_id=manche_id,
+                statut=statut_score(score, unlocked=is_manche_unlocked(manche, now=now)),
+                attempts=int(score.get("attempts") or 0),
+                time_seconds=score.get("time_seconds"),
+                pseudo_lutin=score.get("pseudo_lutin"),
+            )
+        )
+    return resultat
+
+
 def _garde_acces(
     conn: sqlite3.Connection,
     lutin_id: str,

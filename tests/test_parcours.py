@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -10,7 +11,15 @@ from pere_noel_fremo.database import (
     set_lutin_presence,
 )
 from pere_noel_fremo.defi import MAX_ESSAIS_PAR_MANCHE, PENALITE_ESSAI_FAUX_SECONDES
-from pere_noel_fremo.parcours import StatutParcours, StatutSoumission, abandonner, demarrer, soumettre
+from pere_noel_fremo.parcours import (
+    StatutManche,
+    StatutParcours,
+    StatutSoumission,
+    abandonner,
+    demarrer,
+    etat,
+    soumettre,
+)
 
 NOW = datetime(2026, 10, 14, 20, 0, 0, tzinfo=timezone.utc)
 YEAR = 2026
@@ -364,3 +373,66 @@ def test_soumission_juste_et_abandon_concurrents_un_seul_gagnant(demarree: Path)
         assert statut_solve is StatutSoumission.DEJA_TERMINEE
         assert statut_abandon is StatutParcours.ABANDONNE
         assert row["time_seconds"] is None
+
+
+def _inserer_score(
+    db_path: Path,
+    manche_id: int,
+    *,
+    solved: int = 0,
+    attempts: int = 0,
+    time_seconds: float | None = None,
+    completed: bool = False,
+) -> None:
+    conn = get_db_connection(db_path)
+    with conn:
+        conn.execute(
+            "INSERT INTO scores_defi (lutin_id, year, manche_id, pseudo_lutin, started_at, solved, attempts, "
+            "time_seconds, completed_at) VALUES ('l1', ?, ?, 'Lutin Test', ?, ?, ?, ?, ?);",
+            (YEAR, manche_id, NOW.isoformat(), solved, attempts, time_seconds, NOW.isoformat() if completed else None),
+        )
+    conn.close()
+
+
+def test_etat_une_manche_dans_chaque_statut_en_une_seule_requete(
+    db_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pere_noel_fremo import parcours
+
+    _inserer_score(db_path, 1, solved=1, attempts=2, time_seconds=42.5, completed=True)
+    _inserer_score(db_path, 2, attempts=1, completed=True)
+    _inserer_score(db_path, 3, attempts=MAX_ESSAIS_PAR_MANCHE, completed=True)
+    _inserer_score(db_path, 5, attempts=1)
+    manches = [
+        _manche(id=1),
+        _manche(id=2),
+        _manche(id=3),
+        _manche(id=4),
+        _manche(id=5),
+        _manche(id=6, unlock_at="2099-01-01 00:00:00"),
+    ]
+    requetes: list[str] = []
+    ouvrir = parcours.get_db_connection
+
+    def _connexion_tracee(path: Path | str) -> sqlite3.Connection:
+        conn = ouvrir(path)
+        conn.set_trace_callback(requetes.append)
+        return conn
+
+    monkeypatch.setattr(parcours, "get_db_connection", _connexion_tracee)
+
+    etats = etat(db_path, "l1", YEAR, manches, NOW)
+
+    assert [e.statut for e in etats] == [
+        StatutManche.RESOLUE,
+        StatutManche.ABANDONNEE,
+        StatutManche.SCELLEE,
+        StatutManche.DISPONIBLE,
+        StatutManche.EN_COURS,
+        StatutManche.VERROUILLEE,
+    ]
+    assert [e.manche_id for e in etats] == [1, 2, 3, 4, 5, 6]
+    assert (etats[0].attempts, etats[0].time_seconds, etats[0].pseudo_lutin) == (2, 42.5, "Lutin Test")
+    assert etats[2].attempts == MAX_ESSAIS_PAR_MANCHE
+    assert (etats[3].attempts, etats[3].time_seconds, etats[3].pseudo_lutin) == (0, None, None)
+    assert len(requetes) == 1

@@ -34,7 +34,8 @@ from .defi import (
 )
 from .edition import annee_courante, est_scellee, statut
 from .helper import format_date_repas
-from .parcours import StatutParcours, StatutSoumission, abandonner, demarrer, soumettre
+from .parcours import StatutManche, StatutParcours, StatutSoumission, abandonner, demarrer, soumettre
+from .parcours import etat as etat_parcours
 from .tokens import get_lutin_by_token
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
@@ -145,19 +146,11 @@ def create_app(
 
         # 1. Calendrier des manches et statuts pour ce lutin
         all_manches = get_all_manches(year=year, res_dir=res_dir, now=now_dt, only_unlocked=False)
-        for m in all_manches:
-            m_id = int(m["id"])
-            m_score = get_score_defi(db_path, lutin_id, year, manche_id=m_id)
-            m["user_score"] = m_score
-            m["is_solved"] = bool(m_score.get("solved"))
-            if m["is_solved"]:
-                m["status_tag"] = "resolue"
-            elif m_score.get("completed_at") is not None:
-                m["status_tag"] = "abandonnee"
-            elif m.get("is_unlocked"):
-                m["status_tag"] = "disponible"
-            else:
-                m["status_tag"] = "verrouillee"
+        etats = etat_parcours(db_path, lutin_id, year, all_manches, now_dt)
+        for m, etat_manche in zip(all_manches, etats, strict=True):
+            m["statut"] = etat_manche.statut.value
+            m["is_solved"] = etat_manche.statut is StatutManche.RESOLUE
+            m["user_score"] = {"solved": m["is_solved"], "time_seconds": etat_manche.time_seconds}
             m.pop("indices", None)
             m.pop("solution", None)
             if not m.get("is_unlocked"):
@@ -169,7 +162,8 @@ def create_app(
             active_manche_id = manche
         else:
             # Sélectionner en priorité la première manche disponible non résolue
-            dispo = next((m["id"] for m in all_manches if m["status_tag"] == "disponible"), None)
+            a_jouer = (StatutManche.DISPONIBLE.value, StatutManche.EN_COURS.value)
+            dispo = next((m["id"] for m in all_manches if m["statut"] in a_jouer), None)
             if dispo is not None:
                 active_manche_id = dispo
             elif all_manches:
