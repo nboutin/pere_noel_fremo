@@ -573,11 +573,14 @@ def rich_admin_db(tmp_path: Path) -> tuple[Path, dict[str, str]]:
 
 @pytest.fixture
 def rich_admin_client(
-    rich_admin_db: tuple[Path, dict[str, str]], mutable_clock: list[datetime]
+    rich_admin_db: tuple[Path, dict[str, str]],
+    mutable_clock: list[datetime],
+    tmp_path: Path,
 ) -> tuple[TestClient, dict[str, str]]:
     db_file, tokens = rich_admin_db
     app = create_admin_app(
         db_path=db_file,
+        res_dir=tmp_path,
         clock=lambda: mutable_clock[0],
         admin_password="secret_admin_test_password",
         admin_session_secret="test_session_secret_at_least_32_bytes_long",
