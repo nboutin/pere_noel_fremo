@@ -32,32 +32,6 @@
             <p>Bienvenue dans ton Espace Lutin, <strong>{{ lutin.fullname }}</strong> !</p>
         </header>
 
-        <!-- Statut Championnat du Lutin -->
-        <section class="card" id="card-championnat-lutin">
-            <h2>🏆 Mon statut dans le Championnat</h2>
-            <p>Suivi personnel de ton parcours dans le championnat du Défi du lutin :</p>
-            <div style="display: flex; gap: 1rem; flex-wrap: wrap; justify-content: space-around; margin-top: 1rem; text-align: center;">
-                <div style="background: rgba(255, 255, 255, 0.05); padding: 1rem 1.5rem; border-radius: 8px; flex: 1; min-width: 140px; border: 1px solid var(--color-card-border);">
-                    <div style="font-size: 0.85rem; color: #94a3b8; text-transform: uppercase;">Rang actuel</div>
-                    <div style="font-size: 2rem; font-weight: bold; color: var(--color-gold); margin-top: 0.3rem;">
-                        {% if my_standing %}#{{ my_standing.rank }}{% else %}--{% endif %}
-                    </div>
-                </div>
-                <div style="background: rgba(255, 255, 255, 0.05); padding: 1rem 1.5rem; border-radius: 8px; flex: 1; min-width: 140px; border: 1px solid var(--color-card-border);">
-                    <div style="font-size: 0.85rem; color: #94a3b8; text-transform: uppercase;">Points Grand Prix</div>
-                    <div style="font-size: 2rem; font-weight: bold; color: #4ade80; margin-top: 0.3rem;">
-                        {% if my_standing %}{{ my_standing.total_points }} pts{% else %}0 pts{% endif %}
-                    </div>
-                </div>
-                <div style="background: rgba(255, 255, 255, 0.05); padding: 1rem 1.5rem; border-radius: 8px; flex: 1; min-width: 140px; border: 1px solid var(--color-card-border);">
-                    <div style="font-size: 0.85rem; color: #94a3b8; text-transform: uppercase;">Écart au leader</div>
-                    <div style="font-size: 2rem; font-weight: bold; color: #fbbf24; margin-top: 0.3rem;">
-                        {% if my_standing and my_standing.rank == 1 %}👑 Leader{% elif gap_to_leader is not none and gap_to_leader > 0 %}-{{ gap_to_leader }} pts{% else %}--{% endif %}
-                    </div>
-                </div>
-            </div>
-        </section>
-
         <!-- 1. Confirmation de présence -->
         <section class="card" id="card-presence" data-presence="{% if presence is not none %}{{ 'true' if presence else 'false' }}{% else %}unknown{% endif %}">
             <h2>Confirmation de présence</h2>
@@ -119,13 +93,106 @@
             {% endif %}
         </section>
 
-        <!-- 3. Calendrier et Navigation des Manches -->
+        <!-- 3. Statut Championnat du Lutin -->
+        <section class="card" id="card-championnat-lutin">
+            <h2>🏆 Mon statut dans le Championnat</h2>
+            <p>Suivi personnel de ton parcours dans le championnat du Défi du lutin :</p>
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap; justify-content: space-around; margin-top: 1rem; text-align: center;">
+                <div style="background: rgba(255, 255, 255, 0.05); padding: 1rem 1.5rem; border-radius: 8px; flex: 1; min-width: 140px; border: 1px solid var(--color-card-border);">
+                    <div style="font-size: 0.85rem; color: #94a3b8; text-transform: uppercase;">Rang actuel</div>
+                    <div style="font-size: 2rem; font-weight: bold; color: var(--color-gold); margin-top: 0.3rem;">
+                        {% if my_standing %}#{{ my_standing.rank }}{% else %}--{% endif %}
+                    </div>
+                </div>
+                <div style="background: rgba(255, 255, 255, 0.05); padding: 1rem 1.5rem; border-radius: 8px; flex: 1; min-width: 140px; border: 1px solid var(--color-card-border);">
+                    <div style="font-size: 0.85rem; color: #94a3b8; text-transform: uppercase;">Points Grand Prix</div>
+                    <div style="font-size: 2rem; font-weight: bold; color: #4ade80; margin-top: 0.3rem;">
+                        {% if my_standing %}{{ my_standing.total_points }} pts{% else %}0 pts{% endif %}
+                    </div>
+                </div>
+                <div style="background: rgba(255, 255, 255, 0.05); padding: 1rem 1.5rem; border-radius: 8px; flex: 1; min-width: 140px; border: 1px solid var(--color-card-border);">
+                    <div style="font-size: 0.85rem; color: #94a3b8; text-transform: uppercase;">Écart au leader</div>
+                    <div style="font-size: 2rem; font-weight: bold; color: #fbbf24; margin-top: 0.3rem;">
+                        {% if my_standing and my_standing.rank == 1 %}👑 Leader{% elif gap_to_leader is not none and gap_to_leader > 0 %}-{{ gap_to_leader }} pts{% else %}--{% endif %}
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. Tableau des scores du Championnat -->
+        <section class="card" id="card-classement">
+            <h2>🏆 Classement Général du Championnat</h2>
+            <p>Classement en direct de l'édition {{ edition }} :</p>
+            {% if classement %}
+                <div style="max-height: 400px; overflow-y: auto; margin-top: 1rem; border-radius: 6px;">
+                    <table class="scores-table">
+                        <thead>
+                            <tr>
+                                <th>Rang</th>
+                                <th>Pseudo de lutin</th>
+                                <th>Points</th>
+                                <th>Manches</th>
+                                <th>Temps total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in classement %}
+                                {% set current_rank = entry.rank if (entry.rank is defined and entry.rank is not none) else loop.index %}
+                                <tr class="{% if entry.pseudo_lutin == pseudo_lutin %}my-score-row{% endif %}">
+                                    <td class="rank-col">
+                                        {% if current_rank == 1 %}🥇
+                                        {% elif current_rank == 2 %}🥈
+                                        {% elif current_rank == 3 %}🥉
+                                        {% else %}#{{ current_rank }}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {{ entry.pseudo_lutin }}
+                                        {% if entry.pseudo_lutin == pseudo_lutin %}
+                                            <span class="badge-you">(Toi)</span>
+                                        {% endif %}
+                                    </td>
+                                    <td style="font-weight: bold; color: var(--color-gold);">
+                                        {% if entry.total_points is defined %}{{ entry.total_points }} pts{% else %}0 pts{% endif %}
+                                    </td>
+                                    <td>
+                                        {% if entry.manches_resolved_count is defined %}{{ entry.manches_resolved_count }} / {{ manches|length }}
+                                        {% elif entry.manches_solved is defined %}{{ entry.manches_solved }} / {{ manches|length }}
+                                        {% elif entry.solved %}1 / {{ manches|length }}
+                                        {% else %}0 / {{ manches|length }}
+                                        {% endif %}
+                                    </td>
+                                    <td class="time-col">
+                                        {% if entry.total_time_seconds is defined and entry.total_time_seconds is not none %}
+                                            {{ "%.1f"|format(entry.total_time_seconds) }} s
+                                        {% elif entry.time_seconds is defined and entry.time_seconds is not none %}
+                                            {{ "%.1f"|format(entry.time_seconds) }} s
+                                        {% else %}
+                                            --
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p><em>Aucun lutin n'a encore enregistré de score.</em></p>
+            {% endif %}
+            <div style="text-align: right; margin-top: 1rem;">
+                <a href="/scores/{{ edition }}" target="_blank" style="color: var(--color-gold); font-size: 0.9rem;">
+                    Ouvrir le tableau public plein écran ↗
+                </a>
+            </div>
+        </section>
+
+        <!-- 5. Calendrier et Navigation des Manches -->
         <section class="card" id="card-manches">
             <h2>📅 Calendrier des Manches ({{ manches|length }})</h2>
             <p style="font-size: 0.95rem; color: #cbd5e1;">Choisis une manche pour participer ou revoir tes performances :</p>
             <div class="manches-grid">
                 {% for m in manches %}
-                    <a href="/lutin/{{ lutin.token }}?manche={{ m.id }}"
+                    <a href="/lutin/{{ lutin.token }}?manche={{ m.id }}#card-defi"
                        class="manche-badge {% if m.id == active_manche_id %}active-manche{% endif %}">
                         <span style="font-size: 0.85rem; font-weight: bold; color: var(--color-gold);">Manche #{{ m.id }}</span>
                         <span style="font-size: 0.75rem; margin-top: 0.25rem;">
@@ -149,7 +216,7 @@
             </div>
         </section>
 
-        <!-- 4. Défi du lutin (Grille logique festive & anti-triche) -->
+        <!-- 6. Défi du lutin (Grille logique festive & anti-triche) -->
         <section class="card" id="card-defi">
             <h2>🧩 {{ active_manche.title or ("Manche #" ~ active_manche_id) }}</h2>
             {% if not active_manche.is_unlocked %}
@@ -223,9 +290,9 @@
                         <div class="clue-tabs-container">
                             {% for i in range(indices_count) %}
                                 <button type="button"
-                                        id="tab-clue-{{ i }}"
-                                        class="clue-tab {% if i == 0 %}active{% endif %}"
-                                        onclick="selectClueTab({{ i }})">
+                                         id="tab-clue-{{ i }}"
+                                         class="clue-tab {% if i == 0 %}active{% endif %}"
+                                         onclick="selectClueTab({{ i }})">
                                     Indice {{ i + 1 }}
                                 </button>
                             {% endfor %}
@@ -286,71 +353,6 @@
                 {% endif %}
             {% endif %}
         {% endif %}
-        </section>
-
-        <!-- 5. Tableau des scores du Championnat -->
-        <section class="card">
-            <h2>🏆 Classement Général du Championnat</h2>
-            <p>Classement en direct de l'édition {{ edition }} :</p>
-            {% if classement %}
-                <table class="scores-table">
-                    <thead>
-                        <tr>
-                            <th>Rang</th>
-                            <th>Pseudo de lutin</th>
-                            <th>Points</th>
-                            <th>Manches</th>
-                            <th>Temps total</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for entry in classement %}
-                            {% set current_rank = entry.rank if (entry.rank is defined and entry.rank is not none) else loop.index %}
-                            <tr class="{% if entry.pseudo_lutin == pseudo_lutin %}my-score-row{% endif %}">
-                                <td class="rank-col">
-                                    {% if current_rank == 1 %}🥇
-                                    {% elif current_rank == 2 %}🥈
-                                    {% elif current_rank == 3 %}🥉
-                                    {% else %}#{{ current_rank }}
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {{ entry.pseudo_lutin }}
-                                    {% if entry.pseudo_lutin == pseudo_lutin %}
-                                        <span class="badge-you">(Toi)</span>
-                                    {% endif %}
-                                </td>
-                                <td style="font-weight: bold; color: var(--color-gold);">
-                                    {% if entry.total_points is defined %}{{ entry.total_points }} pts{% else %}0 pts{% endif %}
-                                </td>
-                                <td>
-                                    {% if entry.manches_resolved_count is defined %}{{ entry.manches_resolved_count }} / {{ manches|length }}
-                                    {% elif entry.manches_solved is defined %}{{ entry.manches_solved }} / {{ manches|length }}
-                                    {% elif entry.solved %}1 / {{ manches|length }}
-                                    {% else %}0 / {{ manches|length }}
-                                    {% endif %}
-                                </td>
-                                <td class="time-col">
-                                    {% if entry.total_time_seconds is defined and entry.total_time_seconds is not none %}
-                                        {{ "%.1f"|format(entry.total_time_seconds) }} s
-                                    {% elif entry.time_seconds is defined and entry.time_seconds is not none %}
-                                        {{ "%.1f"|format(entry.time_seconds) }} s
-                                    {% else %}
-                                        --
-                                    {% endif %}
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% else %}
-                <p><em>Aucun lutin n'a encore enregistré de score.</em></p>
-            {% endif %}
-            <div style="text-align: right; margin-top: 1rem;">
-                <a href="/scores/{{ edition }}" target="_blank" style="color: var(--color-gold); font-size: 0.9rem;">
-                    Ouvrir le tableau public plein écran ↗
-                </a>
-            </div>
         </section>
     </div>
 
