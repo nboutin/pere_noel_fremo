@@ -86,6 +86,11 @@ _Avoid_: Token link, magic URL, jeton
 Page web individuelle et confidentielle dédiée à un Lutin pour confirmer sa présence, relever le défi et consulter son Bénéficiaire.
 _Avoid_: Dashboard, portail, profil, compte
 
+**Espace Admin**:
+Page web confidentielle réservée à l'organisateur pour suivre l'état d'avancement de l'édition (statut de présence des Lutins, Absents, envois des Liens magiques et progression au Défi du lutin), tout en respectant strictement l'Admin aveugle en masquant toute Attribution.
+_Avoid_: Dashboard admin, panneau de contrôle, console, backoffice, interface de gestion
+
+
 **Confirmation de présence**:
 Action par laquelle un Lutin valide ou décline sa participation à l'édition courante en réponse à l'Annonce.
 _Avoid_: RSVP, inscription, check-in, vote
