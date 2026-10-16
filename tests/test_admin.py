@@ -54,7 +54,7 @@ def admin_client(admin_db: Path, mutable_clock: list[datetime]) -> TestClient:
 
 
 # ==============================================================================
-# 1. Unitaire : Helpers de jeton, garde Funnel et Limiteur
+# 1. Unitaire : Helpers de token de session, garde Funnel et Limiteur
 # ==============================================================================
 
 
@@ -344,7 +344,7 @@ def test_valid_session_accesses_admin_and_logout(admin_client: TestClient, mutab
     assert admin_after_logout.headers["location"] == "/admin/login"
 
 
-def test_session_expiration_after_2_hours(admin_client: TestClient, mutable_clock: list[datetime]) -> None:
+def test_session_expiration_after_2_hours_inactivity(admin_client: TestClient, mutable_clock: list[datetime]) -> None:
     # 1. Connexion réussie à T0
     admin_client.post(
         "/admin/login",
@@ -352,13 +352,43 @@ def test_session_expiration_after_2_hours(admin_client: TestClient, mutable_cloc
         follow_redirects=False,
     )
 
-    # 2. Accès à T0 + 1h59min (valide)
-    mutable_clock[0] += timedelta(seconds=7190)
-    resp_still_valid = admin_client.get("/admin", follow_redirects=False)
-    assert resp_still_valid.status_code == 200
+    # 2. Inactivité de plus de 2 heures (> 7200s) sans aucune requête
+    mutable_clock[0] += timedelta(seconds=7201)
+    resp_expired = admin_client.get("/admin", follow_redirects=False)
+    assert resp_expired.status_code == 303
+    assert resp_expired.headers["location"] == "/admin/login"
 
-    # 3. Accès à T0 + 2h01min (expiré : > 7200s)
-    mutable_clock[0] += timedelta(seconds=20)
+
+def test_sliding_session_refreshes_cookie_and_extends_lifetime(
+    admin_client: TestClient, mutable_clock: list[datetime]
+) -> None:
+    # 1. Connexion réussie à T0
+    login_resp = admin_client.post(
+        "/admin/login",
+        data={"password": "secret_admin_test_password"},
+        follow_redirects=False,
+    )
+    assert login_resp.status_code == 303
+    initial_cookie = admin_client.cookies.get(SESSION_COOKIE_NAME)
+    assert initial_cookie is not None
+
+    # 2. Accès à T0 + 1h (3600s) -> la session est rafraîchie avec un nouveau cookie
+    mutable_clock[0] += timedelta(seconds=3600)
+    resp1 = admin_client.get("/admin", follow_redirects=False)
+    assert resp1.status_code == 200
+    refreshed_cookie = admin_client.cookies.get(SESSION_COOKIE_NAME)
+    assert refreshed_cookie != initial_cookie
+    assert SESSION_COOKIE_NAME in resp1.headers.get("set-cookie", "")
+
+    # 3. Accès à T0 + 2h30 (5400s après resp1, 9000s au total après login)
+    # Sans glissement de session (expiration à 2h depuis le login), cela aurait expiré.
+    # Grâce au glissement (moins de 2h d'inactivité depuis le dernier accès), l'accès réussit !
+    mutable_clock[0] += timedelta(seconds=5400)
+    resp2 = admin_client.get("/admin", follow_redirects=False)
+    assert resp2.status_code == 200
+
+    # 4. Inactivité de plus de 2h après le dernier accès (7201s) -> session expirée
+    mutable_clock[0] += timedelta(seconds=7201)
     resp_expired = admin_client.get("/admin", follow_redirects=False)
     assert resp_expired.status_code == 303
     assert resp_expired.headers["location"] == "/admin/login"
@@ -395,24 +425,20 @@ def rich_admin_db(tmp_path: Path) -> tuple[Path, dict[str, str]]:
 
         # Lutins (4 actifs, 1 inactif)
         conn.execute(
-            "INSERT INTO lutins (id, fullname, email, is_active) "
-            "VALUES ('alice', 'Alice Martin', 'alice@test.fr', 1);"
+            "INSERT INTO lutins (id, fullname, email, is_active) VALUES ('alice', 'Alice Martin', 'alice@test.fr', 1);"
         )
         conn.execute(
-            "INSERT INTO lutins (id, fullname, email, is_active) "
-            "VALUES ('bob', 'Bob Dupont', 'bob@test.fr', 1);"
+            "INSERT INTO lutins (id, fullname, email, is_active) VALUES ('bob', 'Bob Dupont', 'bob@test.fr', 1);"
         )
         conn.execute(
             "INSERT INTO lutins (id, fullname, email, is_active) "
             "VALUES ('charlie', 'Charlie Durand', 'charlie@test.fr', 1);"
         )
         conn.execute(
-            "INSERT INTO lutins (id, fullname, email, is_active) "
-            "VALUES ('denis', 'Denis Inactif', 'denis@test.fr', 0);"
+            "INSERT INTO lutins (id, fullname, email, is_active) VALUES ('denis', 'Denis Inactif', 'denis@test.fr', 0);"
         )
         conn.execute(
-            "INSERT INTO lutins (id, fullname, email, is_active) "
-            "VALUES ('eve', 'Eve Lambert', 'eve@test.fr', 1);"
+            "INSERT INTO lutins (id, fullname, email, is_active) VALUES ('eve', 'Eve Lambert', 'eve@test.fr', 1);"
         )
 
         # 2026 Presences: Alice=confirme, Bob=absent, Charlie=en attente (aucun enregistrement), Eve=confirme
@@ -528,10 +554,17 @@ def test_admin_dashboard_rendering_and_metrics(
     assert "Confirmés (2)" in html
     assert "Absents (1)" in html
     assert "En attente (1)" in html
+    assert "Inactifs (1)" in html
     assert "filterLutins('all')" in html
     assert "filterLutins('confirme')" in html
     assert "filterLutins('absent')" in html
     assert "filterLutins('en_attente')" in html
+    assert "filterLutins('inactif')" in html
+
+    # En-têtes du tableau respectant GLOSSARY.md (pas de "Compte")
+    assert "<th>Statut</th>" in html
+    assert "<th>Compte</th>" not in html
+    assert "comptes" not in html
 
     # 4. Badges présence
     assert "✅ Confirmé" in html
@@ -546,7 +579,7 @@ def test_admin_dashboard_rendering_and_metrics(
     assert "🚫 Abandonné" in html
     assert "⚪ Non commencé" in html
 
-    # 6. Comptes Actifs / Inactifs
+    # 6. Statut Actif / Inactif des Lutins
     assert "Denis Inactif" in html
     assert "Inactif" in html
 

@@ -361,7 +361,7 @@
                 <div class="metric-label">Inscrits</div>
                 <div class="metric-value">{{ summary.total_lutins }}</div>
                 {% if summary.metrics.inactifs > 0 %}
-                    <div class="metric-sub">{{ summary.metrics.total_inscrits }} comptes ({{ summary.metrics.inactifs }} inactif{{ 's' if summary.metrics.inactifs > 1 else '' }})</div>
+                    <div class="metric-sub">{{ summary.metrics.total_inscrits }} Lutins inscrits ({{ summary.metrics.inactifs }} inactif{{ 's' if summary.metrics.inactifs > 1 else '' }})</div>
                 {% else %}
                     <div class="metric-sub">Lutins actifs</div>
                 {% endif %}
@@ -408,6 +408,11 @@
                 <button type="button" class="btn-filter" data-filter="en_attente" onclick="filterLutins('en_attente')">
                     En attente ({{ summary.en_attente }})
                 </button>
+                {% if summary.metrics.inactifs > 0 %}
+                <button type="button" class="btn-filter" data-filter="inactif" onclick="filterLutins('inactif')">
+                    Inactifs ({{ summary.metrics.inactifs }})
+                </button>
+                {% endif %}
             </div>
             <div class="filter-count" id="visible-count">
                 Affichage : {{ summary.lutins|length }} lutin{{ 's' if summary.lutins|length > 1 else '' }}
@@ -424,12 +429,12 @@
                             <th>Présence</th>
                             <th>Lien magique</th>
                             <th>Défi du lutin</th>
-                            <th>Compte</th>
+                            <th>Statut</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for lutin in summary.lutins %}
-                            <tr class="lutin-row" data-presence="{{ lutin.presence.statut }}">
+                            <tr class="lutin-row" data-presence="{{ 'inactif' if not lutin.is_active else lutin.presence.statut }}">
                                 <td>
                                     <div class="lutin-fullname">
                                         {{ lutin.fullname }}
@@ -442,7 +447,9 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if lutin.presence.statut == 'confirme' %}
+                                    {% if not lutin.is_active %}
+                                        <span class="badge badge-inactif">⚪ Inactif</span>
+                                    {% elif lutin.presence.statut == 'confirme' %}
                                         <span class="badge badge-confirme">✅ Confirmé</span>
                                     {% elif lutin.presence.statut == 'absent' %}
                                         <span class="badge badge-absent">❌ Absent</span>

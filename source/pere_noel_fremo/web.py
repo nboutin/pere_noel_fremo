@@ -162,7 +162,7 @@ def create_app(
 
     @app.middleware("http")
     async def tailscale_funnel_guard(request: Request, call_next: Callable[[Request], Any]) -> Any:
-        path = request.url.path
+        path = request.url.path.lower()
         if (path == "/admin" or path.startswith("/admin/")) and is_tailscale_funnel_request(request):
             return templates.TemplateResponse(
                 request=request,
@@ -591,12 +591,6 @@ def create_app(
     # Routes Espace Admin
     @app.get("/admin/login", response_class=HTMLResponse)
     def get_admin_login(request: Request) -> Any:
-        if is_tailscale_funnel_request(request):
-            return templates.TemplateResponse(
-                request=request,
-                name="erreur_404.html",
-                status_code=404,
-            )
         token = request.cookies.get(SESSION_COOKIE_NAME)
         now_ts = int(clock_fn().timestamp())
         if token and verify_session_token(token, session_secret, now_ts, max_age=SESSION_DURATION_SECONDS):
@@ -609,12 +603,6 @@ def create_app(
 
     @app.post("/admin/login")
     def post_admin_login(request: Request) -> Any:
-        if is_tailscale_funnel_request(request):
-            return templates.TemplateResponse(
-                request=request,
-                name="erreur_404.html",
-                status_code=404,
-            )
         forwarded_for = request.headers.get("x-forwarded-for")
         client_ip = (
             forwarded_for.split(",")[0].strip()
@@ -674,12 +662,6 @@ def create_app(
 
     @app.api_route("/admin/logout", methods=["GET", "POST"])
     def logout_admin(request: Request) -> Any:
-        if is_tailscale_funnel_request(request):
-            return templates.TemplateResponse(
-                request=request,
-                name="erreur_404.html",
-                status_code=404,
-            )
         resp = RedirectResponse(url="/admin/login", status_code=303)
         resp.delete_cookie(
             key=SESSION_COOKIE_NAME,
@@ -691,12 +673,6 @@ def create_app(
 
     @app.get("/admin", response_class=HTMLResponse)
     def get_espace_admin(request: Request, year: int | None = None) -> Any:
-        if is_tailscale_funnel_request(request):
-            return templates.TemplateResponse(
-                request=request,
-                name="erreur_404.html",
-                status_code=404,
-            )
         token = request.cookies.get(SESSION_COOKIE_NAME)
         now_ts = int(clock_fn().timestamp())
         if not token or not verify_session_token(token, session_secret, now_ts, max_age=SESSION_DURATION_SECONDS):
@@ -707,7 +683,7 @@ def create_app(
         available_years = summary.get("available_years", [target_year])
         base_url = str(request.base_url).rstrip("/")
 
-        return templates.TemplateResponse(
+        resp = templates.TemplateResponse(
             request=request,
             name="espace_admin.html",
             context={
@@ -718,5 +694,15 @@ def create_app(
                 "base_url": base_url,
             },
         )
+        new_token = create_session_token(session_secret, now_ts)
+        resp.set_cookie(
+            key=SESSION_COOKIE_NAME,
+            value=new_token,
+            max_age=SESSION_DURATION_SECONDS,
+            httponly=True,
+            samesite="strict",
+            secure=True,
+        )
+        return resp
 
     return app
