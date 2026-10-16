@@ -1,5 +1,6 @@
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -1072,3 +1073,46 @@ def test_init_db_renames_pseudo_lugeur_column_idempotently(tmp_path: Path) -> No
     assert "pseudo_lugeur" not in cols
     assert "pseudo_lutin" in cols
     assert row == ("Lutin Ancien", 45.0)
+
+
+def test_get_or_assign_pseudo_keeps_caller_transaction_open(tmp_path: Path) -> None:
+    from pere_noel_fremo.database import begin_immediate, get_db_connection, get_or_assign_pseudo
+
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+
+    conn = get_db_connection(db_path)
+    try:
+        begin_immediate(conn)
+        get_or_assign_pseudo(conn, "l1", 2026)
+        assert conn.in_transaction is True
+        conn.rollback()
+        assert conn.execute("SELECT COUNT(*) FROM pseudos;").fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_start_score_defi_rolls_back_pseudo_and_score_together(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import pere_noel_fremo.database as database
+
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+    seed = sqlite3.connect(str(db_path))
+    seed.execute("INSERT INTO lutins (id, fullname) VALUES ('l1', 'Lutin Un');")
+    seed.execute("INSERT INTO editions (year) VALUES (2026);")
+    seed.commit()
+    seed.close()
+
+    def boom(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise RuntimeError("échec simulé après l'insertion du pseudo")
+
+    monkeypatch.setattr(database, "_get_score_entry", boom)
+    with pytest.raises(RuntimeError, match="échec simulé"):
+        database.start_score_defi(db_path, "l1", 2026, pseudo_lutin=None)
+
+    conn = sqlite3.connect(str(db_path))
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM pseudos;").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM scores_defi;").fetchone()[0] == 0
+    finally:
+        conn.close()

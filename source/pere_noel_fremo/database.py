@@ -755,58 +755,60 @@ def get_or_assign_pseudo(
         close_after = True
 
     try:
-        with conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS pseudos (
-                    year INTEGER NOT NULL,
-                    lutin_id TEXT NOT NULL,
-                    pseudo TEXT NOT NULL,
-                    PRIMARY KEY (year, lutin_id),
-                    UNIQUE (year, pseudo)
-                );
-                """
-            )
-            for _ in range(10):
-                row = conn.execute(
-                    "SELECT pseudo FROM pseudos WHERE year = ? AND lutin_id = ?;",
-                    (year, lutin_id),
-                ).fetchone()
-                if row is not None:
-                    return str(row["pseudo"])
-
-                assigned_rows = conn.execute(
-                    "SELECT pseudo FROM pseudos WHERE year = ?;",
-                    (year,),
-                ).fetchall()
-                assigned = {str(r["pseudo"]) for r in assigned_rows}
-
-                all_combinations = [f"{animal} {adj}" for animal in ANIMAUX_LUTINS for adj in ADJECTIFS_FESTIFS]
-                available = [p for p in all_combinations if p not in assigned]
-                if not available:
-                    raise RuntimeError(
-                        f"Espace de pseudos épuisé pour l'édition {year} "
-                        f"({len(assigned)}/{len(all_combinations)} attribués)"
-                    )
-
-                chosen = secrets.choice(available)
-                try:
-                    conn.execute(
-                        "INSERT INTO pseudos (year, lutin_id, pseudo) VALUES (?, ?, ?);",
-                        (year, lutin_id, chosen),
-                    )
-                    return chosen
-                except sqlite3.IntegrityError:
-                    continue
-
-            raise RuntimeError("Impossible d'attribuer un pseudo unique après plusieurs tentatives.")
+        if close_after:
+            with conn:
+                begin_immediate(conn)
+                return _assign_pseudo_in_transaction(conn, lutin_id, year, ADJECTIFS_FESTIFS, ANIMAUX_LUTINS)
+        # Connexion fournie : on s'exécute dans la transaction de l'appelant, sans la valider.
+        return _assign_pseudo_in_transaction(conn, lutin_id, year, ADJECTIFS_FESTIFS, ANIMAUX_LUTINS)
     finally:
         if close_after:
             conn.close()
 
 
+def _assign_pseudo_in_transaction(
+    conn: sqlite3.Connection,
+    lutin_id: str,
+    year: int,
+    adjectifs: Any,
+    animaux: Any,
+) -> str:
+    for _ in range(10):
+        row = conn.execute(
+            "SELECT pseudo FROM pseudos WHERE year = ? AND lutin_id = ?;",
+            (year, lutin_id),
+        ).fetchone()
+        if row is not None:
+            return str(row["pseudo"])
+
+        assigned_rows = conn.execute(
+            "SELECT pseudo FROM pseudos WHERE year = ?;",
+            (year,),
+        ).fetchall()
+        assigned = {str(r["pseudo"]) for r in assigned_rows}
+
+        all_combinations = [f"{animal} {adj}" for animal in animaux for adj in adjectifs]
+        available = [p for p in all_combinations if p not in assigned]
+        if not available:
+            raise RuntimeError(
+                f"Espace de pseudos épuisé pour l'édition {year} ({len(assigned)}/{len(all_combinations)} attribués)"
+            )
+
+        chosen = secrets.choice(available)
+        try:
+            conn.execute(
+                "INSERT INTO pseudos (year, lutin_id, pseudo) VALUES (?, ?, ?);",
+                (year, lutin_id, chosen),
+            )
+            return chosen
+        except sqlite3.IntegrityError:
+            continue
+
+    raise RuntimeError("Impossible d'attribuer un pseudo unique après plusieurs tentatives.")
+
+
 def get_lutin_pseudo(
-    conn_or_path: Any,
+    conn_or_path: Path | str | sqlite3.Connection,
     lutin_id: str,
     year: int,
 ) -> str | None:

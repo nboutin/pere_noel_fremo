@@ -20,6 +20,8 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 ### Fixed
 
+- `get_or_assign_pseudo` ne valide plus la transaction de l'appelant : l'attribution du pseudo et la création de la ligne `scores_defi` restent atomiques dans `start_score_defi` (#49).
+
 ### Removed
 - Alias `get_pseudo_for_lutin` et son re-export dans `defi` (#36).
 
