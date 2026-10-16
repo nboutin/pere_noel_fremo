@@ -936,3 +936,14 @@ def get_scores_classement(
         return result
     finally:
         conn.close()
+
+
+def get_admin_edition_summary(
+    db_path: Path | str | sqlite3.Connection,
+    year: int,
+    res_dir: Path | str | None = None,
+) -> dict[str, Any]:
+    """Agrège l'état d'avancement d'une Édition pour l'Espace Admin sous Admin aveugle."""
+    from .admin import get_admin_edition_summary as _get_admin_edition_summary
+
+    return _get_admin_edition_summary(db_path, year, res_dir=res_dir)
