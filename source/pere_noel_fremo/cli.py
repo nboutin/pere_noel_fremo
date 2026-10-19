@@ -9,6 +9,7 @@ from .config import default_db_path, resolve_res_dir
 from .database import import_yaml_data
 from .edition import annee_courante
 from .helper import configure_logger
+from .manche_email import send_annonces_manche
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -131,6 +132,93 @@ def create_parser() -> argparse.ArgumentParser:
         ),
     )
     annonce_parser.add_argument(
+        "--interactive-auth",
+        action="store_true",
+        help="Autorise la ré-authentification Gmail locale (ouvre un navigateur ; à éviter sur le Homelab)",
+    )
+
+    # Subcommand: annonce-manche
+    annonce_manche_parser = subparsers.add_parser(
+        "annonce-manche",
+        help="Envoie le courriel d'Annonce de manche du Défi du lutin",
+    )
+    annonce_manche_parser.add_argument(
+        "--manche",
+        type=int,
+        required=True,
+        help="Numéro de la manche du Défi du lutin (1 à 15)",
+    )
+    annonce_manche_parser.add_argument(
+        "--db-path",
+        type=Path,
+        default=default_db,
+        help="Chemin de la base de données SQLite (défaut: res/fremo.db)",
+    )
+    annonce_manche_parser.add_argument(
+        "--secure-data",
+        type=Path,
+        default=default_secure_data,
+        help="Chemin du fichier secure_data.yml (défaut: res/secure_data.yml)",
+    )
+    annonce_manche_parser.add_argument(
+        "--year",
+        type=int,
+        default=None,
+        help="Année de l'édition (défaut: édition la plus récente de la base, sinon année courante)",
+    )
+    annonce_manche_parser.add_argument(
+        "--base-url",
+        type=str,
+        default=None,
+        help="URL racine pour les Liens magiques (surcharge la configuration)",
+    )
+    annonce_manche_parser.add_argument(
+        "--template",
+        type=Path,
+        default=None,
+        help="Chemin vers un gabarit personnalisé d'email (défaut: gabarit de manche ou intégré)",
+    )
+    annonce_manche_parser.add_argument(
+        "--subject",
+        type=str,
+        default=None,
+        help="Objet personnalisé de l'email",
+    )
+    annonce_manche_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Simule l'envoi sans contacter Gmail",
+    )
+    annonce_manche_parser.add_argument(
+        "--no-email",
+        action="store_true",
+        help="Désactive l'envoi effectif des emails",
+    )
+    annonce_manche_parser.add_argument(
+        "--absent",
+        action="append",
+        default=[],
+        help="Identifiant d'un Lutin absent pour cette édition (peut être répété)",
+    )
+    annonce_manche_parser.add_argument(
+        "--skip",
+        action="append",
+        default=[],
+        help="Alias de compatibilité pour --absent",
+    )
+    annonce_manche_parser.add_argument(
+        "--lutin",
+        action="append",
+        default=[],
+        help="Cible uniquement un identifiant de Lutin spécifique pour un envoi test (peut être répété)",
+    )
+    annonce_manche_parser.add_argument(
+        "--override-email",
+        type=str,
+        default=None,
+        help=("Redirige l'envoi de tous les courriels vers cette adresse de test (envoi sans effet d'état)"),
+    )
+    annonce_manche_parser.add_argument(
         "--interactive-auth",
         action="store_true",
         help="Autorise la ré-authentification Gmail locale (ouvre un navigateur ; à éviter sur le Homelab)",
@@ -433,6 +521,59 @@ def handle_annonce(args: argparse.Namespace) -> int:
         return 1
 
 
+def handle_annonce_manche(args: argparse.Namespace) -> int:
+    db_path: Path = args.db_path
+    secure_data_path: Path = args.secure_data
+
+    template_path = args.template
+    res_dir = resolve_res_dir()
+    if template_path is None:
+        candidate_template = res_dir / str(args.year) / f"manche_{args.manche}_email.txt"
+        if candidate_template.exists():
+            template_path = candidate_template
+
+    absents_list = list(args.absent or []) + list(args.skip or [])
+
+    try:
+        stats = send_annonces_manche(
+            db_path=db_path,
+            secure_data_path=secure_data_path,
+            manche_id=args.manche,
+            year=args.year,
+            base_url=args.base_url,
+            template_path=template_path,
+            subject=args.subject,
+            dry_run=args.dry_run,
+            no_email=args.no_email,
+            absents=absents_list,
+            target_lutins=list(args.lutin) if args.lutin else None,
+            recipient_override=args.override_email,
+            interactive_auth=args.interactive_auth,
+            res_dir=res_dir,
+        )
+
+        if args.dry_run or args.no_email:
+            print(
+                f"Simulation Annonce Manche {args.manche} : {stats['sent']} courriels préparés (mode simulation), "
+                f"{stats['absent']} absents sur {stats['total']} lutins."
+            )
+            return 0
+
+        echecs = stats.get("failed", 0)
+        print(
+            f"Campagne d'Annonce de la Manche {args.manche} terminée : {stats['sent']} courriels envoyés, "
+            f"{echecs} échecs, "
+            f"{stats['absent']} absents sur {stats['total']} lutins."
+        )
+        if echecs > 0:
+            print(f"Alerte : {echecs} échec(s) d'envoi détecté(s) lors de l'annonce de la Manche {args.manche}.")
+            return 1
+        return 0
+    except Exception as exc:
+        print(f"Erreur lors de l'annonce de la Manche {args.manche} : {exc}")
+        return 1
+
+
 def build_uvicorn_log_config() -> dict[str, Any]:
     """Configure uvicorn's logging dictionary by attaching TokenMaskingFilter to uvicorn.access."""
     import uvicorn.config
@@ -640,6 +781,8 @@ def main(argv: list[str] | None = None) -> int:
         return handle_init_db(args)
     if args.command == "annonce":
         return handle_annonce(args)
+    if args.command == "annonce-manche":
+        return handle_annonce_manche(args)
     if args.command == "serve":
         return handle_serve(args)
     if args.command == "serve-admin":

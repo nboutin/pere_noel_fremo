@@ -274,14 +274,14 @@ def test_locked_manche_refuses_start_and_solve(client: TestClient, test_db: Path
     token_2026 = create_or_get_token(test_db, "fbonnet", 2026)
     set_lutin_presence(test_db, "fbonnet", 2026, present=True)
 
-    # Manche 2 pour 2026 s'ouvre le 19/10/2026 (futur par rapport à la date de test) -> 403
-    resp_start = client.post(f"/api/lutin/{token_2026}/defi/2/start")
+    # Manche 4 pour 2026 s'ouvre le 26/10/2026 (futur par rapport à la date de test) -> 403
+    resp_start = client.post(f"/api/lutin/{token_2026}/defi/4/start")
     assert resp_start.status_code == 403
     assert "déverrouillée" in resp_start.json().get("detail", "").lower()
 
     # Tentative de résolution directe -> 403
     resp_solve = client.post(
-        f"/api/lutin/{token_2026}/defi/2/solve",
+        f"/api/lutin/{token_2026}/defi/4/solve",
         json={"solution": {}},
     )
     assert resp_solve.status_code == 403
@@ -459,35 +459,36 @@ def test_espace_lutin_locked_manche_no_clues_no_categories(client: TestClient, t
 
     set_lutin_presence(test_db, "fbonnet", 2026, present=True)
 
-    # Manche 2 est verrouillée dans res/2026/grilles/manche_2.yml (unlock_at en 2026-10-19)
-    response = client.get(f"/lutin/{token}?manche=2")
+    # Manche 4 est verrouillée dans res/2026/grilles/manche_4.yml (unlock_at le 2026-10-26)
+    response = client.get(f"/lutin/{token}?manche=4")
     assert response.status_code == 200
     page_text = response.text
 
     # Titre et unlock_at doivent être affichés
-    assert "Manche 2 : La Ronde des Étoiles" in page_text
-    assert "lundi 19 octobre, 17h00" in page_text
-    assert "2026-10-19 17:00:00" not in page_text
+    assert "Manche 4 : Le Traîneau Mystère" in page_text
+    assert "lundi 26 octobre, 17h00" in page_text
+    assert "2026-10-26 17:00:00" not in page_text
     assert "Cette manche est encore verrouillée" in page_text
 
     # Aucun indice, ni en clair ni en base64
-    assert "Léon porte le bonnet Vert Sapin" not in page_text
+    assert "Barnabé ne conduit pas l'Étoile Rouge" not in page_text
     import base64
 
-    b64_clue = base64.b64encode("Léon porte le bonnet Vert Sapin".encode()).decode("ascii")
+    b64_clue = base64.b64encode("Barnabé ne conduit pas l'Étoile Rouge".encode()).decode("ascii")
     assert b64_clue not in page_text
     assert "OBF_CLUES" not in page_text
     assert "obf_clues" not in page_text
 
     # Aucune catégorie de la manche verrouillée ne doit fuiter dans le DOM/JS
-    assert "Léon" not in page_text
-    assert "Maya" not in page_text
-    assert "Noé" not in page_text
-    assert "Vert Sapin" not in page_text
-    assert "Rouge à Pompon" not in page_text
-    assert "Bleu Nuit" not in page_text
-    assert "Train en bois" not in page_text
-    assert "Poupée de chiffon" not in page_text
+    assert "Barnabé" not in page_text
+    assert "Clémence" not in page_text
+    assert "Gaspard" not in page_text
+    assert "Étoile Rouge" not in page_text
+    assert "Comète Bleue" not in page_text
+    assert "Éclair Vert" not in page_text
+    assert "Pain d'épices" not in page_text
+    assert "Canne de sucre" not in page_text
+    assert "Chocolat chaud" not in page_text
 
 
 def test_espace_lutin_unlocked_manche_not_started_no_clues(client: TestClient, test_db: Path) -> None:
@@ -560,8 +561,8 @@ def test_start_defi_returns_indices_and_guards(client: TestClient, test_db: Path
     assert resp_no_pres.status_code == 403
     assert "indices" not in resp_no_pres.json()
 
-    # 2. Manche verrouillée (manche 2) -> 403 sans indices
-    resp_locked = client.post(f"/api/lutin/{token_confirmed}/defi/2/start")
+    # 2. Manche verrouillée (manche 3) -> 403 sans indices
+    resp_locked = client.post(f"/api/lutin/{token_confirmed}/defi/3/start")
     assert resp_locked.status_code == 403
     assert "indices" not in resp_locked.json()
 
@@ -1114,7 +1115,7 @@ def test_scores_page_shows_french_unlock_time_for_locked_manche(client: TestClie
     resp = client.get("/scores/2026")
     assert resp.status_code == 200
     assert "17h00" in resp.text
-    assert "lundi 19 octobre, 17h00" in resp.text
+    assert "vendredi 23 octobre, 17h00" in resp.text
 
 
 def test_aucune_route_n_est_asynchrone(client: TestClient) -> None:
@@ -1263,9 +1264,9 @@ def test_defi_indices_refus_presence_manche_et_verrou(client: TestClient, test_d
 
     token_2026 = create_or_get_token(test_db, "fbonnet", 2026)
     set_lutin_presence(test_db, "fbonnet", 2026, present=True)
-    resp = client.get(f"/api/lutin/{token_2026}/defi/2/indices")
+    resp = client.get(f"/api/lutin/{token_2026}/defi/3/indices")
     assert resp.status_code == 403
-    assert resp.json()["detail"] == "La manche 2 n'est pas encore déverrouillée."
+    assert resp.json()["detail"] == "La manche 3 n'est pas encore déverrouillée."
 
     assert client.get("/api/lutin/inconnu/defi/1/indices").status_code == 404
 

@@ -62,8 +62,12 @@ _Avoid_: Teaser, invitation, notification
 Courriel officiel notifiant les Lutins que le Tirage au sort a été réalisé, les invitant à se reconnecter à leur Espace Lutin via leur Lien magique pour dévoiler leur Bénéficiaire sous la Carte à gratter, et faisant basculer l'Édition au statut `revealed`.
 _Avoid_: Découverte, déblocage, notification de tirage, alerte
 
+**Annonce de manche**:
+Courriel officiel notifiant les Lutins de l'ouverture bi-hebdomadaire d'une nouvelle Grille logique du Défi du lutin, transmettant les informations de l'épreuve (titre et durée estimée) et le Lien magique vers l'Espace Lutin, sans modifier le statut de l'Édition. Doit respecter les standards d'e-mailing HTML « bulletproof » de l'ADR-0010.
+_Avoid_: Relance de manche, alerte manche, notification d'épreuve, newsletter de jeu
+
 **Campagne**:
-Envoi groupé d'un courriel officiel, Annonce ou Révélation, à un ensemble de Lutins, porté par le module `campagne` (boucle d'envoi unique et port d'envoi `Expediteur`). Une Campagne n'est jamais une Édition : elle se déroule au sein d'une Édition et peut la faire avancer (Annonce : `draft` -> `announced`, Révélation : `drawn` -> `revealed`).
+Envoi groupé d'un courriel officiel (Annonce, Annonce de manche ou Révélation) à un ensemble de Lutins, porté par le module `campagne` (boucle d'envoi unique et port d'envoi `Expediteur`). Une Campagne n'est jamais une Édition : elle se déroule au sein d'une Édition. Seules l'Annonce (`draft` -> `announced`) et la Révélation (`drawn` -> `revealed`) peuvent faire avancer l'Édition ; l'Annonce de manche est sans effet sur le cycle de vie de l'Édition.
 _Avoid_: Édition, mailing, newsletter
 
 **Envoi nominal**:

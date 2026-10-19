@@ -210,3 +210,118 @@ text-align: center; font-size: 13px; color: #64748b;">
 </body>
 </html>
 """
+
+DEFAULT_MANCHE_TEMPLATE = """<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <meta name="supported-color-schemes" content="light dark">
+    <title>Le Père Noël de la Frémo - {manche_title}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #0f172a; \
+font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" \
+style="background-color: #0f172a; padding: 24px 12px;">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="100%" style="max-width: 600px; background-color: #ffffff; \
+border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.3);" cellspacing="0" cellpadding="0">
+                    <tr>
+                        <td bgcolor="#1e3a8a" style="background-color: #1e3a8a; \
+background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); padding: 32px 24px; text-align: center; color: #ffffff;">
+                            <div style="font-size: 40px; margin-bottom: 8px;">🧩 ❄️ ⭐</div>
+                            <div style="display: inline-block; background-color: #d97706; color: #ffffff; \
+font-size: 12px; font-weight: bold; padding: 4px 12px; border-radius: 9999px; text-transform: uppercase; \
+letter-spacing: 1px; margin-bottom: 12px;">Édition {year} • Manche {manche_id}</div>
+                            <h1 style="margin: 0; font-size: 26px; font-weight: 800; \
+letter-spacing: -0.5px; color: #ffffff;">
+                                Le Père Noël de la Frémo
+                            </h1>
+                            <p style="margin: 8px 0 0; font-size: 15px; color: #bfdbfe;">
+                                {manche_title} est ouverte !
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 32px 28px; line-height: 1.6; font-size: 15px; color: #334155;">
+                            <p style="font-size: 18px; font-weight: bold; color: #0f172a; margin-top: 0;">
+                                HOHOHO {fullname},
+                            </p>
+                            <p>
+                                La cloche du Défi du lutin vient de sonner au Pôle Nord !
+                                Une nouvelle épreuve de déduction logique vient d'être déverrouillée :
+                                <strong>{manche_title}</strong>.
+                            </p>
+                            <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; \
+border-radius: 6px; padding: 16px; margin: 24px 0;">
+                                <h3 style="margin: 0 0 8px; color: #1e40af; font-size: 16px;">
+                                    🧩 1. À vos méninges !
+                                </h3>
+                                <p style="margin: 0; font-size: 14px; color: #1e3a8a;">
+                                    Durée estimée : <strong>{estimated_time}</strong>.<br>
+                                    Chaque manche rapporte de précieux points pour le classement général.
+                                    Rappel : le vainqueur du Défi aura l'immense honneur d'ouvrir son cadeau en premier
+                                    lors du <strong>Repas de Noël</strong> !
+                                </p>
+                            </div>
+                            <div style="background-color: #fefce8; border-left: 4px solid #eab308; \
+border-radius: 6px; padding: 16px; margin: 24px 0;">
+                                <h3 style="margin: 0 0 8px; color: #854d0e; font-size: 16px;">
+                                    🏃 2. Rattrapage libre sans pénalité
+                                </h3>
+                                <p style="margin: 0; font-size: 14px; color: #713f12;">
+                                    Tu as manqué le départ ou une manche précédente ? Toutes les manches débloquées
+                                    restent accessibles et jouables à ton rythme jusqu'au Repas de Noël.
+                                </p>
+                            </div>
+                            <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; \
+border-radius: 6px; padding: 16px; margin: 24px 0;">
+                                <h3 style="margin: 0 0 8px; color: #991b1b; font-size: 16px;">
+                                    📌 3. Confirmation de présence
+                                </h3>
+                                <p style="margin: 0; font-size: 14px; color: #7f1d1d;">
+                                    Si tu ne l'as pas encore fait, n'oublie pas de valider ou décliner ta présence
+                                    avant le <strong>dimanche 1er novembre {year} à 23h59</strong> sur ton Espace Lutin.
+                                </p>
+                            </div>
+                            <table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" \
+style="margin: 36px auto 28px;">
+                                <tr>
+                                    <td align="center" bgcolor="#2563eb" style="border-radius: 8px; \
+background-color: #2563eb; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); \
+box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);">
+                                        <a href="{lien_magique}" target="_blank" style="font-size: 16px; \
+font-weight: bold; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; \
+text-decoration: none; color: #ffffff; padding: 16px 32px; border-radius: 8px; display: inline-block;">
+                                            👉 Relever le Défi sur mon Espace Lutin
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                            <p style="text-align: center; font-size: 12px; color: #94a3b8; margin: 0 0 16px;">
+                                🔒 <em>Ce lien est magique et strictement personnel (aucun mot de passe requis).</em>
+                            </p>
+                            <p style="font-size: 11px; color: #cbd5e1; word-break: break-all; \
+text-align: center; margin-top: 12px;">
+                                Si le bouton ne fonctionne pas, copie ce lien dans ton navigateur :<br>
+                                <a href="{lien_magique}" style="color: #64748b; text-decoration: underline;">\
+{lien_magique}</a>
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 24px; \
+text-align: center; font-size: 13px; color: #64748b;">
+                            <p style="margin: 0; font-weight: 600; color: #334155;">Le Père Noël de la Frémo 🎅</p>
+                            <p style="margin: 4px 0 0; font-size: 12px;">Que les meilleurs lutins l'emportent !</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
