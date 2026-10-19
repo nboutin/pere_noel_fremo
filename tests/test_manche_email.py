@@ -127,6 +127,45 @@ def test_send_annonces_manche_nominal_does_not_advance_edition(tmp_path: Path) -
     assert "https://noel.fremo.fr/lutin/" in premier_msg.html
 
 
+def test_send_annonces_manche_excludes_declared_absents_from_db(tmp_path: Path) -> None:
+    from pere_noel_fremo.database import set_lutin_presence
+
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+
+    data_in_path = tmp_path / "data_in.yml"
+    secure_data_path = tmp_path / "secure_data.yml"
+
+    sample_data: dict[str, Any] = {
+        "lutin_1": {"fullname": "Lutin Un", "email": "l1@fremo.org", "exclude": [], "history": []},
+        "lutin_2": {"fullname": "Lutin Deux", "email": "l2@fremo.org", "exclude": [], "history": []},
+    }
+    with open(data_in_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(sample_data, f)
+    with open(secure_data_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump({}, f)
+
+    import_yaml_data(db_path, data_in_path, secure_data_path, 2026)
+
+    # lutin_2 décline formellement sa présence (present=False)
+    set_lutin_presence(db_path, "lutin_2", 2026, present=False)
+
+    expediteur = ExpediteurMemoire()
+    stats = send_annonces_manche(
+        db_path=db_path,
+        secure_data_path=secure_data_path,
+        manche_id=2,
+        year=2026,
+        expediteur=expediteur,
+    )
+
+    assert stats["total"] == 2
+    assert stats["sent"] == 1
+    assert stats["absent"] == 1
+    assert len(expediteur.messages) == 1
+    assert expediteur.messages[0].destinataire == "l1@fremo.org"
+
+
 def test_send_annonces_manche_dry_run_and_override(tmp_path: Path) -> None:
     db_path = tmp_path / "fremo.db"
     init_db(db_path)

@@ -24,7 +24,7 @@ from .campagne import (
     envoyer_campagne,
     rendre_gabarit,
 )
-from .database import get_lutins
+from .database import connection, get_lutins
 from .edition import annee_courante
 from .gabarits import DEFAULT_MANCHE_TEMPLATE
 
@@ -47,6 +47,16 @@ def charger_infos_manche(manche_id: int, year: int, res_dir: Path | str = "res")
         "title": data.get("title", f"Manche {manche_id}"),
         "estimated_time": data.get("estimated_time", "2 à 5 minutes"),
     }
+
+
+def get_declared_absents(db_path: Path | str, year: int) -> set[str]:
+    """Récupère les identifiants des Lutins ayant formellement décliné leur présence (present = 0)."""
+    with connection(db_path) as conn:
+        rows = conn.execute(
+            "SELECT lutin_id FROM presences WHERE year = ? AND present = 0;",
+            (year,),
+        ).fetchall()
+        return {str(r["lutin_id"]) for r in rows}
 
 
 def format_manche_body(
@@ -136,7 +146,7 @@ def send_annonces_manche(
     sender = secure_data.get("sender_email", EXPEDITEUR_PAR_DEFAUT)
     expediteur = expediteur or ExpediteurGmail(sender, f"la {m_title}", interactive=interactive_auth)
 
-    absents_set = set(absents or []) | set(skip or [])
+    absents_set = set(absents or []) | set(skip or []) | get_declared_absents(db_path, year)
 
     lutins = avec_adresses_de_repli(get_lutins(db_path, active_only=True), secure_data)
     concernes = cibler(lutins, target_lutins)
