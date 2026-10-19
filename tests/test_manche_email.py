@@ -5,7 +5,7 @@ import pytest
 import yaml
 from pere_noel_fremo.campagne import ExpediteurMemoire
 from pere_noel_fremo.cli import main
-from pere_noel_fremo.database import import_yaml_data, init_db
+from pere_noel_fremo.database import connection, import_yaml_data, init_db
 from pere_noel_fremo.edition import StatutEdition, statut
 from pere_noel_fremo.gabarits import DEFAULT_MANCHE_TEMPLATE
 from pere_noel_fremo.manche_email import (
@@ -278,3 +278,87 @@ def test_cli_annonce_manche_dry_run(tmp_path: Path, capsys: pytest.CaptureFixtur
     captured = capsys.readouterr()
     assert "Simulation Annonce Manche 2" in captured.out
     assert "1 courriels préparés" in captured.out
+
+
+def test_trouver_manche_a_annoncer_rules(tmp_path: Path) -> None:
+    from datetime import datetime
+
+    from pere_noel_fremo.database import enregistrer_manche_envoyee
+    from pere_noel_fremo.defi import PARIS_TZ
+    from pere_noel_fremo.manche_email import trouver_manche_a_annoncer
+
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+    with connection(db_path) as conn, conn:
+        conn.execute("INSERT OR IGNORE INTO editions (year, status) VALUES (2026, 'draft');")
+
+    res_dir = tmp_path / "res"
+    grilles_dir = res_dir / "2026" / "grilles"
+    grilles_dir.mkdir(parents=True, exist_ok=True)
+
+    # Manche 3 : déblocage le vendredi 23 octobre à 17:00
+    with open(grilles_dir / "manche_3.yml", "w", encoding="utf-8") as f:
+        yaml.safe_dump({"id": 3, "title": "Manche 3", "unlock_at": "2026-10-23 17:00:00"}, f)
+
+    # Manche 4 : déblocage le lundi 26 octobre à 17:00
+    with open(grilles_dir / "manche_4.yml", "w", encoding="utf-8") as f:
+        yaml.safe_dump({"id": 4, "title": "Manche 4", "unlock_at": "2026-10-26 17:00:00"}, f)
+
+    # 1. Avant le 23 octobre -> aucune manche
+    t1 = datetime(2026, 10, 23, 16, 59, tzinfo=PARIS_TZ)
+    assert trouver_manche_a_annoncer(db_path, 2026, res_dir=res_dir, now=t1) is None
+
+    # 2. À 17h01 le 23 octobre -> Manche 3 trouvée
+    t2 = datetime(2026, 10, 23, 17, 1, tzinfo=PARIS_TZ)
+    assert trouver_manche_a_annoncer(db_path, 2026, res_dir=res_dir, now=t2) == 3
+
+    # 3. Après enregistrement de la Manche 3 -> plus rien à envoyer
+    enregistrer_manche_envoyee(db_path, 2026, 3, count_sent=25)
+    assert trouver_manche_a_annoncer(db_path, 2026, res_dir=res_dir, now=t2) is None
+
+    # 4. Le 26 octobre à 17h01 -> Manche 4 trouvée
+    t3 = datetime(2026, 10, 26, 17, 1, tzinfo=PARIS_TZ)
+    assert trouver_manche_a_annoncer(db_path, 2026, res_dir=res_dir, now=t3) == 4
+
+    # 5. Lookback window dépassée (ex. 10 jours après sans avoir envoyé) -> ignorée
+    t_late = datetime(2026, 11, 10, 12, 0, tzinfo=PARIS_TZ)
+    assert trouver_manche_a_annoncer(db_path, 2026, res_dir=res_dir, max_age_hours=72, now=t_late) is None
+
+
+def test_cli_annonce_manche_auto(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = tmp_path / "fremo.db"
+    init_db(db_path)
+    res_dir = tmp_path / "res"
+    (res_dir / "2026" / "grilles").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr("pere_noel_fremo.cli.resolve_res_dir", lambda: res_dir)
+
+    # Mode auto quand rien n'est à envoyer
+    ret = main(
+        [
+            "annonce-manche",
+            "--auto",
+            "--db-path",
+            str(db_path),
+            "--year",
+            "2026",
+        ]
+    )
+    assert ret == 0
+    captured = capsys.readouterr()
+    assert "Aucune nouvelle manche à annoncer automatiquement" in captured.out
+
+    # Mode manuel sans --manche ni --auto -> erreur 1
+    ret_err = main(
+        [
+            "annonce-manche",
+            "--db-path",
+            str(db_path),
+            "--year",
+            "2026",
+        ]
+    )
+    assert ret_err == 1
+    captured_err = capsys.readouterr()
+    assert "Erreur : veuillez spécifier --manche" in captured_err.out

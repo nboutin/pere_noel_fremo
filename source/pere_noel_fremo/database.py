@@ -82,6 +82,14 @@ CREATE TABLE IF NOT EXISTS attributions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (donneur_id, beneficiaire_id, order_index)
 );
+
+CREATE TABLE IF NOT EXISTS campagnes_manches (
+    year INTEGER NOT NULL REFERENCES editions(year) ON DELETE CASCADE,
+    manche_id INTEGER NOT NULL,
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    count_sent INTEGER NOT NULL,
+    PRIMARY KEY (year, manche_id)
+);
 """
 
 
@@ -312,8 +320,51 @@ def init_db(db_path: Path | str) -> None:
                 ed_cols = [c[1] for c in editions_info]
                 if "date_repas" not in ed_cols:
                     conn.execute("ALTER TABLE editions ADD COLUMN date_repas TEXT;")
+
+            # Sanctuarisation des Manches 1 et 2 déjà envoyées pour l'Édition 2026 (ADR-0015)
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO campagnes_manches (year, manche_id, sent_at, count_sent)
+                SELECT 2026, 1, '2026-10-12 17:00:00', 25
+                WHERE EXISTS (SELECT 1 FROM editions WHERE year = 2026);
+                """
+            )
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO campagnes_manches (year, manche_id, sent_at, count_sent)
+                SELECT 2026, 2, '2026-10-19 17:00:00', 25
+                WHERE EXISTS (SELECT 1 FROM editions WHERE year = 2026);
+                """
+            )
     finally:
         conn.close()
+
+
+def est_manche_envoyee(conn_or_path: Path | str | sqlite3.Connection, year: int, manche_id: int) -> bool:
+    """Indique si la campagne d'Annonce de manche a déjà été enregistrée pour cette édition."""
+    with connection(conn_or_path) as conn:
+        row = conn.execute(
+            "SELECT 1 FROM campagnes_manches WHERE year = ? AND manche_id = ?;",
+            (year, manche_id),
+        ).fetchone()
+        return row is not None
+
+
+def enregistrer_manche_envoyee(
+    conn_or_path: Path | str | sqlite3.Connection, year: int, manche_id: int, count_sent: int
+) -> None:
+    """Enregistre l'envoi d'une Annonce de manche pour garantir l'idempotence."""
+    with _write_transaction(conn_or_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO campagnes_manches (year, manche_id, sent_at, count_sent)
+            VALUES (?, ?, CURRENT_TIMESTAMP, ?)
+            ON CONFLICT(year, manche_id) DO UPDATE SET
+                sent_at = excluded.sent_at,
+                count_sent = excluded.count_sent;
+            """,
+            (year, manche_id, count_sent),
+        )
 
 
 def import_yaml_data(

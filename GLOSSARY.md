@@ -63,7 +63,7 @@ Courriel officiel notifiant les Lutins que le Tirage au sort a été réalisé, 
 _Avoid_: Découverte, déblocage, notification de tirage, alerte
 
 **Annonce de manche**:
-Courriel officiel notifiant les Lutins de l'ouverture bi-hebdomadaire d'une nouvelle Grille logique du Défi du lutin, transmettant les informations de l'épreuve (titre et durée estimée) et le Lien magique vers l'Espace Lutin, sans modifier le statut de l'Édition. Doit respecter les standards d'e-mailing HTML « bulletproof » de l'ADR-0010.
+Courriel officiel notifiant les Lutins de l'ouverture bi-hebdomadaire d'une nouvelle Grille logique du Défi du lutin, transmettant les informations de l'épreuve (titre et durée estimée) et le Lien magique vers l'Espace Lutin, sans modifier le statut de l'Édition. Déclenchable manuellement ou automatiquement par le planificateur hôte (`--auto`) avec garantie d'idempotence via la table `campagnes_manches`. Doit respecter les standards d'e-mailing HTML « bulletproof » de l'ADR-0010.
 _Avoid_: Relance de manche, alerte manche, notification d'épreuve, newsletter de jeu
 
 **Campagne**:

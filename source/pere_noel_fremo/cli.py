@@ -9,7 +9,7 @@ from .config import default_db_path, resolve_res_dir
 from .database import import_yaml_data
 from .edition import annee_courante
 from .helper import configure_logger
-from .manche_email import send_annonces_manche
+from .manche_email import send_annonces_manche, trouver_manche_a_annoncer
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -145,8 +145,13 @@ def create_parser() -> argparse.ArgumentParser:
     annonce_manche_parser.add_argument(
         "--manche",
         type=int,
-        required=True,
+        default=None,
         help="Numéro de la manche du Défi du lutin (1 à 15)",
+    )
+    annonce_manche_parser.add_argument(
+        "--auto",
+        action="store_true",
+        help="Détecte et annonce automatiquement la manche déverrouillée non encore envoyée (ADR-0015)",
     )
     annonce_manche_parser.add_argument(
         "--db-path",
@@ -524,9 +529,21 @@ def handle_annonce(args: argparse.Namespace) -> int:
 def handle_annonce_manche(args: argparse.Namespace) -> int:
     db_path: Path = args.db_path
     secure_data_path: Path = args.secure_data
+    res_dir = resolve_res_dir()
+
+    if getattr(args, "auto", False):
+        manche_auto = trouver_manche_a_annoncer(db_path, args.year, res_dir=res_dir)
+        if manche_auto is None:
+            print(
+                "Aucune nouvelle manche à annoncer automatiquement (toutes les manches échues ont déjà été envoyées)."
+            )
+            return 0
+        args.manche = manche_auto
+    elif args.manche is None:
+        print("Erreur : veuillez spécifier --manche <ID> ou utiliser le mode automatique --auto.")
+        return 1
 
     template_path = args.template
-    res_dir = resolve_res_dir()
     if template_path is None:
         candidate_template = res_dir / str(args.year) / f"manche_{args.manche}_email.txt"
         if candidate_template.exists():

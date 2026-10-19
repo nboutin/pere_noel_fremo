@@ -5,6 +5,7 @@ avec son Lien magique vers son Espace Lutin.
 Cette campagne n'a aucun effet de transition sur le cycle de vie de l'Édition.
 """
 
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +25,8 @@ from .campagne import (
     envoyer_campagne,
     rendre_gabarit,
 )
-from .database import connection, get_lutins
+from .database import connection, enregistrer_manche_envoyee, est_manche_envoyee, get_lutins
+from .defi import PARIS_TZ, _parse_unlock_at
 from .edition import annee_courante
 from .gabarits import DEFAULT_MANCHE_TEMPLATE
 
@@ -57,6 +59,54 @@ def get_declared_absents(db_path: Path | str, year: int) -> set[str]:
             (year,),
         ).fetchall()
         return {str(r["lutin_id"]) for r in rows}
+
+
+def trouver_manche_a_annoncer(
+    db_path: Path | str,
+    year: int,
+    res_dir: Path | str = "res",
+    max_age_hours: int = 72,
+    now: datetime | None = None,
+) -> int | None:
+    """Identifie la manche la plus récente déverrouillée et non encore envoyée (ADR-0015).
+
+    Seules les manches dont l'ouverture est échue (unlock_at <= now) et dans la fenêtre
+    de rattrapage (now - unlock_at <= max_age_hours) sont candidates.
+    """
+    if now is None:
+        now = datetime.now(PARIS_TZ)
+    elif now.tzinfo is None:
+        now = now.replace(tzinfo=PARIS_TZ)
+
+    candidats: list[tuple[int, datetime]] = []
+    grilles_dir = Path(res_dir) / str(year) / "grilles"
+    if not grilles_dir.exists():
+        return None
+
+    limite_age = now - timedelta(hours=max_age_hours)
+
+    for fichier in sorted(grilles_dir.glob("manche_*.yml")):
+        with open(fichier, encoding="utf-8") as stream:
+            data = yaml.safe_load(stream) or {}
+        manche_id = data.get("id")
+        unlock_val = data.get("unlock_at")
+        if not manche_id or not unlock_val:
+            continue
+
+        try:
+            unlock_dt = _parse_unlock_at(unlock_val).astimezone(PARIS_TZ)
+        except (ValueError, TypeError):
+            continue
+
+        if limite_age <= unlock_dt <= now and not est_manche_envoyee(db_path, year, int(manche_id)):
+            candidats.append((int(manche_id), unlock_dt))
+
+    if not candidats:
+        return None
+
+    # Sélectionner la manche la plus récemment déverrouillée
+    candidats.sort(key=lambda c: (c[1], c[0]), reverse=True)
+    return candidats[0][0]
 
 
 def format_manche_body(
@@ -165,6 +215,9 @@ def send_annonces_manche(
         override_email=recipient_override,
         cible=bool(target_lutins),
     )
+
+    if not simulation and bilan.nominal and bilan.echecs == 0 and bilan.envoyes > 0:
+        enregistrer_manche_envoyee(db_path, year, manche_id, bilan.envoyes)
 
     return {
         "total": len(lutins),
