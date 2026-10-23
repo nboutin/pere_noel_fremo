@@ -26,7 +26,11 @@ def test_db(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def client(test_db: Path) -> TestClient:
-    app = create_app(db_path=test_db)
+    from datetime import datetime
+
+    from pere_noel_fremo.config import PARIS_TZ
+
+    app = create_app(db_path=test_db, clock=lambda: datetime(2026, 10, 20, 12, 0, tzinfo=PARIS_TZ))
     return TestClient(app)
 
 

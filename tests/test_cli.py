@@ -1094,3 +1094,113 @@ def test_main_deux_fois_sans_handler_en_double(journaux_isoles: Path) -> None:
 
     assert len(logging.getLogger("").handlers) == nombre
     assert journaux_isoles.read_text(encoding="utf-8").count("deux") == 1
+
+
+def test_cli_auth_status_nominal(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from unittest.mock import MagicMock, patch
+
+    from pere_noel_fremo.cli import main
+
+    fake_creds = MagicMock(
+        valid=True, expired=False, expiry=None, scopes=["https://www.googleapis.com/auth/gmail.compose"]
+    )
+    token_file = tmp_path / "token.json"
+    token_file.write_text("{}", encoding="utf-8")
+    secrets_file = tmp_path / "secrets.json"
+    secrets_file.write_text("{}", encoding="utf-8")
+
+    with (
+        patch("pere_noel_fremo.helper.get_token_path", return_value=token_file),
+        patch("pere_noel_fremo.helper.get_credentials_path", return_value=secrets_file),
+        patch("pere_noel_fremo.helper.load_credentials", return_value=fake_creds),
+    ):
+        code = main(["auth", "--status"])
+
+    assert code == 0
+    captured = capsys.readouterr().out
+    assert "=== Statut OAuth Gmail ===" in captured
+    assert "VALIDE" in captured
+    assert "https://www.googleapis.com/auth/gmail.compose" in captured
+
+
+def test_cli_auth_status_token_missing(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from unittest.mock import patch
+
+    from pere_noel_fremo.cli import main
+
+    token_file = tmp_path / "non_existent.json"
+    secrets_file = tmp_path / "secrets.json"
+
+    with (
+        patch("pere_noel_fremo.helper.get_token_path", return_value=token_file),
+        patch("pere_noel_fremo.helper.get_credentials_path", return_value=secrets_file),
+    ):
+        code = main(["auth", "--status"])
+
+    assert code == 1
+    captured = capsys.readouterr().out
+    assert "Aucun jeton actif" in captured
+
+
+def test_cli_auth_status_token_error(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from unittest.mock import patch
+
+    from pere_noel_fremo.cli import main
+    from pere_noel_fremo.helper import EmailSendError
+
+    token_file = tmp_path / "token.json"
+    token_file.write_text("{}", encoding="utf-8")
+    secrets_file = tmp_path / "secrets.json"
+
+    with (
+        patch("pere_noel_fremo.helper.get_token_path", return_value=token_file),
+        patch("pere_noel_fremo.helper.get_credentials_path", return_value=secrets_file),
+        patch("pere_noel_fremo.helper.load_credentials", side_effect=EmailSendError("Jeton expiré")),
+    ):
+        code = main(["auth", "--status"])
+
+    assert code == 1
+    captured = capsys.readouterr().out
+    assert "Jeton invalide ou non rafraîchissable" in captured
+
+
+def test_cli_auth_renew_success(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from unittest.mock import MagicMock, patch
+
+    from pere_noel_fremo.cli import main
+
+    fake_creds = MagicMock(valid=True, expired=False)
+    token_file = tmp_path / "token.json"
+    secrets_file = tmp_path / "secrets.json"
+
+    with (
+        patch("pere_noel_fremo.helper.get_token_path", return_value=token_file),
+        patch("pere_noel_fremo.helper.get_credentials_path", return_value=secrets_file),
+        patch("pere_noel_fremo.helper.load_credentials", return_value=fake_creds) as mock_load,
+    ):
+        code = main(["auth", "--renew"])
+
+    assert code == 0
+    mock_load.assert_called_once_with(interactive=True)
+    captured = capsys.readouterr().out
+    assert "Jeton OAuth renouvelé avec succès" in captured
+
+
+def test_cli_auth_renew_failure(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from unittest.mock import patch
+
+    from pere_noel_fremo.cli import main
+
+    token_file = tmp_path / "token.json"
+    secrets_file = tmp_path / "secrets.json"
+
+    with (
+        patch("pere_noel_fremo.helper.get_token_path", return_value=token_file),
+        patch("pere_noel_fremo.helper.get_credentials_path", return_value=secrets_file),
+        patch("pere_noel_fremo.helper.load_credentials", side_effect=RuntimeError("Auth aborted")),
+    ):
+        code = main(["auth", "--renew"])
+
+    assert code == 1
+    captured = capsys.readouterr().out
+    assert "Échec du renouvellement du jeton OAuth" in captured

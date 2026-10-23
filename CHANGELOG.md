@@ -9,6 +9,7 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 ### Added
 
+- Authentification Gmail : sous-commande CLI `pere-noel auth` avec drapeaux `--status` (diagnostic de validité, expiration et scopes) et `--renew` (ré-authentification OAuth2 interactive dédiée) (#96).
 - Espace Admin : interface web `/admin` (connexion par mot de passe, session signée, bandeau de synthèse, filtres) sous Admin aveugle, avec garde Tailscale Funnel (#80).
 
 ### Changed
@@ -18,6 +19,8 @@ et ce projet adhère à la spécification [Semantic Versioning](https://semver.o
 
 ### Fixed
 
+- Authentification OAuth : passage systématique de `prompt="consent"` et affichage clair de l'URL d'autorisation dans `load_credentials(interactive=True)` (#96).
+- Tests web : injection d'une horloge figée (`clock`) sur le client de test FastAPI dans `tests/test_web.py` pour immuniser la suite contre le dépassement des dates réelles de déverrouillage (#96).
 - Espace Admin : le bouton « Copier l'URL » copie le Lien magique avec le `base_url` configuré dans `secure_data.yml` (repli sur `request.base_url`), et non l'URL du port admin ; ajout d'un rappel Admin aveugle et suppression du paramètre `res_dir` inutilisé de `get_admin_edition_summary` (#89).
 
 ### Security

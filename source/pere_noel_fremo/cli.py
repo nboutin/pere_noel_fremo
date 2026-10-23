@@ -402,6 +402,22 @@ def create_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    # Subcommand: auth
+    auth_parser = subparsers.add_parser(
+        "auth",
+        help="Gère et inspecte le jeton OAuth2 Gmail",
+    )
+    auth_parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Vérifie la validité et l'expiration du jeton (par défaut)",
+    )
+    auth_parser.add_argument(
+        "--renew",
+        action="store_true",
+        help="Lance la ré-authentification OAuth2 interactive locale",
+    )
+
     # Subcommand: export
     export_parser = subparsers.add_parser(
         "export",
@@ -780,6 +796,46 @@ def handle_export(args: argparse.Namespace) -> int:
         return 1
 
 
+def handle_auth(args: argparse.Namespace) -> int:
+    from .helper import get_credentials_path, get_token_path, load_credentials
+
+    token_path = get_token_path()
+    creds_path = get_credentials_path()
+
+    if getattr(args, "renew", False):
+        print(f"Lancement du renouvellement OAuth interactif depuis {creds_path}...", flush=True)
+        try:
+            creds = load_credentials(interactive=True)
+            print(f"Jeton OAuth renouvelé avec succès : {token_path}", flush=True)
+            print(f"Statut : valide={creds.valid}, expiré={creds.expired}", flush=True)
+            return 0
+        except Exception as exc:
+            print(f"Échec du renouvellement du jeton OAuth : {exc}", flush=True)
+            return 1
+
+    print("=== Statut OAuth Gmail ===", flush=True)
+    print(f"Fichier client_secrets : {creds_path} ({'présent' if creds_path.exists() else 'MANQUANT'})", flush=True)
+    print(f"Fichier token          : {token_path} ({'présent' if token_path.exists() else 'MANQUANT'})", flush=True)
+
+    if not token_path.exists():
+        print("Aucun jeton actif. Exécutez 'pere-noel auth --renew' pour vous authentifier.", flush=True)
+        return 1
+
+    try:
+        creds = load_credentials(interactive=False)
+        print(f"Validité               : {'VALIDE' if creds.valid else 'INVALIDE'}", flush=True)
+        print(f"Expiré                 : {'OUI' if creds.expired else 'NON'}", flush=True)
+        if hasattr(creds, "expiry") and creds.expiry:
+            print(f"Date d'expiration      : {creds.expiry.isoformat()}", flush=True)
+        if hasattr(creds, "scopes") and creds.scopes:
+            print(f"Périmètres (scopes)    : {', '.join(creds.scopes)}", flush=True)
+        return 0
+    except Exception as exc:
+        print(f"Jeton invalide ou non rafraîchissable : {exc}", flush=True)
+        print("Exécutez 'pere-noel auth --renew' pour régénérer le jeton.", flush=True)
+        return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     configure_logger("pere_noel.log")
     parser = create_parser()
@@ -812,6 +868,8 @@ def main(argv: list[str] | None = None) -> int:
         return handle_revelation(args)
     if args.command == "export":
         return handle_export(args)
+    if args.command == "auth":
+        return handle_auth(args)
 
     return 0
 

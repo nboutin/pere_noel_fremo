@@ -129,7 +129,11 @@ def load_credentials(interactive: bool = False) -> Credentials:
             if not interactive:
                 raise EmailSendError("Jeton Gmail invalide : ré-authentifier en local")
             flow = InstalledAppFlow.from_client_secrets_file(str(credentials_path), SCOPES)
-            creds = flow.run_local_server(port=0)
+            creds = flow.run_local_server(
+                port=0,
+                prompt="consent",
+                authorization_prompt_message="Veuillez autoriser l'accès via cette URL :\n{url}\n",
+            )
         if creds:
             fd = os.open(token_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
             with os.fdopen(fd, "w", encoding="utf-8") as token:
